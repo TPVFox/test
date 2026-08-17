@@ -1,0 +1,21 @@
+{
+    "name": "tpvfox-test",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Suite de pruebas de TPVFox — Jest (unitario/integración JS) y Playwright (E2E)",
+    "scripts": {
+        "test:php": "vendor/bin/phpunit --testsuite unit-php",
+        "test:php:int": "vendor/bin/phpunit --testsuite integration-php",
+        "test:js": "jest --selectProjects unit-js",
+        "test:js:int": "jest --selectProjects integration-js",
+        "test:e2e": "playwright test",
+        "test:e2e:ui": "playwright test --ui",
+        "entorno:up": "docker compose -f entorno/docker-compose.yml up -d",
+        "entorno:down": "docker compose -f entorno/docker-compose.yml down -v"
+    },
+    "devDependencies": {
+        "@playwright/test": "1.61.1",
+        "jest": "^29.7.0"
+    },
+    "engines": { "node": ">=18.19.0 <20" }
+}

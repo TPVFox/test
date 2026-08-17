@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="support/bootstrap.php" colors="true" cacheResultFile=".phpunit.cache">
+    <testsuites>
+        <testsuite name="unit-php">
+            <directory suffix="Test.php">Unit/PHP</directory>
+        </testsuite>
+        <testsuite name="integration-php">
+            <directory suffix="Test.php">Integration/PHP</directory>
+        </testsuite>
+    </testsuites>
+    <coverage>
+        <include><directory suffix=".php">../TPVFox/modulos</directory></include>
+        <exclude><directory>../TPVFox/lib</directory></exclude>
+    </coverage>
+</phpunit>

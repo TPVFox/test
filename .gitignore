@@ -1,0 +1,7 @@
+node_modules/
+vendor/
+.phpunit.cache/
+coverage/
+E2E/informe/
+test-results/
+.env
