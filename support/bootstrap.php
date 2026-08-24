@@ -29,3 +29,10 @@ if ($rutaCodigo === false || !is_dir($rutaCodigo . '/modulos')) {
 }
 
 define('RUTA_TPVFOX', $rutaCodigo);
+
+// TPVFox no tiene autocarga: cada fichero que se incluye resuelve sus propios includes
+// con estas tres variables globales, tal como hace inicial.php en producción. Sin
+// definirlas aquí, cada caso de integración tendría que repetirlas.
+$RutaServidor = '';
+$HostNombre = RUTA_TPVFOX;
+$URLCom = RUTA_TPVFOX;

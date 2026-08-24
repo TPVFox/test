@@ -38,9 +38,16 @@ if ($ambito === '') {
     exit(1);
 }
 
+// pcov solo instrumenta su pcov.directory, y por defecto suele apuntar a este propio
+// repositorio. El código bajo prueba vive en el hermano ../TPVFox, fuera de ese árbol,
+// así que con el valor por defecto la cobertura sale siempre a 0 sin avisar. Se
+// redirige aquí a la carpeta que contiene a los dos, sin tocar la configuración de la
+// máquina.
 $clover = sys_get_temp_dir() . '/cobertura-tpvfox-' . getmypid() . '.xml';
 $orden  = sprintf(
-    '%s --testsuite %s --coverage-clover %s',
+    '%s -d pcov.directory=%s %s --testsuite %s --coverage-clover %s',
+    escapeshellarg(PHP_BINARY),
+    escapeshellarg(dirname(RUTA_TPVFOX)),
     escapeshellarg(__DIR__ . '/../vendor/bin/phpunit'),
     escapeshellarg($suites),
     escapeshellarg($clover)

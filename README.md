@@ -132,6 +132,23 @@ Carga el esquema de referencia de `BD/BDtpv/` del clon de TPVFox: 74 tablas y la
 datos. **Los datos de siembra se generan**; no se extraen de ninguna instalación real, y ninguno
 entra en este repositorio.
 
+### 4. Conectar el propio TPVFox a la base de pruebas
+
+Necesario solo para los casos de integración que ejercitan código que hereda de `TFModelo`: ese
+código abre su propia conexión —independiente de la que usa la suite para sembrar y comprobar—, a
+través de `TPVFox/configuracion.php`. TPVFox no trae ese fichero (cada despliegue real tiene el
+suyo, con sus propias credenciales) y no se versiona.
+
+`TPVFox/configuracion.php`, en el clon de TPVFox contra el que corre la suite:
+
+```php
+<?php
+$servidorMysql = 'localhost';
+$nombrebdMysql = 'tpvfox_test_2026';   // el mismo valor que TPVFOX_TEST_DB_VIGENTE
+$usuarioMysql  = 'tpvfox';
+$passwordMysql = '<contraseña>';
+```
+
 ### Aislamiento entre casos
 
 Cada caso se envuelve en transacción con `ROLLBACK`: ningún dato persiste.

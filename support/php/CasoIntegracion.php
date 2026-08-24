@@ -102,4 +102,16 @@ abstract class CasoIntegracion extends TestCase
 
         return $db;
     }
+
+    /**
+     * Incluye un fichero de TPVFox resolviendo las variables globales que su
+     * convencion de includes exige (RutaServidor, HostNombre, URLCom), definidas una
+     * vez en bootstrap.php. TPVFox no tiene autocarga: cada fichero las necesita ya
+     * puestas en el ambito desde el que se incluye.
+     */
+    protected function incluirTPVFox(string $rutaRelativa): void
+    {
+        global $RutaServidor, $HostNombre, $URLCom;
+        require_once RUTA_TPVFOX . $rutaRelativa;
+    }
 }
