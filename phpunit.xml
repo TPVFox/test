@@ -8,8 +8,26 @@
             <directory suffix="Test.php">Integration/PHP</directory>
         </testsuite>
     </testsuites>
+    <!--
+        Ambito de medida: el codigo propio del producto, no solo los modulos. Las clases
+        base de `clases/` son las que el codigo nuevo hereda y consume, de modo que
+        dejarlas fuera seria no medir lo que el sistema usa.
+
+        El umbral no se aplica sobre este ambito completo, sino sobre el que declare cada
+        ejecucion. Lo declara el guion support/cobertura.php, con una carpeta o un fichero.
+    -->
     <coverage>
-        <include><directory suffix=".php">../TPVFox/modulos</directory></include>
-        <exclude><directory>../TPVFox/lib</directory></exclude>
+        <include>
+            <directory suffix=".php">../TPVFox/modulos</directory>
+            <directory suffix=".php">../TPVFox/clases</directory>
+            <directory suffix=".php">../TPVFox/controllers</directory>
+            <directory suffix=".php">../TPVFox/app</directory>
+        </include>
+        <exclude>
+            <directory>../TPVFox/lib</directory>
+            <directory>../TPVFox/plugins</directory>
+            <directory>../TPVFox/jquery</directory>
+            <directory>../TPVFox/estatico</directory>
+        </exclude>
     </coverage>
 </phpunit>

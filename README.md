@@ -176,5 +176,31 @@ equipo de ejecución pase a Node 20 se revisa; hasta entonces no hay motivo.
 
 ## Cobertura
 
-Umbral **70%** en líneas, funciones y sentencias, medido sobre `modulos/` del código bajo
-prueba — no sobre una lista de ficheros elegidos.
+El objetivo es **70%** en líneas y en métodos. Lo que se declara en cada ejecución no es el
+umbral sino **el ámbito**: un porcentaje solo significa algo si se dice sobre qué se mide.
+
+```bash
+npm run cobertura -- modulos/mod_reorganizacion            # una carpeta
+npm run cobertura -- clases/ClaseTFModelo.php              # un fichero
+npm run cobertura -- mod_reorganizacion/clases/Comproba    # un prefijo de ruta
+npm run cobertura -- modulos/mod_informes --umbral=80
+npm run cobertura -- <ámbito> --suites=unit-php
+```
+
+El ámbito **no tiene valor por defecto**, a propósito: este repositorio prueba TPVFox entero,
+y un ámbito por defecto acabaría midiendo siempre lo de una entrega concreta. El guion sale
+con error si el ámbito no casa con ningún fichero medido, si la suite no pasa, o si no se
+alcanza el umbral. Cuando falla, lista los cinco ficheros que más lastran.
+
+**Qué se mide y qué no** (`phpunit.xml`, bloque `<coverage>`): entra el código propio del
+producto —`modulos/`, `clases/`, `controllers/`, `app/`—, y no solo los módulos: las clases
+base de `clases/` son las que el código de los módulos hereda y consume. Queda fuera `lib/`,
+que es de terceros, y `plugins/`, `jquery/` y `estatico/`.
+
+**Medir un módulo que ya tenía código.** Un módulo con código anterior a las pruebas arrastra
+su cobertura hacia abajo aunque lo nuevo esté verificado del todo. Ahí el ámbito se declara
+por prefijo de ruta, de forma que mida el código que la entrega produce; la cobertura del
+código anterior es un objetivo aparte y no la decide una entrega que no lo tocó.
+
+**En JavaScript** el umbral sigue configurado como global en `jest.config.js`. Cuando existan
+pruebas JS habrá que darle el mismo tratamiento; hoy no hay ninguna.
