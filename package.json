@@ -10,6 +10,7 @@
         "test:js:int": "jest --selectProjects integration-js",
         "test:e2e": "playwright test",
         "test:e2e:ui": "playwright test --ui",
+        "bases:preparar": "php support/preparar-bases.php",
         "entorno:up": "docker compose -f entorno/docker-compose.yml up -d",
         "entorno:down": "docker compose -f entorno/docker-compose.yml down -v"
     },

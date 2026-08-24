@@ -1,7 +1,22 @@
+# Dependencias
 node_modules/
 vendor/
-.phpunit.cache/
+
+# Configuracion local: lleva credenciales de la base de pruebas
+.env
+.env.*
+
+# Salidas de ejecucion
+.phpunit.cache
+.phpunit.result.cache
 coverage/
 E2E/informe/
 test-results/
-.env
+playwright-report/
+blob-report/
+*.log
+
+# Ruido del editor y del sistema
+.idea/
+.vscode/
+.DS_Store
