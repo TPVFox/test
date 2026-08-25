@@ -106,7 +106,9 @@ final class ComprobacionContextoIntegracionTest extends CasoIntegracion
         $contexto = $comprobacion->abrir();
         self::assertTrue($contexto['ok']);
 
-        $db = $comprobacion->conexionBDTPV();
+        // La conexión del producto se toma de la clase de consulta, que es la única
+        // del módulo que la sostiene: el bloque de lectura se abre sobre ella.
+        $db = (new \ClaseComprobacionStockConsulta())->conexionBDTPV();
         $enTransaccion = $db->query('SELECT @@in_transaction AS activa')->fetch_assoc();
         self::assertSame('1', $enTransaccion['activa']);
 
