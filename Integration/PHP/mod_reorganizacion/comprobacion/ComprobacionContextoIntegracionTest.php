@@ -37,6 +37,7 @@ final class ComprobacionContextoIntegracionTest extends CasoIntegracion
         self::assertSame('2019', $contexto['ano']);
         self::assertSame('42', $contexto['idTienda']);
         self::assertSame(7, $contexto['ventanaDias']);
+        self::assertSame(50.0, $contexto['umbralSobrestock']);
         self::assertSame(112, $contexto['proveedorCierre']);
         self::assertEqualsCanonicalizing([13, 21, 22, 42], $contexto['familiasExcluidas']);
 
