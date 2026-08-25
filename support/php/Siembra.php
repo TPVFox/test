@@ -97,8 +97,8 @@ final class Siembra
     /**
      * Fija la existencia registrada del articulo.
      *
-     * El sistema bajo prueba no la lee —es el punto de CG-01—, de modo que sirve para
-     * comprobar precisamente que alterarla no cambia el resultado.
+     * El sistema bajo prueba no la lee, de modo que sirve para comprobar precisamente
+     * que alterarla no cambia el resultado.
      */
     public function existenciaRegistrada(int $idArticulo, float $stockOn): int
     {

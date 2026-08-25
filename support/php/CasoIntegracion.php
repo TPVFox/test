@@ -13,6 +13,7 @@ namespace TPVFox\Test;
 
 use mysqli;
 use PHPUnit\Framework\TestCase;
+use ReflectionProperty;
 use RuntimeException;
 
 abstract class CasoIntegracion extends TestCase
@@ -39,6 +40,20 @@ abstract class CasoIntegracion extends TestCase
      */
     protected bool $aislarPorTransaccion = true;
 
+    /**
+     * Si es true, el codigo bajo prueba —cualquier clase que herede de TFModelo, via
+     * ModeloP::getDbo()— usa esta misma conexion en vez de abrir la suya propia. Sin
+     * esto, lo que Siembra inserta en esta conexion es invisible para el codigo bajo
+     * prueba hasta el commit, y el commit nunca llega porque el aislamiento es por
+     * ROLLBACK.
+     *
+     * No lo activan los casos que ademas ejercitan que el propio codigo bajo prueba
+     * abre su propia transaccion de solo lectura: un START TRANSACTION dentro de otro
+     * confirma el anterior de forma implicita, y el aislamiento por ROLLBACK dejaria
+     * de proteger.
+     */
+    protected bool $compartirConexionConElProducto = false;
+
     protected ?mysqli $db = null;
 
     protected function setUp(): void
@@ -49,10 +64,18 @@ abstract class CasoIntegracion extends TestCase
         if ($this->aislarPorTransaccion) {
             $this->db->begin_transaction();
         }
+
+        if ($this->compartirConexionConElProducto) {
+            $this->fijarConexionDelProducto($this->db);
+        }
     }
 
     protected function tearDown(): void
     {
+        if ($this->compartirConexionConElProducto) {
+            $this->fijarConexionDelProducto(null);
+        }
+
         if ($this->db instanceof mysqli) {
             if ($this->aislarPorTransaccion) {
                 $this->db->rollback();
@@ -61,6 +84,22 @@ abstract class CasoIntegracion extends TestCase
             $this->db = null;
         }
         parent::tearDown();
+    }
+
+    /**
+     * Inyecta (o libera, con null) la conexion que usara ModeloP::getDbo() a partir de
+     * ahora, sobre la propiedad estatica que TPVFox comparte entre todas las clases
+     * que heredan de TFModelo. Incluye claseModeloP.php si todavia no estaba cargada.
+     */
+    private function fijarConexionDelProducto(?mysqli $conexion): void
+    {
+        if (!class_exists('ModeloP')) {
+            $this->incluirTPVFox('/modulos/claseModeloP.php');
+        }
+
+        $propiedad = new ReflectionProperty('ModeloP', 'db');
+        $propiedad->setAccessible(true);
+        $propiedad->setValue(null, $conexion);
     }
 
     /**
