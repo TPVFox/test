@@ -169,6 +169,40 @@ npm run entorno:up
 npm run entorno:down     # -v incluido: destruye también los volúmenes
 ```
 
+## Usuario para los recorridos E2E
+
+Playwright inicia sesión como un usuario real del despliegue contra el que corre: no hay ningún
+mecanismo en este repositorio que lo siembre — ni `Siembra` (que no toca `usuarios`) ni ningún otro. Hay
+que crearlo a mano, una vez por base de pruebas, y exportar `TPVFOX_E2E_USUARIO`/`TPVFOX_E2E_CLAVE`
+antes de `npm run test:e2e`.
+
+Con un grupo `group_id = 9` el usuario es administrador y no hace falta dar de alta permisos fila a
+fila: `ClasePermisos` los resuelve todos a 1 automáticamente. Hace falta también una tienda con
+`tipoTienda = 'principal'` — solo puede haber una activa — y su fila en `indices`:
+
+```php
+<?php
+require_once 'test/support/php/Siembra.php';
+$db = new mysqli('localhost', 'tpvfox', 'tpvfox', 'tpvfox_test_2026');
+$siembra = new TPVFox\Test\Siembra($db);
+$idTienda = $siembra->tienda('2026');
+// usuarioPorDefecto() no sirve aquí: crea group_id=1 y una contraseña que no es un hash válido.
+// Hace falta un INSERT propio en usuarios (password = MD5(clave), group_id = 9, estado = 'activo')
+// y otro en indices (idTienda, idUsuario) para que el login lo acepte como sesión completa.
+```
+
+Los recorridos de la comprobación de existencias en el cambio de año suben además un fichero de
+ejemplo, generado con el propio código de emisión en vez de a mano:
+
+```bash
+php support/generar-fixture-e2e.php <ano-vigente> <idTienda>
+```
+
+`<ano-vigente>` es el ejercicio del despliegue contra el que corre el recorrido del vigente, y
+`<idTienda>` la tienda sembrada en esa base. El recorrido del anterior necesita correr contra el
+despliegue del ejercicio inmediatamente anterior a ese, con su propio usuario y su propia tienda
+sembrados igual.
+
 ## Ejecución
 
 ```bash

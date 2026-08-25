@@ -66,7 +66,7 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
                 'minimoAlcanzado' => -8.5,
                 'saldoDeApertura' => 3.0,
                 'marcado' => true,
-                'tipoIncidencia' => 'C1a',
+                'tipoIncidencia' => 'Inventario en negativo',
                 'condicionesConocidas' => ['periodo_no_consolidado'],
             ],
             [

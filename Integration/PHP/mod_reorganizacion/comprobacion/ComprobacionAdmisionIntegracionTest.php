@@ -147,7 +147,7 @@ final class ComprobacionAdmisionIntegracionTest extends CasoIntegracion
         $idArticulo = $this->siembra->articulo('Producto con contraparte en el anterior');
 
         $ruta = $this->emitirFichero(
-            [['idArticulo' => $idArticulo, 'saldoAlCorte' => -3.0, 'minimoAlcanzado' => -6.0, 'saldoDeApertura' => 3.0, 'marcado' => true, 'tipoIncidencia' => 'C1a', 'condicionesConocidas' => ['periodo_no_consolidado']]],
+            [['idArticulo' => $idArticulo, 'saldoAlCorte' => -3.0, 'minimoAlcanzado' => -6.0, 'saldoDeApertura' => 3.0, 'marcado' => true, 'tipoIncidencia' => 'Inventario en negativo', 'condicionesConocidas' => ['periodo_no_consolidado']]],
             $this->contextoVigente()
         );
 
