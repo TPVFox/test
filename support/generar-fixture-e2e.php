@@ -37,7 +37,10 @@ $contextoOperacion = [
     'ano' => $anoVigente,
     'idTienda' => $idTienda,
     'ventanaDias' => 7,
-    'umbralSobrestock' => 50.0,
+    'umbralFraccionado' => 0.05,
+    'umbralMagnitud' => 0.5,
+    'umbralPorVenta' => 0.010,
+    'timingVentanaDias' => 1,
     'proveedorCierre' => 112,
     'familiasExcluidas' => [],
 ];

@@ -32,6 +32,10 @@ final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
             'idTienda' => '1',
             'familiasExcluidas' => [],
             'ventanaDias' => 0,
+            'umbralFraccionado' => 0.05,
+            'umbralMagnitud' => 0.5,
+            'umbralPorVenta' => 0.010,
+            'timingVentanaDias' => 1,
         ], $cambios);
     }
 

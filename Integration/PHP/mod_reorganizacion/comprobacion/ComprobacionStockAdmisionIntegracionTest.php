@@ -56,7 +56,10 @@ final class ComprobacionStockAdmisionIntegracionTest extends CasoIntegracion
             'ano' => '2026',
             'idTienda' => '1',
             'ventanaDias' => 7,
-            'umbralSobrestock' => 50.0,
+            'umbralFraccionado' => 0.05,
+            'umbralMagnitud' => 0.5,
+            'umbralPorVenta' => 0.010,
+            'timingVentanaDias' => 1,
             'proveedorCierre' => 112,
             'familiasExcluidas' => [],
         ], $cambios);
@@ -69,7 +72,10 @@ final class ComprobacionStockAdmisionIntegracionTest extends CasoIntegracion
             'ano' => '2025',
             'idTienda' => '1',
             'ventanaDias' => 7,
-            'umbralSobrestock' => 50.0,
+            'umbralFraccionado' => 0.05,
+            'umbralMagnitud' => 0.5,
+            'umbralPorVenta' => 0.010,
+            'timingVentanaDias' => 1,
             'proveedorCierre' => 112,
             'familiasExcluidas' => [],
         ], $cambios);
