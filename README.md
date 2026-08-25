@@ -231,9 +231,9 @@ El objetivo es **70%** en líneas y en métodos. Lo que se declara en cada ejecu
 umbral sino **el ámbito**: un porcentaje solo significa algo si se dice sobre qué se mide.
 
 ```bash
-npm run cobertura -- modulos/mod_reorganizacion            # una carpeta
-npm run cobertura -- clases/ClaseTFModelo.php              # un fichero
-npm run cobertura -- mod_reorganizacion/clases/Comproba    # un prefijo de ruta
+npm run cobertura -- modulos/mod_reorganizacion                          # una carpeta
+npm run cobertura -- clases/ClaseTFModelo.php                            # un fichero
+npm run cobertura -- mod_reorganizacion/clases/ClaseComprobacionStock    # un prefijo
 npm run cobertura -- modulos/mod_informes --umbral=80
 npm run cobertura -- <ámbito> --suites=unit-php
 ```

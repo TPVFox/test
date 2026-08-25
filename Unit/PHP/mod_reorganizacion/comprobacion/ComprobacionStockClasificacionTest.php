@@ -12,12 +12,12 @@ namespace TPVFox\Test\Unit\ModReorganizacion\Comprobacion;
 
 use PHPUnit\Framework\TestCase;
 
-final class ComprobacionClasificacionTest extends TestCase
+final class ComprobacionStockClasificacionTest extends TestCase
 {
-    private static function instancia(): \ClaseComprobacionClasificacion
+    private static function instancia(): \ClaseComprobacionStockClasificacion
     {
-        require_once RUTA_TPVFOX . '/modulos/mod_reorganizacion/clases/ClaseComprobacionClasificacion.php';
-        return new \ClaseComprobacionClasificacion();
+        require_once RUTA_TPVFOX . '/modulos/mod_reorganizacion/clases/ClaseComprobacionStockClasificacion.php';
+        return new \ClaseComprobacionStockClasificacion();
     }
 
     private function fila(array $cambios = []): array

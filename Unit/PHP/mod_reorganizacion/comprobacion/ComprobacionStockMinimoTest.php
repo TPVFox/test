@@ -11,13 +11,13 @@ namespace TPVFox\Test\Unit\ModReorganizacion\Comprobacion;
 
 use PHPUnit\Framework\TestCase;
 
-final class ComprobacionMinimoTest extends TestCase
+final class ComprobacionStockMinimoTest extends TestCase
 {
-    private static function instancia(): \ClaseComprobacionMinimo
+    private static function instancia(): \ClaseComprobacionStockMinimo
     {
         global $RutaServidor, $HostNombre, $URLCom;
-        require_once RUTA_TPVFOX . '/modulos/mod_reorganizacion/clases/ClaseComprobacionMinimo.php';
-        return new \ClaseComprobacionMinimo();
+        require_once RUTA_TPVFOX . '/modulos/mod_reorganizacion/clases/ClaseComprobacionStockMinimo.php';
+        return new \ClaseComprobacionStockMinimo();
     }
 
     private function movimiento(string $fecha, float $delta, string $tipo): array

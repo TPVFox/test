@@ -13,7 +13,7 @@
  * Uso:
  *   php support/cobertura.php modulos/mod_reorganizacion        una carpeta
  *   php support/cobertura.php clases/ClaseTFModelo.php          un fichero
- *   php support/cobertura.php mod_reorganizacion/clases/Compro  un prefijo de ruta
+ *   php support/cobertura.php mod_reorganizacion/clases/ClaseComprobacionStock   un prefijo
  *   php support/cobertura.php <ambito> --umbral=80
  *   php support/cobertura.php <ambito> --suites=unit-php
  *

@@ -10,13 +10,13 @@ namespace TPVFox\Test\Unit\ModReorganizacion\Comprobacion;
 
 use PHPUnit\Framework\TestCase;
 
-final class ComprobacionAdmisionTest extends TestCase
+final class ComprobacionStockAdmisionTest extends TestCase
 {
-    private static function instancia(): \ClaseComprobacionAdmision
+    private static function instancia(): \ClaseComprobacionStockAdmision
     {
         global $RutaServidor, $HostNombre, $URLCom;
-        require_once RUTA_TPVFOX . '/modulos/mod_reorganizacion/clases/ClaseComprobacionAdmision.php';
-        return new \ClaseComprobacionAdmision();
+        require_once RUTA_TPVFOX . '/modulos/mod_reorganizacion/clases/ClaseComprobacionStockAdmision.php';
+        return new \ClaseComprobacionStockAdmision();
     }
 
     private function fila(int $idArticulo): array

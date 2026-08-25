@@ -13,7 +13,7 @@ namespace TPVFox\Test\Integration\ModReorganizacion\Comprobacion;
 use TPVFox\Test\CasoIntegracion;
 use TPVFox\Test\Siembra;
 
-final class ComprobacionMinimoIntegracionTest extends CasoIntegracion
+final class ComprobacionStockMinimoIntegracionTest extends CasoIntegracion
 {
     protected string $ejercicio = 'anterior';
 
@@ -25,7 +25,7 @@ final class ComprobacionMinimoIntegracionTest extends CasoIntegracion
     {
         parent::setUp();
         $this->siembra = new Siembra($this->db);
-        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionMinimo.php');
+        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockMinimo.php');
     }
 
     private function contexto(array $cambios = []): array
@@ -60,7 +60,7 @@ final class ComprobacionMinimoIntegracionTest extends CasoIntegracion
         $this->siembra->entradaProveedor($idArticulo, 24.0, '2025-11-12', ['idProveedor' => $proveedorHabitual]);
         $this->siembra->ventaTicket($idArticulo, 14.0, '2025-12-01');
 
-        $comprobacion = new \ClaseComprobacionMinimo();
+        $comprobacion = new \ClaseComprobacionStockMinimo();
         $resultado = $comprobacion->calcular([$this->filaDe($idArticulo)], $this->contexto(), $proveedorTraspaso);
 
         self::assertSame(10.0, $resultado[0]['stockJustificado']);
@@ -73,7 +73,7 @@ final class ComprobacionMinimoIntegracionTest extends CasoIntegracion
 
         $this->siembra->ventaTicket($idArticulo, 3.0, '2025-04-01');
 
-        $comprobacion = new \ClaseComprobacionMinimo();
+        $comprobacion = new \ClaseComprobacionStockMinimo();
         $resultado = $comprobacion->calcular([$this->filaDe($idArticulo)], $this->contexto(), $proveedorTraspaso);
 
         self::assertNull($resultado[0]['stockJustificado']);
@@ -91,7 +91,7 @@ final class ComprobacionMinimoIntegracionTest extends CasoIntegracion
         $this->siembra->ventaTicket($idArticulo, 5.0, '2025-03-03');
         $this->siembra->ventaTicket($idArticulo, 5.0, '2025-03-04');
 
-        $comprobacion = new \ClaseComprobacionMinimo();
+        $comprobacion = new \ClaseComprobacionStockMinimo();
         $resultado = $comprobacion->calcular([$this->filaDe($idArticulo)], $this->contexto(), $proveedorTraspaso);
 
         self::assertSame(max(0.5, 0.010 * 3), $resultado[0]['margen']);
@@ -106,7 +106,7 @@ final class ComprobacionMinimoIntegracionTest extends CasoIntegracion
         $this->siembra->entradaProveedor($idArticulo, 10.0, '2025-03-01', ['idProveedor' => $proveedorHabitual]);
         $this->siembra->ventaTicket($idArticulo, 5.0, '2025-03-02');
 
-        $comprobacion = new \ClaseComprobacionMinimo();
+        $comprobacion = new \ClaseComprobacionStockMinimo();
         $resultado = $comprobacion->calcular([$this->filaDe($idArticulo)], $this->contexto(), $proveedorTraspaso);
 
         self::assertSame(0.0, $resultado[0]['margen']);
@@ -121,7 +121,7 @@ final class ComprobacionMinimoIntegracionTest extends CasoIntegracion
         $this->siembra->entradaProveedor($idArticulo, 20.0, '2025-03-01', ['idProveedor' => $proveedorHabitual]);
         $this->siembra->ventaAlbaranCliente($idArticulo, 5.0, '2025-03-05');
 
-        $comprobacion = new \ClaseComprobacionMinimo();
+        $comprobacion = new \ClaseComprobacionStockMinimo();
         $resultado = $comprobacion->calcular([$this->filaDe($idArticulo)], $this->contexto(), $proveedorTraspaso);
 
         self::assertSame(15.0, $resultado[0]['stockJustificado']);
@@ -133,7 +133,7 @@ final class ComprobacionMinimoIntegracionTest extends CasoIntegracion
         // ejercicio, así que tampoco tiene movimientos ni tipo que consultar.
         $proveedorTraspaso = $this->siembra->proveedor('Proveedor de cierre');
 
-        $comprobacion = new \ClaseComprobacionMinimo();
+        $comprobacion = new \ClaseComprobacionStockMinimo();
         $resultado = $comprobacion->calcular([$this->filaDe(999999)], $this->contexto(), $proveedorTraspaso);
 
         self::assertNull($resultado[0]['stockJustificado']);

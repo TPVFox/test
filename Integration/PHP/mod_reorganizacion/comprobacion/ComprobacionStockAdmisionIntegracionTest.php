@@ -12,7 +12,7 @@ namespace TPVFox\Test\Integration\ModReorganizacion\Comprobacion;
 use TPVFox\Test\CasoIntegracion;
 use TPVFox\Test\Siembra;
 
-final class ComprobacionAdmisionIntegracionTest extends CasoIntegracion
+final class ComprobacionStockAdmisionIntegracionTest extends CasoIntegracion
 {
     protected bool $compartirConexionConElProducto = true;
 
@@ -26,9 +26,9 @@ final class ComprobacionAdmisionIntegracionTest extends CasoIntegracion
         $_SESSION ??= [];
         $_SESSION['usuarioTpv'] = ['id' => 7];
         $this->siembra = new Siembra($this->db);
-        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionAdmision.php');
-        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionEmision.php');
-        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionIntercambioXML.php');
+        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockAdmision.php');
+        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockEmision.php');
+        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockIntercambioXML.php');
     }
 
     protected function tearDown(): void
@@ -77,7 +77,7 @@ final class ComprobacionAdmisionIntegracionTest extends CasoIntegracion
 
     private function emitirFichero(array $filas, array $contextoVigente): string
     {
-        $emision = new \ClaseComprobacionEmision();
+        $emision = new \ClaseComprobacionStockEmision();
         $composicion = $emision->componer($filas, $contextoVigente, false);
         $ruta = $this->rutaTemporal();
         $emision->emitir($composicion, $ruta);
@@ -89,7 +89,7 @@ final class ComprobacionAdmisionIntegracionTest extends CasoIntegracion
         $ruta = $this->rutaTemporal();
         file_put_contents($ruta, '<?xml version="1.0"?><ComprobacionIntercambio idOrigen="x"><Meta/></ComprobacionIntercambio>');
 
-        $admision = new \ClaseComprobacionAdmision();
+        $admision = new \ClaseComprobacionStockAdmision();
         $resultado = $admision->admitir($ruta, $this->contextoAnterior());
 
         self::assertFalse($resultado['ok']);
@@ -106,7 +106,7 @@ final class ComprobacionAdmisionIntegracionTest extends CasoIntegracion
         $editado = str_replace('<SaldoAlCorte>-5</SaldoAlCorte>', '<SaldoAlCorte>-500</SaldoAlCorte>', file_get_contents($ruta));
         file_put_contents($ruta, $editado);
 
-        $admision = new \ClaseComprobacionAdmision();
+        $admision = new \ClaseComprobacionStockAdmision();
         $resultado = $admision->admitir($ruta, $this->contextoAnterior());
 
         self::assertFalse($resultado['ok']);
@@ -120,7 +120,7 @@ final class ComprobacionAdmisionIntegracionTest extends CasoIntegracion
             $this->contextoVigente(['ano' => '2099'])
         );
 
-        $admision = new \ClaseComprobacionAdmision();
+        $admision = new \ClaseComprobacionStockAdmision();
         $resultado = $admision->admitir($ruta, $this->contextoAnterior());
 
         self::assertFalse($resultado['ok']);
@@ -134,7 +134,7 @@ final class ComprobacionAdmisionIntegracionTest extends CasoIntegracion
             $this->contextoVigente()
         );
 
-        $admision = new \ClaseComprobacionAdmision();
+        $admision = new \ClaseComprobacionStockAdmision();
         $resultado = $admision->admitir($ruta, $this->contextoAnterior());
 
         self::assertTrue($resultado['ok']);
@@ -151,7 +151,7 @@ final class ComprobacionAdmisionIntegracionTest extends CasoIntegracion
             $this->contextoVigente()
         );
 
-        $admision = new \ClaseComprobacionAdmision();
+        $admision = new \ClaseComprobacionStockAdmision();
         $resultado = $admision->admitir($ruta, $this->contextoAnterior());
 
         self::assertTrue($resultado['ok']);
@@ -164,7 +164,7 @@ final class ComprobacionAdmisionIntegracionTest extends CasoIntegracion
     {
         $ruta = $this->emitirFichero([], $this->contextoVigente());
 
-        $admision = new \ClaseComprobacionAdmision();
+        $admision = new \ClaseComprobacionStockAdmision();
         $resultado = $admision->admitir($ruta, $this->contextoAnterior());
 
         self::assertTrue($resultado['ok']);

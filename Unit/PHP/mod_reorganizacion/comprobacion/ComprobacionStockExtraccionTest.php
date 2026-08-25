@@ -11,13 +11,13 @@ namespace TPVFox\Test\Unit\ModReorganizacion\Comprobacion;
 
 use PHPUnit\Framework\TestCase;
 
-final class ComprobacionExtraccionTest extends TestCase
+final class ComprobacionStockExtraccionTest extends TestCase
 {
-    private static function instancia(): \ClaseComprobacionExtraccion
+    private static function instancia(): \ClaseComprobacionStockExtraccion
     {
         global $RutaServidor, $HostNombre, $URLCom;
-        require_once RUTA_TPVFOX . '/modulos/mod_reorganizacion/clases/ClaseComprobacionExtraccion.php';
-        return new \ClaseComprobacionExtraccion();
+        require_once RUTA_TPVFOX . '/modulos/mod_reorganizacion/clases/ClaseComprobacionStockExtraccion.php';
+        return new \ClaseComprobacionStockExtraccion();
     }
 
     public function test_T1_sinMovimientosArrancaEnElSaldoDePartida(): void

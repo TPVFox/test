@@ -11,13 +11,13 @@ namespace TPVFox\Test\Integration\ModReorganizacion\Comprobacion;
 use mysqli_sql_exception;
 use TPVFox\Test\CasoIntegracion;
 
-final class ComprobacionContextoIntegracionTest extends CasoIntegracion
+final class ComprobacionStockContextoIntegracionTest extends CasoIntegracion
 {
     protected function setUp(): void
     {
         parent::setUp();
         $_SESSION ??= [];
-        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionContexto.php');
+        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockContexto.php');
     }
 
     protected function tearDown(): void
@@ -30,7 +30,7 @@ final class ComprobacionContextoIntegracionTest extends CasoIntegracion
     {
         $_SESSION['tiendaTpv'] = ['ano' => '2019', 'idTienda' => '42'];
 
-        $comprobacion = new \ClaseComprobacionContexto();
+        $comprobacion = new \ClaseComprobacionStockContexto();
         $contexto = $comprobacion->abrir();
 
         self::assertTrue($contexto['ok']);
@@ -48,7 +48,7 @@ final class ComprobacionContextoIntegracionTest extends CasoIntegracion
     {
         unset($_SESSION['tiendaTpv']);
 
-        $contexto = (new \ClaseComprobacionContexto())->abrir();
+        $contexto = (new \ClaseComprobacionStockContexto())->abrir();
 
         self::assertFalse($contexto['ok']);
         self::assertNotEmpty($contexto['motivo']);
@@ -58,7 +58,7 @@ final class ComprobacionContextoIntegracionTest extends CasoIntegracion
     {
         $_SESSION['tiendaTpv'] = ['ano' => '2026', 'idTienda' => '1'];
 
-        $comprobacion = new \ClaseComprobacionContexto(['tabla_inexistente_de_prueba']);
+        $comprobacion = new \ClaseComprobacionStockContexto(['tabla_inexistente_de_prueba']);
         $contexto = $comprobacion->abrir();
 
         self::assertFalse($contexto['ok']);
@@ -69,7 +69,7 @@ final class ComprobacionContextoIntegracionTest extends CasoIntegracion
     {
         $_SESSION['tiendaTpv'] = ['ano' => '2026', 'idTienda' => '1'];
 
-        $comprobacion = new \ClaseComprobacionContexto(null, ['umbral_inexistente_de_prueba']);
+        $comprobacion = new \ClaseComprobacionStockContexto(null, ['umbral_inexistente_de_prueba']);
         $contexto = $comprobacion->abrir();
 
         self::assertFalse($contexto['ok']);
@@ -80,7 +80,7 @@ final class ComprobacionContextoIntegracionTest extends CasoIntegracion
     {
         $_SESSION['tiendaTpv'] = ['ano' => '2026', 'idTienda' => '1'];
 
-        $comprobacion = new \ClaseComprobacionContexto(null, null, 'configuracion/ruta_inexistente_de_prueba');
+        $comprobacion = new \ClaseComprobacionStockContexto(null, null, 'configuracion/ruta_inexistente_de_prueba');
         $contexto = $comprobacion->abrir();
 
         self::assertFalse($contexto['ok']);
@@ -91,7 +91,7 @@ final class ComprobacionContextoIntegracionTest extends CasoIntegracion
     {
         $_SESSION['tiendaTpv'] = ['ano' => '2026', 'idTienda' => '1'];
 
-        $comprobacion = new \ClaseComprobacionContexto(null, null, null, 'configuracion/ruta_inexistente_de_prueba');
+        $comprobacion = new \ClaseComprobacionStockContexto(null, null, null, 'configuracion/ruta_inexistente_de_prueba');
         $contexto = $comprobacion->abrir();
 
         self::assertFalse($contexto['ok']);
@@ -101,7 +101,7 @@ final class ComprobacionContextoIntegracionTest extends CasoIntegracion
     public function test_T7_bloqueDeLecturaAbreEnTransaccionDeSoloLectura(): void
     {
         $_SESSION['tiendaTpv'] = ['ano' => '2026', 'idTienda' => '1'];
-        $comprobacion = new \ClaseComprobacionContexto();
+        $comprobacion = new \ClaseComprobacionStockContexto();
 
         $contexto = $comprobacion->abrir();
         self::assertTrue($contexto['ok']);

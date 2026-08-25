@@ -11,7 +11,7 @@ namespace TPVFox\Test\Integration\ModReorganizacion\Comprobacion;
 
 use TPVFox\Test\CasoIntegracion;
 
-final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
+final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
 {
     /** No toca la base: compone sobre lo que ya le llega. */
     protected bool $aislarPorTransaccion = false;
@@ -23,8 +23,8 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
         parent::setUp();
         $_SESSION ??= [];
         $_SESSION['usuarioTpv'] = ['id' => 7];
-        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionEmision.php');
-        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionIntercambioXML.php');
+        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockEmision.php');
+        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockIntercambioXML.php');
     }
 
     protected function tearDown(): void
@@ -83,14 +83,14 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
 
     public function test_T1_unaSolaComposicionAlimentaLaVistaYElFichero(): void
     {
-        $emision = new \ClaseComprobacionEmision();
+        $emision = new \ClaseComprobacionStockEmision();
         $composicion = $emision->componer($this->estadoProducto(), $this->contexto(), false);
 
         $ruta = $this->rutaTemporal();
         $emision->emitir($composicion, $ruta);
 
         $xml = new \SimpleXMLElement(file_get_contents($ruta));
-        $delFichero = \ClaseComprobacionIntercambioXML::simpleXMLToArray($xml);
+        $delFichero = \ClaseComprobacionStockIntercambioXML::simpleXMLToArray($xml);
 
         self::assertCount(2, $delFichero['filas']);
         foreach ($composicion['filas'] as $indice => $filaOriginal) {
@@ -107,7 +107,7 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
 
     public function test_T2_elFiltroSeResuelveAntesDeComponerYConstaEnLoEmitido(): void
     {
-        $emision = new \ClaseComprobacionEmision();
+        $emision = new \ClaseComprobacionStockEmision();
         $composicion = $emision->componer($this->estadoProducto(), $this->contexto(), false, [10]);
 
         self::assertCount(1, $composicion['filas'], 'El filtro ya resolvió el subconjunto al componer');
@@ -119,13 +119,13 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
         self::assertTrue(isset($xml->Criterio->Filtro), 'Lo emitido declara que es un subconjunto filtrado');
         self::assertSame('10', (string) $xml->Criterio->Filtro->Articulo);
 
-        $vuelta = \ClaseComprobacionIntercambioXML::simpleXMLToArray($xml);
+        $vuelta = \ClaseComprobacionStockIntercambioXML::simpleXMLToArray($xml);
         self::assertSame([10], $vuelta['contexto']['filtro']);
     }
 
     public function test_T2b_sinFiltroLoEmitidoNoDeclaraSubconjunto(): void
     {
-        $emision = new \ClaseComprobacionEmision();
+        $emision = new \ClaseComprobacionStockEmision();
         $composicion = $emision->componer($this->estadoProducto(), $this->contexto(), false);
 
         $ruta = $this->rutaTemporal();
@@ -141,7 +141,7 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
         file_put_contents($ruta, '<?xml version="1.0"?><ComprobacionIntercambio idOrigen="x"><Meta/></ComprobacionIntercambio>');
 
         $this->incluirTPVFox('/clases/ClaseIOXML.php');
-        $io = new \ClaseIOXML($ruta, RUTA_TPVFOX . '/modulos/mod_reorganizacion/comprobacion_intercambio_v1.xsd');
+        $io = new \ClaseIOXML($ruta, RUTA_TPVFOX . '/modulos/mod_reorganizacion/comprobacion_stock_intercambio_v1.xsd');
 
         $this->expectException(\Exception::class);
         $io->cargar();
@@ -149,25 +149,25 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
 
     public function test_T4_elResumenDetectaUnFicheroEditadoYVueltoAGuardar(): void
     {
-        $emision = new \ClaseComprobacionEmision();
+        $emision = new \ClaseComprobacionStockEmision();
         $composicion = $emision->componer($this->estadoProducto(), $this->contexto(), false);
 
         $ruta = $this->rutaTemporal();
         $emision->emitir($composicion, $ruta);
 
-        $sinEditar = \ClaseComprobacionIntercambioXML::simpleXMLToArray(new \SimpleXMLElement(file_get_contents($ruta)));
+        $sinEditar = \ClaseComprobacionStockIntercambioXML::simpleXMLToArray(new \SimpleXMLElement(file_get_contents($ruta)));
         self::assertSame($sinEditar['resumenDeclarado'], $sinEditar['resumenRecalculado']);
 
         $editado = str_replace('<SaldoAlCorte>-5</SaldoAlCorte>', '<SaldoAlCorte>-500</SaldoAlCorte>', file_get_contents($ruta));
         file_put_contents($ruta, $editado);
 
-        $trasEditar = \ClaseComprobacionIntercambioXML::simpleXMLToArray(new \SimpleXMLElement(file_get_contents($ruta)));
+        $trasEditar = \ClaseComprobacionStockIntercambioXML::simpleXMLToArray(new \SimpleXMLElement(file_get_contents($ruta)));
         self::assertNotSame($trasEditar['resumenDeclarado'], $trasEditar['resumenRecalculado']);
     }
 
     public function test_T5_elOrigenDeclaraElProveedorQueIdentificaElTraspaso(): void
     {
-        $emision = new \ClaseComprobacionEmision();
+        $emision = new \ClaseComprobacionStockEmision();
         $composicion = $emision->componer($this->estadoProducto(), $this->contexto(['proveedorCierre' => 112]), false);
 
         $ruta = $this->rutaTemporal();
@@ -226,7 +226,7 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
 
     public function test_T7_elInformeSeAbreConSuSeparadorYCoincideConLaPantalla(): void
     {
-        $emision = new \ClaseComprobacionEmision();
+        $emision = new \ClaseComprobacionStockEmision();
         $composicion = $emision->componer(
             $this->estadoProductoClasificado(),
             $this->contexto(['ano' => '2025']),
@@ -256,11 +256,11 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
     public function test_T8_elInformeArrastraLosDosContextosDeLasDosEmisiones(): void
     {
         $_SESSION['usuarioTpv'] = ['id' => 9];
-        $emisionVigente = new \ClaseComprobacionEmision();
+        $emisionVigente = new \ClaseComprobacionStockEmision();
         $composicionVigente = $emisionVigente->componer([], $this->contexto(['ano' => '2026']), false);
 
         $_SESSION['usuarioTpv'] = ['id' => 7];
-        $emisionAnterior = new \ClaseComprobacionEmision();
+        $emisionAnterior = new \ClaseComprobacionStockEmision();
         $composicionAnterior = $emisionAnterior->componer(
             $this->estadoProductoClasificado(),
             $this->contexto(['ano' => '2025']),
@@ -280,7 +280,7 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
 
     public function test_T6_elContextoSeCopiaPorValorYNoCambiaSiSeReconfiguraDespues(): void
     {
-        $emision = new \ClaseComprobacionEmision();
+        $emision = new \ClaseComprobacionStockEmision();
 
         $composicionOriginal = $emision->componer($this->estadoProducto(), $this->contexto(['ventanaDias' => 7]), false);
         $rutaOriginal = $this->rutaTemporal();

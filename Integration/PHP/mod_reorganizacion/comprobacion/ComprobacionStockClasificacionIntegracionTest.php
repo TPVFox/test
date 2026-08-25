@@ -13,7 +13,7 @@ namespace TPVFox\Test\Integration\ModReorganizacion\Comprobacion;
 use TPVFox\Test\CasoIntegracion;
 use TPVFox\Test\Siembra;
 
-final class ComprobacionClasificacionIntegracionTest extends CasoIntegracion
+final class ComprobacionStockClasificacionIntegracionTest extends CasoIntegracion
 {
     protected string $ejercicio = 'anterior';
 
@@ -25,8 +25,8 @@ final class ComprobacionClasificacionIntegracionTest extends CasoIntegracion
     {
         parent::setUp();
         $this->siembra = new Siembra($this->db);
-        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionMinimo.php');
-        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionClasificacion.php');
+        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockMinimo.php');
+        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockClasificacion.php');
     }
 
     private function contexto(): array
@@ -57,10 +57,10 @@ final class ComprobacionClasificacionIntegracionTest extends CasoIntegracion
 
         $this->siembra->ventaTicket($idArticulo, 3.0, '2025-04-01');
 
-        $minimo = new \ClaseComprobacionMinimo();
+        $minimo = new \ClaseComprobacionStockMinimo();
         $filas = $minimo->calcular([$this->filaVigente($idArticulo, -1.0, 2.0)], $this->contexto(), $proveedorTraspaso);
 
-        $clasificacion = new \ClaseComprobacionClasificacion();
+        $clasificacion = new \ClaseComprobacionStockClasificacion();
         $resultado = $clasificacion->clasificar($filas);
 
         self::assertSame('no_comparable', $resultado[0]['estado']);
@@ -80,11 +80,11 @@ final class ComprobacionClasificacionIntegracionTest extends CasoIntegracion
         $this->siembra->entradaProveedor($idArticulo, 24.0, '2025-11-12', ['idProveedor' => $proveedorHabitual]);
         $this->siembra->ventaTicket($idArticulo, 14.0, '2025-12-01');
 
-        $minimo = new \ClaseComprobacionMinimo();
+        $minimo = new \ClaseComprobacionStockMinimo();
         // Existencia exigida en el vigente: |-4| + 6 = 10, igual que el justificado.
         $filas = $minimo->calcular([$this->filaVigente($idArticulo, -4.0, 6.0)], $this->contexto(), $proveedorTraspaso);
 
-        $clasificacion = new \ClaseComprobacionClasificacion();
+        $clasificacion = new \ClaseComprobacionStockClasificacion();
         $resultado = $clasificacion->clasificar($filas);
 
         self::assertSame(10.0, $resultado[0]['existenciaExigida']);

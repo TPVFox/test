@@ -9,17 +9,17 @@ const { iniciarSesion } = require('../../fixtures/autenticacion');
 
 test.describe('Comprobación de existencias — ejercicio vigente', () => {
   test.beforeEach(async ({ page }) => {
-    await iniciarSesion(page, 'modulos/mod_reorganizacion/ComprobacionVigente.php');
+    await iniciarSesion(page, 'modulos/mod_reorganizacion/ComprobacionStockVigente.php');
   });
 
   test('T1 la pantalla carga la comprobación del ejercicio vigente', async ({ page }) => {
-    await expect(page.locator('#tablaComprobacionVigente')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#tablaComprobacionStockVigente')).toBeVisible({ timeout: 15000 });
   });
 
   test('T2 el fichero descargado contiene las mismas filas que el filtro aplicado en pantalla', async ({ page }) => {
-    await expect(page.locator('#tablaComprobacionVigente')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#tablaComprobacionStockVigente')).toBeVisible({ timeout: 15000 });
 
-    const filas = page.locator('.chkComprobacionVigenteArticulo');
+    const filas = page.locator('.chkComprobacionStockVigenteArticulo');
     const total = await filas.count();
     test.skip(total === 0, 'No hay productos con existencia negativa en este entorno: nada que filtrar.');
 
@@ -34,7 +34,7 @@ test.describe('Comprobación de existencias — ejercicio vigente', () => {
 
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.click('#btnComprobacionVigenteExportar'),
+      page.click('#btnComprobacionStockVigenteExportar'),
     ]);
     const ruta = await download.path();
     const xml = fs.readFileSync(ruta, 'utf-8');
@@ -46,11 +46,11 @@ test.describe('Comprobación de existencias — ejercicio vigente', () => {
   });
 
   test('T3 el modo estricto es seleccionable y recarga la comprobación', async ({ page }) => {
-    await expect(page.locator('#tablaComprobacionVigente')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#tablaComprobacionStockVigente')).toBeVisible({ timeout: 15000 });
 
     const [respuesta] = await Promise.all([
       page.waitForResponse((r) => r.url().includes('tareas.php') && r.request().method() === 'POST'),
-      page.locator('#chkComprobacionVigenteModoEstricto').check(),
+      page.locator('#chkComprobacionStockVigenteModoEstricto').check(),
     ]);
     expect(respuesta.ok()).toBeTruthy();
   });

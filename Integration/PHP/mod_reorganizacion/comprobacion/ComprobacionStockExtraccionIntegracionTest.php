@@ -12,7 +12,7 @@ namespace TPVFox\Test\Integration\ModReorganizacion\Comprobacion;
 use TPVFox\Test\CasoIntegracion;
 use TPVFox\Test\Siembra;
 
-final class ComprobacionExtraccionIntegracionTest extends CasoIntegracion
+final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
 {
     protected bool $compartirConexionConElProducto = true;
 
@@ -22,7 +22,7 @@ final class ComprobacionExtraccionIntegracionTest extends CasoIntegracion
     {
         parent::setUp();
         $this->siembra = new Siembra($this->db);
-        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionExtraccion.php');
+        $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockExtraccion.php');
     }
 
     private function contexto(array $cambios = []): array
@@ -61,7 +61,7 @@ final class ComprobacionExtraccionIntegracionTest extends CasoIntegracion
         // arranca el ejercicio ya en negativo, sin ningún movimiento posterior.
         $this->siembra->ventaTicket($idArticulo, 5.0, '2026-01-01');
 
-        $comprobacion = new \ClaseComprobacionExtraccion();
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
         $resultado = $comprobacion->extraer($this->contexto());
 
         $fila = $this->fila($resultado, $idArticulo);
@@ -82,7 +82,7 @@ final class ComprobacionExtraccionIntegracionTest extends CasoIntegracion
         $this->siembra->entradaProveedor($idArticulo, 3.0, '2026-01-05', ['idProveedor' => 112]);
         $this->siembra->ventaTicket($idArticulo, 20.0, '2026-01-10');
 
-        $comprobacion = new \ClaseComprobacionExtraccion();
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
         $resultado = $comprobacion->extraer($this->contexto());
 
         $fila = $this->fila($resultado, $idArticulo);
@@ -99,7 +99,7 @@ final class ComprobacionExtraccionIntegracionTest extends CasoIntegracion
         $idArticulo = $this->siembra->articulo('Producto de familia excluida', ['familia' => $idFamilia]);
         $this->siembra->ventaTicket($idArticulo, 4.0, '2026-01-01');
 
-        $comprobacion = new \ClaseComprobacionExtraccion();
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
         $resultado = $comprobacion->extraer($this->contexto(['familiasExcluidas' => [$idFamilia]]));
 
         $fila = $this->fila($resultado, $idArticulo);
@@ -112,7 +112,7 @@ final class ComprobacionExtraccionIntegracionTest extends CasoIntegracion
         $idArticulo = $this->siembra->articulo('Producto de familia sin configurar');
         $this->siembra->ventaTicket($idArticulo, 4.0, '2026-01-01');
 
-        $comprobacion = new \ClaseComprobacionExtraccion();
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
         // 999999 no existe en vw_jerarquias_familias: expandirFamilias() no encuentra nada.
         $resultado = $comprobacion->extraer($this->contexto(['familiasExcluidas' => [999999]]));
 
@@ -128,7 +128,7 @@ final class ComprobacionExtraccionIntegracionTest extends CasoIntegracion
         // Deliberadamente no se llama a existenciaRegistrada(): no hay fila en
         // articulosStocks para idTienda = 1, así que el cierre nunca lo habría tomado.
 
-        $comprobacion = new \ClaseComprobacionExtraccion();
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
         $resultado = $comprobacion->extraer($this->contexto());
 
         $fila = $this->fila($resultado, $idArticulo);
@@ -146,7 +146,7 @@ final class ComprobacionExtraccionIntegracionTest extends CasoIntegracion
                 . "VALUES ({$idArticulo}, 1, 5, 0, 0)"
         );
 
-        $comprobacion = new \ClaseComprobacionExtraccion();
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
         $resultado = $comprobacion->extraer($this->contexto());
 
         $fila = $this->fila($resultado, $idArticulo);
@@ -159,7 +159,7 @@ final class ComprobacionExtraccionIntegracionTest extends CasoIntegracion
         $idArticulo = $this->siembra->articulo('Producto con mínimo reciente');
         $this->siembra->ventaTicket($idArticulo, 6.0, '2026-01-20');
 
-        $comprobacion = new \ClaseComprobacionExtraccion();
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
         // Fecha de corte a 3 días del mínimo, con ventana de 7: cae dentro.
         $resultado = $comprobacion->extraer($this->contexto(['ventanaDias' => 7]), false, '2026-01-23');
 
@@ -183,7 +183,7 @@ final class ComprobacionExtraccionIntegracionTest extends CasoIntegracion
         $sentencia->bind_param('ii', $idArticulo, $idUsuario);
         $sentencia->execute();
 
-        $comprobacion = new \ClaseComprobacionExtraccion();
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
         $resultado = $comprobacion->extraer($this->contexto());
 
         $fila = $this->fila($resultado, $idArticulo);
@@ -197,7 +197,7 @@ final class ComprobacionExtraccionIntegracionTest extends CasoIntegracion
         $this->siembra->entradaProveedor($idArticulo, 100.0, '2026-01-05');
         $this->siembra->ventaTicket($idArticulo, 10.0, '2026-01-10');
 
-        $comprobacion = new \ClaseComprobacionExtraccion();
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
         $resultado = $comprobacion->extraer($this->contexto());
 
         self::assertNull($this->fila($resultado, $idArticulo));
@@ -209,7 +209,7 @@ final class ComprobacionExtraccionIntegracionTest extends CasoIntegracion
         $this->siembra->entradaProveedor($idArticulo, 50.0, '2026-01-01');
         $this->siembra->ventaTicket($idArticulo, 10.0, '2026-01-05');
 
-        $comprobacion = new \ClaseComprobacionExtraccion();
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
         $modoNormal = $comprobacion->extraer($this->contexto());
         $modoEstricto = $comprobacion->extraer($this->contexto(), true);
 

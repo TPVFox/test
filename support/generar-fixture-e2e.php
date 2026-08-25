@@ -8,13 +8,13 @@
  *
  * ano-vigente es el ejercicio del despliegue E2E que sube el fichero (el vigente,
  * Recorrido 1). El recorrido 2 debe correr contra el despliegue del ejercicio
- * anterior a ese, con la misma tienda: es lo que exige ClaseComprobacionAdmision.
+ * anterior a ese, con la misma tienda: es lo que exige ClaseComprobacionStockAdmision.
  */
 
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
-require_once RUTA_TPVFOX . '/modulos/mod_reorganizacion/clases/ClaseComprobacionEmision.php';
+require_once RUTA_TPVFOX . '/modulos/mod_reorganizacion/clases/ClaseComprobacionStockEmision.php';
 
 $anoVigente = $argv[1] ?? '2026';
 $idTienda = isset($argv[2]) ? (int) $argv[2] : 1;
@@ -42,7 +42,7 @@ $contextoOperacion = [
     'familiasExcluidas' => [],
 ];
 
-$emision = new ClaseComprobacionEmision();
+$emision = new ClaseComprobacionStockEmision();
 $composicion = $emision->componer($estadoProducto, $contextoOperacion, false);
 
 $destino = __DIR__ . '/../E2E/fixtures/comprobacion-vigente-ejemplo.xml';

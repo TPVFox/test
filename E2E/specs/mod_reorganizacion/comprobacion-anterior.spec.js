@@ -20,27 +20,27 @@ test.describe('Comprobación de existencias — ejercicio anterior', () => {
       !fs.existsSync(FICHERO_EJEMPLO),
       'Falta el fixture: genera «php support/generar-fixture-e2e.php» antes de correr este recorrido.'
     );
-    await iniciarSesion(page, 'modulos/mod_reorganizacion/ComprobacionAnterior.php');
+    await iniciarSesion(page, 'modulos/mod_reorganizacion/ComprobacionStockAnterior.php');
   });
 
   test('T1 admite el fichero de intercambio y clasifica el producto en pantalla', async ({ page }) => {
-    await page.setInputFiles('#ficheroComprobacion', FICHERO_EJEMPLO);
-    await page.click('#btnComprobacionAnteriorAdmitir');
+    await page.setInputFiles('#ficheroComprobacionStock', FICHERO_EJEMPLO);
+    await page.click('#btnComprobacionStockAnteriorAdmitir');
 
-    const fila = page.locator('#areaComprobacionAnterior table tbody tr', { hasText: '9001' });
+    const fila = page.locator('#areaComprobacionStockAnterior table tbody tr', { hasText: '9001' });
     await expect(fila).toBeVisible({ timeout: 15000 });
     // El estado nunca viaja solo: siempre va acompañado de la existencia exigida.
     await expect(fila.locator('td').nth(4)).not.toHaveText('');
   });
 
   test('T2 descarga el informe final con los dos contextos de cálculo', async ({ page }) => {
-    await page.setInputFiles('#ficheroComprobacion', FICHERO_EJEMPLO);
-    await page.click('#btnComprobacionAnteriorAdmitir');
-    await expect(page.locator('#areaComprobacionAnterior table')).toBeVisible({ timeout: 15000 });
+    await page.setInputFiles('#ficheroComprobacionStock', FICHERO_EJEMPLO);
+    await page.click('#btnComprobacionStockAnteriorAdmitir');
+    await expect(page.locator('#areaComprobacionStockAnterior table')).toBeVisible({ timeout: 15000 });
 
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.click('#btnComprobacionAnteriorExportar'),
+      page.click('#btnComprobacionStockAnteriorExportar'),
     ]);
     const ruta = await download.path();
     let contenido = fs.readFileSync(ruta, 'utf-8');
