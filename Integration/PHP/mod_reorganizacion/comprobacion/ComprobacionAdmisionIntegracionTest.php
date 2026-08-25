@@ -99,7 +99,7 @@ final class ComprobacionAdmisionIntegracionTest extends CasoIntegracion
     public function test_T2_unFicheroEditadoTrasEmitirseSeRechazaPorElResumen(): void
     {
         $ruta = $this->emitirFichero(
-            [['idArticulo' => 10, 'saldoAlCorte' => -5.0, 'minimoAlcanzado' => -8.5, 'marcado' => true, 'tipoIncidencia' => null, 'condicionesConocidas' => []]],
+            [['idArticulo' => 10, 'saldoAlCorte' => -5.0, 'minimoAlcanzado' => -8.5, 'saldoDeApertura' => 3.0, 'marcado' => true, 'tipoIncidencia' => null, 'condicionesConocidas' => []]],
             $this->contextoVigente()
         );
 
@@ -116,7 +116,7 @@ final class ComprobacionAdmisionIntegracionTest extends CasoIntegracion
     public function test_T3_unFicheroDeOtroEjercicioSeRechazaPorNoCorresponder(): void
     {
         $ruta = $this->emitirFichero(
-            [['idArticulo' => 10, 'saldoAlCorte' => -5.0, 'minimoAlcanzado' => -8.5, 'marcado' => true, 'tipoIncidencia' => null, 'condicionesConocidas' => []]],
+            [['idArticulo' => 10, 'saldoAlCorte' => -5.0, 'minimoAlcanzado' => -8.5, 'saldoDeApertura' => 3.0, 'marcado' => true, 'tipoIncidencia' => null, 'condicionesConocidas' => []]],
             $this->contextoVigente(['ano' => '2099'])
         );
 
@@ -130,7 +130,7 @@ final class ComprobacionAdmisionIntegracionTest extends CasoIntegracion
     public function test_T4_unProductoSinContraparteQuedaMarcadoNoComparableYNoDesaparece(): void
     {
         $ruta = $this->emitirFichero(
-            [['idArticulo' => 999999, 'saldoAlCorte' => -1.0, 'minimoAlcanzado' => -1.0, 'marcado' => true, 'tipoIncidencia' => null, 'condicionesConocidas' => []]],
+            [['idArticulo' => 999999, 'saldoAlCorte' => -1.0, 'minimoAlcanzado' => -1.0, 'saldoDeApertura' => 0.0, 'marcado' => true, 'tipoIncidencia' => null, 'condicionesConocidas' => []]],
             $this->contextoVigente()
         );
 
@@ -147,7 +147,7 @@ final class ComprobacionAdmisionIntegracionTest extends CasoIntegracion
         $idArticulo = $this->siembra->articulo('Producto con contraparte en el anterior');
 
         $ruta = $this->emitirFichero(
-            [['idArticulo' => $idArticulo, 'saldoAlCorte' => -3.0, 'minimoAlcanzado' => -6.0, 'marcado' => true, 'tipoIncidencia' => 'C1a', 'condicionesConocidas' => ['periodo_no_consolidado']]],
+            [['idArticulo' => $idArticulo, 'saldoAlCorte' => -3.0, 'minimoAlcanzado' => -6.0, 'saldoDeApertura' => 3.0, 'marcado' => true, 'tipoIncidencia' => 'C1a', 'condicionesConocidas' => ['periodo_no_consolidado']]],
             $this->contextoVigente()
         );
 

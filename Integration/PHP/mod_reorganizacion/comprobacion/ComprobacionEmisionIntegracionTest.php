@@ -64,6 +64,7 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
                 'idArticulo' => 10,
                 'saldoAlCorte' => -5.0,
                 'minimoAlcanzado' => -8.5,
+                'saldoDeApertura' => 3.0,
                 'marcado' => true,
                 'tipoIncidencia' => 'C1a',
                 'condicionesConocidas' => ['periodo_no_consolidado'],
@@ -72,6 +73,7 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
                 'idArticulo' => 11,
                 'saldoAlCorte' => -2.0,
                 'minimoAlcanzado' => -2.0,
+                'saldoDeApertura' => 0.0,
                 'marcado' => true,
                 'tipoIncidencia' => null,
                 'condicionesConocidas' => [],
@@ -96,6 +98,7 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
             self::assertSame($filaOriginal['idArticulo'], $filaFichero['idArticulo']);
             self::assertSame($filaOriginal['saldoAlCorte'], $filaFichero['saldoAlCorte']);
             self::assertSame($filaOriginal['minimoAlcanzado'], $filaFichero['minimoAlcanzado']);
+            self::assertSame($filaOriginal['saldoDeApertura'], $filaFichero['saldoDeApertura']);
             self::assertSame($filaOriginal['marcado'], $filaFichero['marcado']);
             self::assertSame($filaOriginal['tipoIncidencia'], $filaFichero['tipoIncidencia']);
             self::assertSame($filaOriginal['condicionesConocidas'], $filaFichero['condicionesConocidas']);

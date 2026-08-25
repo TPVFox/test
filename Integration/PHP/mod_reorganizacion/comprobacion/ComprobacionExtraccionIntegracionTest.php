@@ -67,6 +67,7 @@ final class ComprobacionExtraccionIntegracionTest extends CasoIntegracion
         $fila = $this->fila($resultado, $idArticulo);
         self::assertNotNull($fila, 'El producto tiene que aparecer: su trayectoria alcanzó negativo');
         self::assertSame(-5.0, $fila['saldoAlCorte']);
+        self::assertSame(-5.0, $fila['saldoDeApertura'], 'Sin movimientos en el periodo, coincide con la partida');
         self::assertTrue($fila['marcado']);
         self::assertNull($fila['tipoIncidencia'], 'El detector no examina productos sin movimiento en el periodo');
     }
@@ -89,6 +90,7 @@ final class ComprobacionExtraccionIntegracionTest extends CasoIntegracion
         // Correcto: partida = 8; recorrido = +3 (05-ene) - 20 (10-ene) = -17 acumulado.
         self::assertSame(-9.0, $fila['saldoAlCorte']);
         self::assertSame(-9.0, $fila['minimoAlcanzado']);
+        self::assertSame(8.0, $fila['saldoDeApertura']);
     }
 
     public function test_T3_familiaExcluidaSeAnotaComoCondicionConocida(): void

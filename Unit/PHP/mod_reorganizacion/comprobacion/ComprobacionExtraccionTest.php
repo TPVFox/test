@@ -54,6 +54,7 @@ final class ComprobacionExtraccionTest extends TestCase
 
         self::assertSame(-2.0, $trayectorias[1]['saldoAlCorte']);
         self::assertSame(-5.0, $trayectorias[1]['minimoAlcanzado']);
+        self::assertSame(10.0, $trayectorias[1]['saldoDeApertura']);
         self::assertSame('2026-01-05', $trayectorias[1]['fechaMinimo']);
     }
 
