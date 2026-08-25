@@ -6,7 +6,10 @@
         "phpunit/phpunit": "^9.6"
     },
     "autoload-dev": {
-        "psr-4": { "TPVFox\\Test\\": "support/php/" }
+        "psr-4": {
+            "TPVFox\\Test\\": "support/php/",
+            "TPVFox\\Test\\Siembra\\": "support/siembra/"
+        }
     },
     "config": { "sort-packages": true }
 }

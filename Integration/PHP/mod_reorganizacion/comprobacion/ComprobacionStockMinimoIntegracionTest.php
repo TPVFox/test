@@ -11,7 +11,7 @@ declare(strict_types=1);
 namespace TPVFox\Test\Integration\ModReorganizacion\Comprobacion;
 
 use TPVFox\Test\CasoIntegracion;
-use TPVFox\Test\Siembra;
+use TPVFox\Test\Siembra\Siembra;
 
 final class ComprobacionStockMinimoIntegracionTest extends CasoIntegracion
 {

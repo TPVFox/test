@@ -1,6 +1,6 @@
 <?php
 /**
- * Generador de datos de siembra.
+ * Generador de datos de siembra: las primitivas, comunes a todo el repositorio.
  *
  * Los datos se generan, nunca se extraen de una instalacion real. Cada caso compone el
  * escenario que necesita en lugar de partir de un juego de datos comun: asi una prueba
@@ -10,11 +10,14 @@
  * de TPVFox cuenta —proveedor en 'Guardado', ticket en 'Cerrado', albaran de cliente en
  * 'Guardado', y siempre 'Activo' en la linea—. Un caso que necesite lo contrario lo pide
  * por el arreglo de opciones.
+ *
+ * Esta clase no sabe de ningun modulo. Lo que sabe de un modulo son los escenarios que
+ * la acompanan en esta misma carpeta, y que la usan para componerse.
  */
 
 declare(strict_types=1);
 
-namespace TPVFox\Test;
+namespace TPVFox\Test\Siembra;
 
 use mysqli;
 use RuntimeException;

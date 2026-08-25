@@ -16,6 +16,12 @@
  *   php support/cobertura.php mod_reorganizacion/clases/ClaseComprobacionStock   un prefijo
  *   php support/cobertura.php <ambito> --umbral=80
  *   php support/cobertura.php <ambito> --suites=unit-php
+ *   php support/cobertura.php <ambito> --detalle                 que falta, linea a linea
+ *
+ * Con --detalle no basta el porcentaje: lista las lineas y los metodos que ningun
+ * caso ejecuta. Un umbral cumplido no dice si lo que queda fuera es accesorio o es
+ * justo la rama que nadie probo, y esa es la diferencia entre una entrega verificada
+ * y una que solo lo parece.
  *
  * El ambito es una parte de la ruta: se conserva todo fichero medido que la contenga.
  * Un prefijo de nombre de fichero sirve para medir solo el codigo nuevo de un modulo que
@@ -28,7 +34,7 @@ require_once __DIR__ . '/bootstrap.php';
 
 const UMBRAL_POR_DEFECTO = 70.0;
 
-[$ambito, $umbral, $suites] = leerArgumentos($argv);
+[$ambito, $umbral, $suites, $detalle] = leerArgumentos($argv);
 
 if ($ambito === '') {
     fwrite(STDERR,
@@ -60,7 +66,7 @@ if (!is_file($clover)) {
     exit(1);
 }
 
-$medida = medir($clover, $ambito);
+$medida = medir($clover, $ambito, $detalle);
 @unlink($clover);
 
 if ($medida['ficheros'] === 0) {
@@ -80,39 +86,43 @@ if ($salidaPhpunit !== 0) {
 exit($medida['lineas']['porcentaje'] >= $umbral && $medida['metodos']['porcentaje'] >= $umbral ? 0 : 1);
 
 
-/** @return array{0:string,1:float,2:string} */
+/** @return array{0:string,1:float,2:string,3:bool} */
 function leerArgumentos(array $argv): array
 {
     $ambito = '';
     $umbral = UMBRAL_POR_DEFECTO;
     $suites = 'unit-php,integration-php';
+    $detalle = false;
 
     foreach (array_slice($argv, 1) as $argumento) {
         if (str_starts_with($argumento, '--umbral=')) {
             $umbral = (float) substr($argumento, 9);
         } elseif (str_starts_with($argumento, '--suites=')) {
             $suites = substr($argumento, 9);
+        } elseif ($argumento === '--detalle') {
+            $detalle = true;
         } elseif (!str_starts_with($argumento, '--')) {
             $ambito = trim($argumento, '/');
         }
     }
 
-    return [$ambito, $umbral, $suites];
+    return [$ambito, $umbral, $suites, $detalle];
 }
 
 /**
  * Agrega las metricas de los ficheros cuya ruta contenga el ambito.
  *
- * @return array{ficheros:int,lineas:array,metodos:array,peores:array}
+ * @return array{ficheros:int,lineas:array,metodos:array,peores:array,sinCubrir:array}
  */
-function medir(string $clover, string $ambito): array
+function medir(string $clover, string $ambito, bool $conDetalle = false): array
 {
     $xml = simplexml_load_file($clover);
 
     $lineas = ['cubiertas' => 0, 'total' => 0];
     $metodos = ['cubiertos' => 0, 'total' => 0];
     $ficheros = 0;
-    $detalle = [];
+    $porFichero = [];
+    $sinCubrir = [];
 
     foreach ($xml->xpath('//file') ?: [] as $fichero) {
         $ruta = str_replace('\\', '/', (string) $fichero['name']);
@@ -128,22 +138,58 @@ function medir(string $clover, string $ambito): array
         $metodos['total']     += (int) $m['methods'];
 
         if ((int) $m['statements'] > 0) {
-            $detalle[] = [
+            $porFichero[] = [
                 'ruta'       => $ruta,
                 'porcentaje' => 100 * (int) $m['coveredstatements'] / (int) $m['statements'],
                 'total'      => (int) $m['statements'],
             ];
         }
+
+        if ($conDetalle) {
+            $huecos = sinCubrirDe($fichero);
+            if ($huecos !== []) {
+                $sinCubrir[$ruta] = $huecos;
+            }
+        }
     }
 
-    usort($detalle, fn(array $a, array $b) => $a['porcentaje'] <=> $b['porcentaje']);
+    usort($porFichero, fn(array $a, array $b) => $a['porcentaje'] <=> $b['porcentaje']);
 
     return [
-        'ficheros' => $ficheros,
-        'lineas'   => $lineas + ['porcentaje' => porcentaje($lineas['cubiertas'], $lineas['total'])],
-        'metodos'  => $metodos + ['porcentaje' => porcentaje($metodos['cubiertos'], $metodos['total'])],
-        'peores'   => array_slice($detalle, 0, 5),
+        'ficheros'  => $ficheros,
+        'lineas'    => $lineas + ['porcentaje' => porcentaje($lineas['cubiertas'], $lineas['total'])],
+        'metodos'   => $metodos + ['porcentaje' => porcentaje($metodos['cubiertos'], $metodos['total'])],
+        'peores'    => array_slice($porFichero, 0, 5),
+        'sinCubrir' => $sinCubrir,
     ];
+}
+
+/**
+ * Lineas y metodos de un fichero que ningun caso ejecuta.
+ *
+ * En Clover cada <line> lleva su contador de ejecuciones: a cero es que no se
+ * ejecuto. Las de type="method" se separan de las demas porque un metodo entero sin
+ * ejecutar y una rama suelta sin ejecutar no significan lo mismo.
+ *
+ * @return array{metodos:list<string>,lineas:list<int>}
+ */
+function sinCubrirDe(SimpleXMLElement $fichero): array
+{
+    $metodos = [];
+    $lineas = [];
+
+    foreach ($fichero->line ?: [] as $linea) {
+        if ((int) $linea['count'] !== 0) {
+            continue;
+        }
+        if ((string) $linea['type'] === 'method') {
+            $metodos[] = (string) $linea['name'] . '()  linea ' . (int) $linea['num'];
+        } else {
+            $lineas[] = (int) $linea['num'];
+        }
+    }
+
+    return ($metodos === [] && $lineas === []) ? [] : ['metodos' => $metodos, 'lineas' => $lineas];
 }
 
 function porcentaje(int $parte, int $total): float
@@ -169,6 +215,19 @@ function informar(string $ambito, float $umbral, array $medida): void
         echo "\n  Lo que mas lastra:\n";
         foreach ($medida['peores'] as $f) {
             printf("    %6.2f%%  %s  (%d sentencias)\n", $f['porcentaje'], $f['ruta'], $f['total']);
+        }
+    }
+
+    if ($medida['sinCubrir'] !== []) {
+        echo "\n  Lo que ningun caso ejecuta:\n";
+        foreach ($medida['sinCubrir'] as $ruta => $huecos) {
+            echo "\n    " . basename($ruta) . "\n";
+            foreach ($huecos['metodos'] as $metodo) {
+                echo "      metodo  $metodo\n";
+            }
+            if ($huecos['lineas'] !== []) {
+                echo '      lineas  ' . implode(', ', $huecos['lineas']) . "\n";
+            }
         }
     }
 

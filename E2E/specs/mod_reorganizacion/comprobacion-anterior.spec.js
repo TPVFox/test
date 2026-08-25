@@ -1,5 +1,5 @@
 /**
- * Recorrido 2 (PCP-TPX §12.1): admisión del fichero, clasificación en pantalla y
+ * Recorrido 2: admisión del fichero, clasificación en pantalla y
  * descarga del informe final, en el despliegue del ejercicio anterior.
  *
  * Sube el fixture generado con «php support/generar-fixture-e2e.php»: hay que

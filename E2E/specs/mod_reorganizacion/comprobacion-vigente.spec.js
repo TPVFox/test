@@ -1,5 +1,5 @@
 /**
- * Recorrido 1 (PCP-TPX §12.1): pantalla, filtro y descarga del fichero de
+ * Recorrido 1: pantalla, filtro y descarga del fichero de
  * intercambio, en el despliegue del ejercicio vigente.
  */
 

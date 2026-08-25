@@ -149,6 +149,23 @@ $usuarioMysql  = 'tpvfox';
 $passwordMysql = '<contraseña>';
 ```
 
+### Dónde vive la siembra
+
+`support/siembra/` reúne todo lo que genera datos, con su propio espacio de nombres
+(`TPVFox\Test\Siembra\`). Está separado de `support/php/` —que son los apoyos de la propia
+suite: `CasoIntegracion`, `Entorno`— porque la siembra no la consume solo la integración:
+también la necesitan los recorridos E2E, que corren contra un despliegue real y no pueden
+partir de una base vacía.
+
+| Qué | Dónde |
+| --- | --- |
+| Primitivas: artículo, familia, proveedor, tienda, movimientos | `support/siembra/Siembra.php` |
+| Escenarios de un módulo: qué ocurre en cada caso, y en qué ejercicio | `support/siembra/Escenario*.php` |
+
+La primitiva no sabe de ningún módulo. Un escenario sí, y por eso vive aparte: es lo que
+permite que dos despliegues de ejercicios consecutivos se siembren desde un mismo guion en
+vez de coordinarse a mano.
+
 ### Aislamiento entre casos
 
 Cada caso se envuelve en transacción con `ROLLBACK`: ningún dato persiste.
@@ -182,9 +199,9 @@ fila: `ClasePermisos` los resuelve todos a 1 automáticamente. Hace falta tambi�
 
 ```php
 <?php
-require_once 'test/support/php/Siembra.php';
+require_once 'test/support/siembra/Siembra.php';
 $db = new mysqli('localhost', 'tpvfox', 'tpvfox', 'tpvfox_test_2026');
-$siembra = new TPVFox\Test\Siembra($db);
+$siembra = new TPVFox\Test\Siembra\Siembra($db);
 $idTienda = $siembra->tienda('2026');
 // usuarioPorDefecto() no sirve aquí: crea group_id=1 y una contraseña que no es un hash válido.
 // Hace falta un INSERT propio en usuarios (password = MD5(clave), group_id = 9, estado = 'activo')
@@ -236,7 +253,12 @@ npm run cobertura -- clases/ClaseTFModelo.php                            # un fi
 npm run cobertura -- mod_reorganizacion/clases/ClaseComprobacionStock    # un prefijo
 npm run cobertura -- modulos/mod_informes --umbral=80
 npm run cobertura -- <ámbito> --suites=unit-php
+npm run cobertura -- <ámbito> --detalle                                  # qué falta
 ```
+
+**`--detalle` dice qué queda fuera**, línea a línea y método a método. Un umbral cumplido
+no distingue si lo no cubierto es accesorio o es justo la rama que nadie probó, y esa es la
+diferencia entre una entrega verificada y una que solo lo parece.
 
 El ámbito **no tiene valor por defecto**, a propósito: este repositorio prueba TPVFox entero,
 y un ámbito por defecto acabaría midiendo siempre lo de una entrega concreta. El guion sale

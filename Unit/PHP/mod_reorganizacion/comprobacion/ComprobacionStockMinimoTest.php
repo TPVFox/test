@@ -1,8 +1,9 @@
 <?php
 /**
- * Formación de lotes y stock justificado: lógica pura, sin base de datos. El
- * recorrido hacia atrás se detiene en el primer lote negativo sin incluirlo; una
- * devolución a proveedor no abre lote, se resta del balance del lote en curso.
+ * Reunión de los tres orígenes, formación de lotes y stock justificado: lógica pura,
+ * sin base de datos. El recorrido hacia atrás se detiene en el primer lote negativo
+ * sin incluirlo; una devolución a proveedor no abre lote, se resta del balance del
+ * lote en curso.
  */
 
 declare(strict_types=1);
@@ -97,5 +98,47 @@ final class ComprobacionStockMinimoTest extends TestCase
         self::assertSame(20.0, $peso['stockJustificado']);
         self::assertSame(max(0.5, 0.010 * 2), $peso['margen']);
         self::assertSame(0.0, $unidad['margen']);
+    }
+
+    public function test_T5_cadaOrigenEntraConSuSignoYSuClaseDeMovimiento(): void
+    {
+        $comprobacion = self::instancia();
+
+        $movimientos = $comprobacion->componerMovimientos(
+            [
+                ['fecha' => '2025-03-01', 'nunidades' => 20.0],
+                ['fecha' => '2025-03-04', 'nunidades' => -3.0],
+            ],
+            [['fecha' => '2025-03-02', 'nunidades' => 5.0]],
+            [['fecha' => '2025-03-03', 'nunidades' => 4.0]]
+        );
+
+        // El albarán de proveedor conserva su propio signo: en positivo es recepción y
+        // abre lote, en negativo es devolución al proveedor y no lo abre. Ticket y
+        // albarán de cliente llegan en positivo y siempre restan.
+        self::assertSame([
+            ['fecha' => '2025-03-01', 'delta' => 20.0, 'tipo' => 'recepcion'],
+            ['fecha' => '2025-03-04', 'delta' => -3.0, 'tipo' => 'devolucion'],
+            ['fecha' => '2025-03-02', 'delta' => -5.0, 'tipo' => 'venta'],
+            ['fecha' => '2025-03-03', 'delta' => -4.0, 'tipo' => 'salida_cliente'],
+        ], $movimientos);
+    }
+
+    public function test_T6_sinLineasEnNingunOrigenNoHayMovimientos(): void
+    {
+        $comprobacion = self::instancia();
+
+        self::assertSame([], $comprobacion->componerMovimientos([], [], []));
+    }
+
+    public function test_T7_elCatalogoQueNoDiceComoSeMideElProductoSuponeUnidades(): void
+    {
+        $comprobacion = self::instancia();
+
+        // Suponer «peso» ante la ausencia daría margen a un producto que quizá no lo
+        // tiene; suponer «unidad» no da margen a nadie que no lo haya declarado.
+        self::assertSame('unidad', $comprobacion->tipoSupuesto(null));
+        self::assertSame('peso', $comprobacion->tipoSupuesto('peso'));
+        self::assertSame('unidad', $comprobacion->tipoSupuesto('unidad'));
     }
 }

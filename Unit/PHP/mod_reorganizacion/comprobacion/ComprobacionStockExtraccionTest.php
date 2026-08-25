@@ -1,8 +1,9 @@
 <?php
 /**
- * Composición de la trayectoria y mapeo de incidencias: lógica pura, sin base de
- * datos. Cálculo, no lectura — las decisiones que dependen de leer la base tienen su
- * propio caso de integración.
+ * Composición de la trayectoria, mapeo de incidencias y las tres decisiones que
+ * anotan condiciones: lógica pura, sin base de datos. Cálculo, no lectura — lo que
+ * depende de leer la base tiene su propio caso de integración, y aquí se prueban los
+ * límites que allí saldrían caros de sembrar.
  */
 
 declare(strict_types=1);
@@ -105,5 +106,72 @@ final class ComprobacionStockExtraccionTest extends TestCase
         $mapeado = $comprobacion->mapearIncidencias($incidencias);
 
         self::assertSame(['7' => 'Inventario en negativo'], $mapeado);
+    }
+
+    public function test_T6_soloSalenLasTrayectoriasQueLlegaronAValorNegativo(): void
+    {
+        $comprobacion = self::instancia();
+
+        // El cero no es negativo: un producto que se quedó justo a cero no llegó a
+        // deber existencias, y no es lo que se examina.
+        $enNegativo = $comprobacion->conTrayectoriaEnNegativo([
+            10 => ['minimoAlcanzado' => -0.5],
+            11 => ['minimoAlcanzado' => 0.0],
+            12 => ['minimoAlcanzado' => 3.0],
+        ]);
+
+        self::assertSame([10], $enNegativo);
+    }
+
+    public function test_T7_sinNingunaTrayectoriaEnNegativoNoSaleNingunProducto(): void
+    {
+        $comprobacion = self::instancia();
+
+        $enNegativo = $comprobacion->conTrayectoriaEnNegativo([
+            10 => ['minimoAlcanzado' => 2.0],
+            11 => ['minimoAlcanzado' => 0.0],
+        ]);
+
+        self::assertSame([], $enNegativo);
+    }
+
+    public function test_T8_nuncaIncluidosEnElCierreSonLosQueElCierreNoHabriaTomado(): void
+    {
+        $comprobacion = self::instancia();
+
+        $nunca = $comprobacion->nuncaIncluidosEnElCierre([10, 11, 12], [11]);
+
+        self::assertSame([10, 12], $nunca);
+    }
+
+    public function test_T9_siElCierreNoHabriaTomadoNingunoTodosQuedanAnotados(): void
+    {
+        $comprobacion = self::instancia();
+
+        // La lista vacía no significa «no se pudo mirar»: significa que ninguno tenía
+        // existencias positivas, y entonces la condición aplica a todos.
+        $nunca = $comprobacion->nuncaIncluidosEnElCierre([10, 11], []);
+
+        self::assertSame([10, 11], $nunca);
+    }
+
+    public function test_T10_elMinimoDentroDeLaVentanaMarcaElPeriodoComoNoConsolidado(): void
+    {
+        $comprobacion = self::instancia();
+
+        // Ventana de 7 días contada hacia atrás desde el corte: el día 16 es el borde y
+        // entra; el 15 ya queda fuera.
+        self::assertTrue($comprobacion->periodoNoConsolidado('2026-01-20', 7, '2026-01-23'));
+        self::assertTrue($comprobacion->periodoNoConsolidado('2026-01-16', 7, '2026-01-23'));
+        self::assertFalse($comprobacion->periodoNoConsolidado('2026-01-15', 7, '2026-01-23'));
+    }
+
+    public function test_T11_sinVentanaOSinMinimoElPeriodoNuncaSeMarca(): void
+    {
+        $comprobacion = self::instancia();
+
+        // ventana_dias = 0 es «sin restricción», no «ventana de cero días».
+        self::assertFalse($comprobacion->periodoNoConsolidado('2026-01-23', 0, '2026-01-23'));
+        self::assertFalse($comprobacion->periodoNoConsolidado(null, 7, '2026-01-23'));
     }
 }
