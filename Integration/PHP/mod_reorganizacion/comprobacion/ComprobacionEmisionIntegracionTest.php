@@ -38,9 +38,9 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
         parent::tearDown();
     }
 
-    private function rutaTemporal(): string
+    private function rutaTemporal(string $extension = 'xml'): string
     {
-        $ruta = sys_get_temp_dir() . '/comprobacion-emision-' . uniqid('', true) . '.xml';
+        $ruta = sys_get_temp_dir() . '/comprobacion-emision-' . uniqid('', true) . '.' . $extension;
         $this->rutasEmitidas[] = $ruta;
         return $ruta;
     }
@@ -175,6 +175,107 @@ final class ComprobacionEmisionIntegracionTest extends CasoIntegracion
 
         $xml = new \SimpleXMLElement(file_get_contents($ruta));
         self::assertSame(112, (int) $xml->Origen->Traspaso->IdProveedor);
+    }
+
+    /** Productos ya clasificados, tal como los recibe la emisión del anterior. */
+    private function estadoProductoClasificado(): array
+    {
+        return [
+            [
+                'idArticulo' => 20,
+                'comparable' => true,
+                'minimoAlcanzado' => -4.0,
+                'saldoDeApertura' => 6.0,
+                'marcado' => true,
+                'condicionesConocidas' => ['periodo_no_consolidado'],
+                'stockJustificado' => 10.0,
+                'margen' => 0.5,
+                'existenciaExigida' => 10.0,
+                'estado' => 'seguro',
+            ],
+            [
+                'idArticulo' => 21,
+                'comparable' => true,
+                'minimoAlcanzado' => -1.0,
+                'saldoDeApertura' => 0.0,
+                'marcado' => true,
+                'condicionesConocidas' => [],
+                'stockJustificado' => null,
+                'margen' => 0.5,
+                'existenciaExigida' => 1.0,
+                'estado' => 'no_comparable',
+            ],
+        ];
+    }
+
+    /** Simula el contexto tal como lo entrega la admisión del fichero del vigente. */
+    private function contextoVigenteFixture(): array
+    {
+        return [
+            'ano' => '2026',
+            'idTienda' => 1,
+            'momento' => '2026-02-01T09:00:00+01:00',
+            'autor' => 9,
+            'proveedorCierre' => 112,
+            'ventanaDias' => 7,
+            'umbralSobrestock' => 50.0,
+            'modoTrayectoria' => 'normal',
+            'filtro' => [],
+        ];
+    }
+
+    public function test_T7_elInformeSeAbreConSuSeparadorYCoincideConLaPantalla(): void
+    {
+        $emision = new \ClaseComprobacionEmision();
+        $composicion = $emision->componer(
+            $this->estadoProductoClasificado(),
+            $this->contexto(['ano' => '2025']),
+            false,
+            null,
+            $this->contextoVigenteFixture()
+        );
+
+        $ruta = $this->rutaTemporal('csv');
+        $emision->emitirInforme($composicion, $ruta);
+
+        $contenido = file_get_contents($ruta);
+        self::assertStringStartsWith("\xEF\xBB\xBF", $contenido, 'El informe declara BOM UTF-8');
+
+        $sinBom = substr($contenido, 3);
+        self::assertStringContainsString(
+            "20;seguro;1;periodo_no_consolidado;10;10",
+            str_replace('.0', '', $sinBom),
+            'La fila del informe coincide con la de la composición que también alimenta la pantalla'
+        );
+        self::assertStringContainsString(
+            "21;no_comparable;1;;1;",
+            str_replace('.0', '', $sinBom)
+        );
+    }
+
+    public function test_T8_elInformeArrastraLosDosContextosDeLasDosEmisiones(): void
+    {
+        $_SESSION['usuarioTpv'] = ['id' => 9];
+        $emisionVigente = new \ClaseComprobacionEmision();
+        $composicionVigente = $emisionVigente->componer([], $this->contexto(['ano' => '2026']), false);
+
+        $_SESSION['usuarioTpv'] = ['id' => 7];
+        $emisionAnterior = new \ClaseComprobacionEmision();
+        $composicionAnterior = $emisionAnterior->componer(
+            $this->estadoProductoClasificado(),
+            $this->contexto(['ano' => '2025']),
+            false,
+            null,
+            $composicionVigente['contexto']
+        );
+
+        $ruta = $this->rutaTemporal('csv');
+        $emisionAnterior->emitirInforme($composicionAnterior, $ruta);
+
+        $contenido = str_replace("\xEF\xBB\xBF", '', file_get_contents($ruta));
+
+        self::assertMatchesRegularExpression('/Contexto;Anterior\nEjercicio;2025.*Autor;7/s', $contenido);
+        self::assertMatchesRegularExpression('/Contexto;Vigente\nEjercicio;2026.*Autor;9/s', $contenido);
     }
 
     public function test_T6_elContextoSeCopiaPorValorYNoCambiaSiSeReconfiguraDespues(): void
