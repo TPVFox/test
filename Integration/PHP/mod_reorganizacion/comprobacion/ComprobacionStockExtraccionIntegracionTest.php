@@ -40,12 +40,27 @@ final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
     }
 
     /** stocksRegularizacion exige un idTienda existente; el esquema de referencia no siembra ninguna. */
-    private function asegurarTienda1(): void
+    private function asegurarTienda(int $idTienda = 1): void
     {
+        $tipo = ($idTienda === 1) ? 'principal' : 'secundaria';
         $this->db->query(
             "INSERT IGNORE INTO tiendas (idTienda, tipoTienda, razonsocial, nif, telefono, estado, NombreComercial, direccion, ano) "
-                . "VALUES (1, 'principal', 'Tienda de pruebas', 'X0000000X', '000000000', 'Activo', 'Tienda de pruebas', 'Sin direccion', '2026')"
+                . "VALUES ({$idTienda}, '{$tipo}', 'Tienda de pruebas {$idTienda}', 'X0000000X', '000000000', 'Activo', 'Tienda de pruebas', 'Sin direccion', '2026')"
         );
+    }
+
+    /** Una regularizacion activa del producto, fechada donde se indique. */
+    private function regularizacion(int $idArticulo, string $fechaHora, float $stockModif): void
+    {
+        $this->asegurarTienda();
+        $idUsuario = $this->siembra->usuarioPorDefecto();
+        $sentencia = $this->db->prepare(
+            'INSERT INTO stocksRegularizacion '
+                . '(idArticulo, idTienda, fechaRegularizacion, stockActual, stockModif, stockFinal, stockOperacion, idUsuario, estado) '
+                . 'VALUES (?, 1, ?, 0, ?, ?, 0, ?, 1)'
+        );
+        $sentencia->bind_param('isddi', $idArticulo, $fechaHora, $stockModif, $stockModif, $idUsuario);
+        $sentencia->execute();
     }
 
     private function fila(array $resultado, int $idArticulo): ?array
@@ -142,7 +157,7 @@ final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
 
     public function test_T4b_productoConExistenciaRegistradaEnTienda1NoSeAnotaComoNuncaIncluido(): void
     {
-        $this->asegurarTienda1();
+        $this->asegurarTienda();
         $idArticulo = $this->siembra->articulo('Producto sí incluido en el cierre');
         $this->siembra->ventaTicket($idArticulo, 40.0, '2026-01-01');
         $this->db->query(
@@ -174,18 +189,9 @@ final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
 
     public function test_T6_unaRegularizacionActivaEnElPeriodoSeAnotaComoCondicionConocida(): void
     {
-        $this->asegurarTienda1();
         $idArticulo = $this->siembra->articulo('Producto regularizado en el periodo');
         $this->siembra->ventaTicket($idArticulo, 4.0, '2026-01-01');
-
-        $idUsuario = $this->siembra->usuarioPorDefecto();
-        $sentencia = $this->db->prepare(
-            'INSERT INTO stocksRegularizacion '
-                . '(idArticulo, idTienda, fechaRegularizacion, stockActual, stockModif, stockFinal, stockOperacion, idUsuario, estado) '
-                . 'VALUES (?, 1, "2026-01-15 10:00:00", 0, -2, -2, 0, ?, 1)'
-        );
-        $sentencia->bind_param('ii', $idArticulo, $idUsuario);
-        $sentencia->execute();
+        $this->regularizacion($idArticulo, '2026-01-15 10:00:00', -2.0);
 
         $comprobacion = new \ClaseComprobacionStockExtraccion();
         $resultado = $comprobacion->extraer($this->contexto());
@@ -247,7 +253,7 @@ final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
         // La trayectoria se reconstruye desde los movimientos y no desde la existencia
         // que la base declara. Si esa existencia entrara en el cálculo, un traspaso que
         // hubiese importado de más quedaría escondido por construcción.
-        $this->asegurarTienda1();
+        $this->asegurarTienda();
         $idArticulo = $this->siembra->articulo('Producto con existencia registrada enganosa');
         $this->siembra->ventaTicket($idArticulo, 5.0, '2026-01-05');
 
@@ -347,5 +353,148 @@ final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
         self::assertNotNull($fila);
         self::assertSame(-4.0, $fila['minimoAlcanzado']);
         self::assertNotContains('periodo_no_consolidado', $fila['condicionesConocidas']);
+    }
+
+    public function test_T15_unaRegularizacionDelPrimerDiaDelAnoTambienSeAnota(): void
+    {
+        // La regularización no es ninguno de los tres movimientos, así que el reparto
+        // entre saldo de partida y recorrido no la alcanza: ni una mitad ni la otra la
+        // absorben. Fechada el 1 de enero está dentro del ejercicio y está registrada, y
+        // si su periodo arrancase con el del recorrido no la vería nadie.
+        $idArticulo = $this->siembra->articulo('Producto regularizado el primer dia');
+        $this->siembra->ventaTicket($idArticulo, 4.0, '2026-01-05');
+        $this->regularizacion($idArticulo, '2026-01-01 09:00:00', -2.0);
+
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
+        $resultado = $comprobacion->extraer($this->contexto());
+
+        $fila = $this->fila($resultado, $idArticulo);
+        self::assertNotNull($fila);
+        self::assertContains('regularizacion_en_periodo', $fila['condicionesConocidas']);
+    }
+
+    public function test_T16_lasCuatroCondicionesSeAcumulanSobreElMismoProductoSinAbsorberse(): void
+    {
+        // Cada condición se comprueba también por separado. Este caso las reúne porque
+        // son ejes independientes que se acumulan sobre un mismo producto: si alguna
+        // absorbiera a otra, o si el marcado o el tipo desaparecieran al haber
+        // condiciones, no se vería en ningún caso de los de una sola.
+        $idFamilia = $this->siembra->familia('Familia excluida con producto en negativo');
+        $idArticulo = $this->siembra->articulo('Producto con las cuatro condiciones', ['familia' => $idFamilia]);
+        // Sin existencia registrada en la tienda principal: el cierre nunca lo habría
+        // tomado. El mínimo cae a tres días del corte, dentro de la ventana de siete.
+        $this->siembra->ventaTicket($idArticulo, 6.0, '2026-01-20');
+        $this->regularizacion($idArticulo, '2026-01-15 10:00:00', -1.0);
+
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
+        $resultado = $comprobacion->extraer(
+            $this->contexto(['familiasExcluidas' => [$idFamilia], 'ventanaDias' => 7]),
+            false,
+            '2026-01-23'
+        );
+
+        $fila = $this->fila($resultado, $idArticulo);
+        self::assertNotNull($fila);
+        self::assertEqualsCanonicalizing(
+            ['familia_excluida', 'nunca_incluido_en_cierre', 'periodo_no_consolidado', 'regularizacion_en_periodo'],
+            $fila['condicionesConocidas']
+        );
+        self::assertTrue($fila['marcado'], 'El marcado no se absorbe en las condiciones');
+        self::assertSame(-6.0, $fila['saldoAlCorte'], 'Ni los extremos de la trayectoria');
+        self::assertNotNull($fila['tipoIncidencia'], 'Ni el tipo que emite el componente consumido');
+    }
+
+    public function test_T17_laExistenciaEnOtraTiendaNoLibraDeNuncaIncluidoEnElCierre(): void
+    {
+        // La pregunta es a quién habría tomado el cierre, y el cierre selecciona por la
+        // tienda principal. Un producto con existencias solo en otra tienda es
+        // exactamente uno que el cierre no habría tomado, se opere donde se opere.
+        $this->asegurarTienda(2);
+        $idArticulo = $this->siembra->articulo('Producto con existencia solo en la segunda tienda');
+        $this->siembra->ventaTicket($idArticulo, 4.0, '2026-01-05');
+        $this->db->query(
+            'INSERT INTO articulosStocks (idArticulo, idTienda, stockOn, stockMin, stockMax) '
+                . "VALUES ({$idArticulo}, 2, 50, 0, 0)"
+        );
+
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
+        $resultado = $comprobacion->extraer($this->contexto(['idTienda' => '2']));
+
+        $fila = $this->fila($resultado, $idArticulo);
+        self::assertNotNull($fila);
+        self::assertContains('nunca_incluido_en_cierre', $fila['condicionesConocidas']);
+    }
+
+    public function test_T18_laFilaEmitidaNoLlevaNingunCampoDeCausaDelComponenteConsumido(): void
+    {
+        // El componente consumido acompaña cada hallazgo de una severidad, de una señal
+        // de fraccionamiento y de una frase de causa probable, y las tres se calculan a
+        // partir de suposiciones sobre por qué el producto está así. Ninguna cruza: lo
+        // que sale es el artículo y el tipo, y nada más.
+        $idArticulo = $this->siembra->articulo('Producto con hallazgo del componente consumido');
+        $this->siembra->ventaTicket($idArticulo, 5.0, '2026-03-05');
+
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
+        $fila = $this->fila($comprobacion->extraer($this->contexto(), false, '2026-06-30'), $idArticulo);
+
+        self::assertNotNull($fila);
+        self::assertSame(
+            ['idArticulo', 'saldoAlCorte', 'minimoAlcanzado', 'saldoDeApertura', 'marcado', 'tipoIncidencia', 'condicionesConocidas'],
+            array_keys($fila),
+            'La fila emitida lleva estos siete campos y ninguno más'
+        );
+        foreach (['severidad', 'fraccionado_es_causa', 'posible_causa'] as $campoDeCausa) {
+            self::assertArrayNotHasKey($campoDeCausa, $fila);
+        }
+    }
+
+    public function test_T19_loQueElComponenteConsumidoSenalaNoDecideQuienSeExamina(): void
+    {
+        // El componente cuenta las recepciones con dos estados de albarán de proveedor
+        // donde aquí se admiten cuatro. Con una entrada exportada por medio, su curva
+        // baja donde la de aquí sube: él señala el producto y aquí no llegó a deber
+        // existencias en ningún momento. Quien decide el conjunto es la trayectoria de
+        // aquí, así que el producto no sale.
+        $corte = '2026-06-30';
+        $idArticulo = $this->siembra->articulo('Producto que solo el componente consumido senala');
+        $this->siembra->entradaProveedor($idArticulo, 20.0, '2026-03-01', ['estado' => 'Exportado']);
+        $this->siembra->ventaTicket($idArticulo, 12.0, '2026-03-05');
+
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
+        $resultado = $comprobacion->extraer($this->contexto(), false, $corte);
+        self::assertNull($this->fila($resultado, $idArticulo), 'La trayectoria de aquí nunca baja de cero');
+
+        // Y que el componente sí lo señale no es una suposición de este caso.
+        $incidencias = (new \ClaseComprobacionStockConsulta())
+            ->incidenciasC1('2026-01-02', $corte, '2025-12-31', '2026-01-01', [], $this->contexto());
+        $loSenala = false;
+        foreach ($incidencias as $incidencia) {
+            if ((int) $incidencia['idArticulo'] === $idArticulo) {
+                $loSenala = true;
+            }
+        }
+        self::assertTrue($loSenala, 'Sin esto el caso pasaría por no haber nada que señalar');
+    }
+
+    public function test_T20_elTipoPuedeNoCoincidirConLosExtremosDeSuPropiaFila(): void
+    {
+        // Consecuencia declarada de lo mismo: el tipo lo compone el componente consumido
+        // con su definición de movimiento, no con la de aquí. Con una entrada exportada
+        // por medio, la fila sale con saldo positivo al corte y sin marcar, y junto a
+        // ella el tipo que ese componente reserva para el producto que debe existencias.
+        // Solo los extremos y el marcado son lecturas de este módulo.
+        $idArticulo = $this->siembra->articulo('Producto con dos lecturas de la misma trayectoria');
+        $this->siembra->entradaProveedor($idArticulo, 10.0, '2026-03-01', ['estado' => 'Exportado']);
+        $this->siembra->ventaTicket($idArticulo, 12.0, '2026-03-05');
+        $this->siembra->entradaProveedor($idArticulo, 5.0, '2026-03-10');
+
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
+        $fila = $this->fila($comprobacion->extraer($this->contexto(), false, '2026-06-30'), $idArticulo);
+
+        self::assertNotNull($fila);
+        self::assertSame(3.0, $fila['saldoAlCorte']);
+        self::assertSame(-2.0, $fila['minimoAlcanzado']);
+        self::assertFalse($fila['marcado']);
+        self::assertSame('Inventario en negativo', $fila['tipoIncidencia']);
     }
 }
