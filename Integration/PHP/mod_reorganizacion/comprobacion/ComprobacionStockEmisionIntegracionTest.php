@@ -25,6 +25,33 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
         $_SESSION['usuarioTpv'] = ['id' => 7];
         $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockEmision.php');
         $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockIntercambioXML.php');
+        // La pantalla es la otra salida de la misma composición, así que se monta
+        // aquí igual que el fichero: comprobar solo el fichero deja sin mirar la
+        // mitad de lo que la composición alimenta.
+        $this->incluirTPVFox('/modulos/mod_reorganizacion/funciones.php');
+    }
+
+    /**
+     * Extraer las filas de la tabla montada como listas de texto por celda, para
+     * poder compararlas con lo que salió al fichero sin depender del marcado.
+     *
+     * @return array<int, array<int, string>>
+     */
+    private function celdasDeLaVista(string $html): array
+    {
+        $documento = new \DOMDocument();
+        $documento->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NOERROR);
+        $xpath = new \DOMXPath($documento);
+
+        $filas = [];
+        foreach ($xpath->query('//tbody/tr') as $tr) {
+            $celdas = [];
+            foreach ($xpath->query('.//td', $tr) as $td) {
+                $celdas[] = trim($td->textContent);
+            }
+            $filas[] = $celdas;
+        }
+        return $filas;
     }
 
     protected function tearDown(): void
@@ -303,5 +330,145 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
 
         $segundo = new \SimpleXMLElement(file_get_contents($rutaSegunda));
         self::assertSame(99, (int) $segundo->Criterio->VentanaDias);
+    }
+
+    public function test_T9_laVistaMontadaYElFicheroLlevanLasMismasFilas(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer($this->estadoProducto(), $this->contexto(), false);
+
+        $ruta = $this->rutaTemporal();
+        $emision->emitir($composicion, $ruta);
+        $delFichero = \ClaseComprobacionStockIntercambioXML::simpleXMLToArray(
+            new \SimpleXMLElement(file_get_contents($ruta))
+        );
+
+        $deLaVista = $this->celdasDeLaVista(htmlTablaComprobacionStock($composicion, 'vigente'));
+
+        self::assertCount(count($delFichero['filas']), $deLaVista, 'Las dos salidas llevan tantas filas como la otra');
+
+        foreach ($delFichero['filas'] as $indice => $filaFichero) {
+            // Columnas del ejercicio vigente: marca de selección, artículo, saldo al
+            // corte, mínimo, saldo de apertura, marcado, incidencia y condiciones.
+            $celdas = $deLaVista[$indice];
+
+            self::assertSame($filaFichero['idArticulo'], (int) $celdas[1]);
+            self::assertSame($filaFichero['saldoAlCorte'], (float) $celdas[2]);
+            self::assertSame($filaFichero['minimoAlcanzado'], (float) $celdas[3]);
+            self::assertSame($filaFichero['saldoDeApertura'], (float) $celdas[4]);
+            self::assertSame($filaFichero['marcado'] ? 'Sí' : 'No', $celdas[5]);
+            self::assertSame($filaFichero['tipoIncidencia'] ?? '—', $celdas[6]);
+            self::assertSame(
+                $filaFichero['condicionesConocidas'] === [] ? '—' : implode(', ', $filaFichero['condicionesConocidas']),
+                $celdas[7]
+            );
+        }
+    }
+
+    public function test_T10_laPantallaSaleConLoQueSeUsoParaCalcularla(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer($this->estadoProducto(), $this->contexto(), false);
+
+        $html = htmlTablaComprobacionStock($composicion, 'vigente');
+
+        // Quien mira la pantalla decide sobre ella, y ni los umbrales ni el momento
+        // aparecen en ninguna celda: si no salen aparte, no salen.
+        self::assertStringContainsString('id="contextoComprobacionStockVigente"', $html);
+        self::assertStringContainsString(
+            '<li><strong>Calculado el:</strong> ' . $composicion['contexto']['momento'] . '</li>',
+            $html
+        );
+        self::assertStringContainsString('<li><strong>Trayectoria:</strong> normal</li>', $html);
+        self::assertStringContainsString('<li><strong>Umbral de fraccionado:</strong> 0.05</li>', $html);
+        self::assertStringContainsString('<li><strong>Umbral de magnitud:</strong> 0.5</li>', $html);
+        self::assertStringContainsString('<li><strong>Umbral por venta:</strong> 0.01</li>', $html);
+        self::assertStringContainsString('<li><strong>Ventana de consolidación:</strong> 7 día(s)</li>', $html);
+        self::assertStringContainsString('<li><strong>Ventana de registro tardío:</strong> 1 día(s)</li>', $html);
+    }
+
+    public function test_T11_loQueLlegaDeOtroInformeNoSePintaComoPropio(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer($this->estadoProducto(), $this->contexto(), false);
+
+        $html = htmlTablaComprobacionStock($composicion, 'vigente');
+
+        // Distinguible en la propia celda, anunciado en la cabecera, y explicado
+        // debajo: las tres cosas, porque una marca que solo se vea al pasar el ratón
+        // no está en la pantalla que alguien imprime o lee.
+        self::assertStringContainsString(
+            '<span class="label label-info">Inventario en negativo</span>',
+            $html
+        );
+        self::assertStringContainsString('Incidencia <sup>*</sup>', $html);
+        self::assertStringContainsString('No es una conclusión de esta comprobación', $html);
+
+        // Y la fila cuyo dato no llegó no inventa ninguna etiqueta.
+        self::assertSame('—', $this->celdasDeLaVista($html)[1][6]);
+    }
+
+    public function test_T12_loEmitidoDeclaraLaSeleccionPedidaYNoLaQueEncontro(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+
+        // Se piden tres productos y el conjunto solo tiene dos de ellos: es lo que
+        // ocurre cuando se marca en una pantalla y se descarga después, porque entre
+        // una cosa y otra el conjunto se vuelve a calcular.
+        $composicion = $emision->componer($this->estadoProducto(), $this->contexto(), false, [10, 11, 999]);
+
+        $ruta = $this->rutaTemporal();
+        $emision->emitir($composicion, $ruta);
+        $xml = new \SimpleXMLElement(file_get_contents($ruta));
+
+        $declarados = [];
+        foreach ($xml->Criterio->Filtro->Articulo as $idArticulo) {
+            $declarados[] = (int) $idArticulo;
+        }
+        self::assertSame([10, 11, 999], $declarados, 'Lo emitido declara lo que se pidió');
+
+        $contenidos = [];
+        foreach ($xml->Filas->Fila as $fila) {
+            $contenidos[] = (int) $fila->IdArticulo;
+        }
+        self::assertSame([10, 11], $contenidos, 'Y contiene lo que había');
+
+        // La diferencia entre las dos listas es lo que hace legible que no se entregó
+        // todo lo pedido. Declarar en su lugar la intersección la borraría.
+        self::assertNotSame($declarados, $contenidos);
+    }
+
+    public function test_T13_sinNingunProductoLasDosSalidasLoDicenIgual(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer([], $this->contexto(), false);
+
+        $ruta = $this->rutaTemporal();
+        // Que no haya nada que señalar es un resultado, no un fallo: el fichero se
+        // emite igual y con su criterio dentro, porque es lo que permite distinguir
+        // «se miró y no había» de «no se llegó a mirar».
+        self::assertTrue($emision->emitir($composicion, $ruta));
+
+        $xml = new \SimpleXMLElement(file_get_contents($ruta));
+        self::assertCount(0, $xml->Filas->children());
+        self::assertSame(7, (int) $xml->Criterio->VentanaDias);
+
+        $html = htmlTablaComprobacionStock($composicion, 'vigente');
+        self::assertSame([], $this->celdasDeLaVista($html));
+        self::assertStringContainsString('0 producto(s)', $html);
+        // Y la pantalla vacía tampoco pierde con qué se calculó.
+        self::assertStringContainsString('id="contextoComprobacionStockVigente"', $html);
+    }
+
+    public function test_T14_unaRamaQueNoExisteNoMontaUnaTablaAMedias(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer($this->estadoProducto(), $this->contexto(), false);
+
+        // Las columnas son las que separan los dos ejercicios. Pedir unas que no
+        // están declaradas tiene que parar aquí y no producir una tabla incompleta,
+        // que se leería como si el ejercicio no tuviera esos datos.
+        $this->expectException(\InvalidArgumentException::class);
+        htmlTablaComprobacionStock($composicion, 'inexistente');
     }
 }
