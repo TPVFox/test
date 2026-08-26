@@ -176,4 +176,38 @@ final class ComprobacionStockAdmisionIntegracionTest extends CasoIntegracion
         self::assertTrue($resultado['ok']);
         self::assertSame([], $resultado['filas']);
     }
+
+    public function test_T7_unFicheroDeOtraTiendaSeRechazaAunqueElEjercicioSeaElQueToca(): void
+    {
+        // La correspondencia tiene dos dimensiones y el ejercicio es solo una. Un fichero
+        // del año correcto y de otra tienda pasa la primera comprobación entera, y sin
+        // la segunda toda la clasificación se haría contra el catálogo equivocado.
+        $ruta = $this->emitirFichero(
+            [['idArticulo' => 10, 'saldoAlCorte' => -5.0, 'minimoAlcanzado' => -8.5, 'saldoDeApertura' => 3.0, 'marcado' => true, 'tipoIncidencia' => null, 'condicionesConocidas' => []]],
+            $this->contextoVigente(['idTienda' => '7'])
+        );
+
+        $admision = new \ClaseComprobacionStockAdmision();
+        $resultado = $admision->admitir($ruta, $this->contextoAnterior());
+
+        self::assertFalse($resultado['ok']);
+    }
+
+    public function test_T8_unFicheroDelPropioEjercicioQueAdmiteSeRechazaPorNoSerElSiguiente(): void
+    {
+        // El fichero que se espera es el del ejercicio siguiente a este. Uno de este mismo
+        // año es la confusión que de verdad puede cometerse —los dos ficheros se llaman
+        // igual salvo por el año— y se distingue de uno de un año remoto en que aquí falla
+        // por poco: si la comprobación fuera «que no sea el mío» en vez de «que sea el
+        // siguiente», este pasaría.
+        $ruta = $this->emitirFichero(
+            [['idArticulo' => 10, 'saldoAlCorte' => -5.0, 'minimoAlcanzado' => -8.5, 'saldoDeApertura' => 3.0, 'marcado' => true, 'tipoIncidencia' => null, 'condicionesConocidas' => []]],
+            $this->contextoVigente(['ano' => '2025'])
+        );
+
+        $admision = new \ClaseComprobacionStockAdmision();
+        $resultado = $admision->admitir($ruta, $this->contextoAnterior());
+
+        self::assertFalse($resultado['ok']);
+    }
 }

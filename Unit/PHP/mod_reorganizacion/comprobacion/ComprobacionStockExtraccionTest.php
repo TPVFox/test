@@ -195,4 +195,44 @@ final class ComprobacionStockExtraccionTest extends TestCase
         self::assertSame(7.0, $trayectorias[1]['saldoAlCorte']);
         self::assertNull($trayectorias[1]['fechaMinimo'], 'Ningún movimiento del periodo explica el mínimo');
     }
+
+    public function test_T13_unProductoCuyosMovimientosSeCancelanNoEntraEnElConjuntoExaminado(): void
+    {
+        $comprobacion = self::instancia();
+
+        // Recibe 8,1 kg y vende 3,7 y 4,4: neto exactamente cero, y nunca bajó de cero.
+        // Sumado en coma flotante da -8,88e-16, que es menor que cero para el lenguaje.
+        // Sin la precisión del dominio este producto se examina, se marca como existencia
+        // negativa, viaja al ejercicio anterior y allí se le reconstruye un stock mínimo
+        // que nadie necesita. Los importes son de peso a propósito: es donde ocurre.
+        $movimientos = [
+            ['tipo_movimiento' => 'entrada_proveedor', 'idArticulo' => 1, 'nunidades' => 8.1, 'fecha' => '2026-01-05'],
+            ['tipo_movimiento' => 'salida_ticket', 'idArticulo' => 1, 'nunidades' => 3.7, 'fecha' => '2026-01-10'],
+            ['tipo_movimiento' => 'salida_ticket', 'idArticulo' => 1, 'nunidades' => 4.4, 'fecha' => '2026-01-15'],
+        ];
+
+        $trayectorias = $comprobacion->componerTrayectoria([1], [], $movimientos, false);
+
+        self::assertSame(0.0, $trayectorias[1]['saldoAlCorte']);
+        self::assertSame(0.0, $trayectorias[1]['minimoAlcanzado']);
+        self::assertSame([], $comprobacion->conTrayectoriaEnNegativo($trayectorias));
+    }
+
+    public function test_T14_unMinimoQueNoOcurrioNoQuedaFechado(): void
+    {
+        $comprobacion = self::instancia();
+
+        // La misma cancelación, mirada por el otro lado: el mínimo se decide comparando
+        // el acumulado día a día, de modo que un residuo no solo altera el valor sino que
+        // deja fechado un mínimo en un día en que la curva no bajó de donde estaba.
+        $movimientos = [
+            ['tipo_movimiento' => 'entrada_proveedor', 'idArticulo' => 1, 'nunidades' => 8.1, 'fecha' => '2026-01-05'],
+            ['tipo_movimiento' => 'salida_ticket', 'idArticulo' => 1, 'nunidades' => 3.7, 'fecha' => '2026-01-10'],
+            ['tipo_movimiento' => 'salida_ticket', 'idArticulo' => 1, 'nunidades' => 4.4, 'fecha' => '2026-01-15'],
+        ];
+
+        $trayectorias = $comprobacion->componerTrayectoria([1], [], $movimientos, false);
+
+        self::assertNull($trayectorias[1]['fechaMinimo']);
+    }
 }

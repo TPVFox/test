@@ -16,6 +16,7 @@ final class ComprobacionStockClasificacionTest extends TestCase
 {
     private static function instancia(): \ClaseComprobacionStockClasificacion
     {
+        global $RutaServidor, $HostNombre, $URLCom;
         require_once RUTA_TPVFOX . '/modulos/mod_reorganizacion/clases/ClaseComprobacionStockClasificacion.php';
         return new \ClaseComprobacionStockClasificacion();
     }

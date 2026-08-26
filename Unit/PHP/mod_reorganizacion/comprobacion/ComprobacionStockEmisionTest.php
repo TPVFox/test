@@ -1,8 +1,9 @@
 <?php
 /**
- * Lo que decide la emisión antes de componer: que el conjunto pedido llegó entero
- * —se cuenta lo que llega y se compara con lo que se declaró enviar— y si lo pedido
- * delimita un subconjunto de lo compuesto o es el conjunto entero.
+ * Lo que decide la emisión sin tocar la base: que el conjunto pedido llegó entero —se
+ * cuenta lo que llega y se compara con lo que se declaró enviar—, si lo pedido delimita
+ * un subconjunto de lo compuesto o es el conjunto entero, y si un fichero con todo lo
+ * compuesto cabría por la subida del otro extremo del puente.
  */
 
 declare(strict_types=1);
@@ -113,5 +114,58 @@ final class ComprobacionStockEmisionTest extends TestCase
         // Nada compuesto y algo pedido no son el mismo conjunto: el fichero ha de
         // declarar qué se buscó, o «se miró y no había» se confunde con «no se pidió».
         self::assertSame([10], $emision->filtroDeclarable([], [10]));
+    }
+
+    public function test_T9_siElConjuntoCompletoCabeNoHayNadaQueAdvertir(): void
+    {
+        $emision = self::instancia();
+
+        // Se mide contra el conjunto completo porque es el mayor que se puede pedir: si
+        // ese cabe, ninguna selección deja de caber.
+        self::assertNull($emision->avisoDeVolumen(5000, '2M', '8M'));
+    }
+
+    public function test_T10_siNoCabeSeDiceCuantoOcupaYEnPartesDeCuantosEmitirlo(): void
+    {
+        $emision = self::instancia();
+
+        $aviso = $emision->avisoDeVolumen(10000, '2M', '8M');
+
+        // El aviso llega cuando el operador aún no ha elegido nada y el filtro sigue
+        // siendo el remedio: por eso lleva la cifra de la parte, no solo el problema.
+        self::assertNotNull($aviso);
+        self::assertStringContainsString('10.000', $aviso);
+        self::assertStringContainsString('5.518', $aviso);
+    }
+
+    public function test_T11_mandaElMenorDeLosDosLimites(): void
+    {
+        $emision = self::instancia();
+
+        // Un fichero que cabe por sí mismo no entra si la petición que lo lleva no cabe,
+        // así que mirar solo el límite por fichero prometería que cabe algo que no entra.
+        self::assertNotNull($emision->avisoDeVolumen(10000, '1024M', '2M'));
+        self::assertNotNull($emision->avisoDeVolumen(10000, '2M', '1024M'));
+        self::assertNull($emision->avisoDeVolumen(10000, '1024M', '1024M'));
+    }
+
+    public function test_T12_elLimiteSeTraduceDesdeLaAbreviaturaDelServidor(): void
+    {
+        $emision = self::instancia();
+
+        self::assertSame(2097152, $emision->bytesDelLimite('2M'));
+        self::assertSame(524288, $emision->bytesDelLimite('512K'));
+        self::assertSame(1073741824, $emision->bytesDelLimite('1G'));
+        self::assertSame(1024, $emision->bytesDelLimite('1024'));
+    }
+
+    public function test_T13_sinLimiteDeclaradoNoSeInventaUnAviso(): void
+    {
+        $emision = self::instancia();
+
+        // Un servidor que no declara límite no es un servidor sin espacio: advertir aquí
+        // sería avisar de algo que nadie ha establecido.
+        self::assertSame(0, $emision->bytesDelLimite(''));
+        self::assertNull($emision->avisoDeVolumen(10000, '', ''));
     }
 }

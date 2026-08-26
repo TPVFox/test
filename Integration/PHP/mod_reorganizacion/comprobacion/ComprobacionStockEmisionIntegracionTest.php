@@ -585,4 +585,33 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
         self::assertCount(4000, $leido['filas']);
         self::assertSame($leido['resumenDeclarado'], $leido['resumenRecalculado']);
     }
+
+    public function test_T19_unaCantidadDeSeisDecimalesSeEmiteYValidaContraElEsquema(): void
+    {
+        // Una millonésima es una cantidad legítima —la base guarda seis decimales— y el
+        // lenguaje la escribe «1.0E-6», que el esquema no admite como número decimal. Una
+        // sola fila así rechazaba el fichero entero, con las mil doscientas restantes
+        // dentro, y lo único que llegaba a quien exportaba era que no se pudo.
+        $filas = [
+            ['idArticulo' => 10, 'saldoAlCorte' => -0.000001, 'minimoAlcanzado' => -0.000002,
+             'saldoDeApertura' => 0.000001, 'marcado' => true, 'tipoIncidencia' => null,
+             'condicionesConocidas' => []],
+            ['idArticulo' => 11, 'saldoAlCorte' => -12.345678, 'minimoAlcanzado' => -12.345678,
+             'saldoDeApertura' => 0.0, 'marcado' => true, 'tipoIncidencia' => null,
+             'condicionesConocidas' => []],
+        ];
+
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer($filas, $this->contexto(), false);
+        $ruta = $this->rutaTemporal();
+        self::assertTrue($emision->emitir($composicion, $ruta));
+
+        $contenido = file_get_contents($ruta);
+        self::assertStringNotContainsString('E-', $contenido, 'Ninguna cantidad en notación científica');
+
+        $leido = \ClaseComprobacionStockIntercambioXML::simpleXMLToArray(new \SimpleXMLElement($contenido));
+        self::assertSame(-0.000001, $leido['filas'][0]['saldoAlCorte'], 'La cantidad no se pierde al escribirla');
+        self::assertSame(-12.345678, $leido['filas'][1]['saldoAlCorte']);
+        self::assertSame($leido['resumenDeclarado'], $leido['resumenRecalculado']);
+    }
 }
