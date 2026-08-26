@@ -59,20 +59,22 @@ final class ComprobacionStockExtraccionTest extends TestCase
         self::assertSame('2026-01-05', $trayectorias[1]['fechaMinimo']);
     }
 
-    public function test_T3_elMismoSaldoDePartidaDaLaMismaTrayectoriaSeaCualSeaLaConvencionDeFecha(): void
+    public function test_T3_unProductoSinSaldoDePartidaArrancaEnCeroYNoQuedaFuera(): void
     {
         $comprobacion = self::instancia();
         $movimientos = [
             ['tipo_movimiento' => 'salida_ticket', 'idArticulo' => 1, 'nunidades' => 4, 'fecha' => '2026-01-05'],
         ];
 
-        // El traspaso fechado el 31 de diciembre y el fechado el 1 de enero quedan
-        // dentro del mismo rango de consulta del saldo de partida: a la composición le
-        // llega ya agregado en un único número, sea cual sea la convención real.
-        $conveccionCierre = $comprobacion->componerTrayectoria([1], [1 => ['saldo_acumulado' => 8.0]], $movimientos, false);
-        $convencionApertura = $comprobacion->componerTrayectoria([1], [1 => ['saldo_acumulado' => 8.0]], $movimientos, false);
+        // Que no haya fila de saldo de partida significa que no hubo movimiento en el
+        // borde del ejercicio, no que el producto no se examine: arranca en cero y su
+        // trayectoria se compone igual que la de los demás.
+        $trayectorias = $comprobacion->componerTrayectoria([1], [], $movimientos, false);
 
-        self::assertSame($conveccionCierre, $convencionApertura);
+        self::assertArrayHasKey(1, $trayectorias);
+        self::assertSame(0.0, $trayectorias[1]['saldoDeApertura']);
+        self::assertSame(-4.0, $trayectorias[1]['saldoAlCorte']);
+        self::assertSame(-4.0, $trayectorias[1]['minimoAlcanzado']);
     }
 
     public function test_T4_modoEstrictoTruncaElSaldoDePartidaACero(): void
@@ -173,5 +175,24 @@ final class ComprobacionStockExtraccionTest extends TestCase
         // ventana_dias = 0 es «sin restricción», no «ventana de cero días».
         self::assertFalse($comprobacion->periodoNoConsolidado('2026-01-23', 0, '2026-01-23'));
         self::assertFalse($comprobacion->periodoNoConsolidado(null, 7, '2026-01-23'));
+    }
+
+    public function test_T12_elMinimoIncluyeElPuntoDePartidaYNoSoloElRecorrido(): void
+    {
+        $comprobacion = self::instancia();
+
+        // Solo entradas: la curva nunca baja de donde empezó, así que el mínimo es el
+        // propio saldo de partida. Tomándolo del primer movimiento saldría por encima de
+        // la apertura, y un producto que abre debiendo existencias se quedaría fuera.
+        $trayectorias = $comprobacion->componerTrayectoria(
+            [1],
+            [1 => ['saldo_acumulado' => -3.0]],
+            [['tipo_movimiento' => 'entrada_proveedor', 'idArticulo' => 1, 'nunidades' => 10, 'fecha' => '2026-03-01']],
+            false
+        );
+
+        self::assertSame(-3.0, $trayectorias[1]['minimoAlcanzado']);
+        self::assertSame(7.0, $trayectorias[1]['saldoAlCorte']);
+        self::assertNull($trayectorias[1]['fechaMinimo'], 'Ningún movimiento del periodo explica el mínimo');
     }
 }

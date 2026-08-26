@@ -36,15 +36,73 @@ final class ComprobacionStockContextoIntegracionTest extends CasoIntegracion
         self::assertTrue($contexto['ok']);
         self::assertSame('2019', $contexto['ano']);
         self::assertSame('42', $contexto['idTienda']);
-        self::assertSame(7, $contexto['ventanaDias']);
-        self::assertSame(0.05, $contexto['umbralFraccionado']);
-        self::assertSame(0.5, $contexto['umbralMagnitud']);
-        self::assertSame(0.010, $contexto['umbralPorVenta']);
-        self::assertSame(1, $contexto['timingVentanaDias']);
-        self::assertSame(112, $contexto['proveedorCierre']);
-        self::assertEqualsCanonicalizing([13, 21, 22, 42], $contexto['familiasExcluidas']);
+
+        // Los parámetros no se fijan aquí con un número: cuáles valen es cosa de la
+        // instalación y cambia cuando el operador toca un ajuste. Lo que este caso
+        // comprueba es que cada uno llega a su campo y con su tipo, contrastándolo con
+        // la misma configuración que el sistema lee.
+        $criterio = $this->parametrosDelCriterio();
+        self::assertSame((int) $criterio['ventana_dias'], $contexto['ventanaDias']);
+        self::assertSame((float) $criterio['c1_umbral_fraccionado'], $contexto['umbralFraccionado']);
+        self::assertSame((float) $criterio['c1_umbral_magnitud'], $contexto['umbralMagnitud']);
+        self::assertSame((float) $criterio['c1_umbral_por_venta'], $contexto['umbralPorVenta']);
+        self::assertSame((int) $criterio['c1_timing_ventana_dias'], $contexto['timingVentanaDias']);
+
+        $cierre = $this->ajustesDelCierre();
+        self::assertSame($cierre['proveedor'], $contexto['proveedorCierre']);
+        self::assertEqualsCanonicalizing($cierre['familiasExcluidas'], $contexto['familiasExcluidas']);
+
+        // Y la configuración contra la que se compara tiene que traer algo: si los cinco
+        // llegasen vacíos, las comparaciones de arriba pasarían sin que nada estuviera
+        // conectado. Los dos ajustes del cierre no entran en esta guarda porque sus
+        // valores vacíos son configuraciones legítimas: una instalación puede no excluir
+        // ninguna familia. Que el proveedor no sea nulo sí, porque sin él el contexto no
+        // habría llegado a devolver `ok`.
+        self::assertNotContains('', $criterio, 'Ningun parametro del criterio puede venir vacio');
+        self::assertNotNull($contexto['proveedorCierre']);
 
         $comprobacion->cerrar();
+    }
+
+    /**
+     * Los cinco parametros del criterio, leidos por el mismo camino que el sistema:
+     * ClaseParametros antepone la copia de cache del modulo al fichero del repositorio,
+     * de modo que leer el XML por nuestra cuenta compararia contra otra cosa.
+     *
+     * @return array<string,string>
+     */
+    private function parametrosDelCriterio(): array
+    {
+        $parametros = new \ClaseParametros(RUTA_TPVFOX . '/modulos/mod_informes/parametros.xml');
+        $posstock = $parametros->getNode('configuracion/posstock');
+
+        $valores = [];
+        foreach (
+            ['ventana_dias', 'c1_umbral_fraccionado', 'c1_umbral_magnitud',
+                'c1_umbral_por_venta', 'c1_timing_ventana_dias'] as $nombre
+        ) {
+            $valores[$nombre] = (string) $posstock->$nombre;
+        }
+        return $valores;
+    }
+
+    /** @return array{proveedor:int, familiasExcluidas:list<int>} */
+    private function ajustesDelCierre(): array
+    {
+        $parametros = new \ClaseParametros(RUTA_TPVFOX . '/modulos/mod_reorganizacion/parametros.xml');
+
+        $proveedor = $parametros->getNode('configuracion/cierre_stock_anual/ajustes_globales/proveedor');
+        $familias = $parametros->getNode('configuracion/cierre_stock_anual/familias_excluidas');
+
+        $excluidas = [];
+        foreach ($familias->familia as $familia) {
+            $excluidas[] = (int) $familia->attributes()['id'];
+        }
+
+        return [
+            'proveedor' => (int) $proveedor->attributes()['id'],
+            'familiasExcluidas' => $excluidas,
+        ];
     }
 
     public function test_T2_sinSesionEstablecidaSePara(): void

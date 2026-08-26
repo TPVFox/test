@@ -27,7 +27,14 @@ final class ComprobacionStockRecorridoIntegracionTest extends CasoIntegracion
     private Siembra $siembra;
 
     /** Lo sembrado por este caso, para retirarlo en el orden inverso. */
-    private array $sembrado = ['ticketst' => [], 'albprot' => [], 'articulos' => []];
+    private array $sembrado = [
+        'ticketst' => [],
+        'albprot' => [],
+        'articulos' => [],
+        'tiendas' => [],
+        'usuarios' => [],
+        'clientes' => [],
+    ];
 
     protected function setUp(): void
     {
@@ -53,9 +60,34 @@ final class ComprobacionStockRecorridoIntegracionTest extends CasoIntegracion
             $this->db->query('DELETE FROM articulosFamilias WHERE idArticulo = ' . (int) $id);
             $this->db->query('DELETE FROM articulos WHERE idArticulo = ' . (int) $id);
         }
+        foreach ($this->sembrado['clientes'] as $id) {
+            $this->db->query('DELETE FROM clientes WHERE idClientes = ' . (int) $id);
+        }
+        foreach ($this->sembrado['usuarios'] as $id) {
+            $this->db->query('DELETE FROM usuarios WHERE id = ' . (int) $id);
+        }
+        // La tienda va la última y es la que más importa: se siembra como principal y
+        // activa, y dos filas así a la vez impiden entrar a la aplicación.
+        foreach ($this->sembrado['tiendas'] as $id) {
+            $this->db->query('DELETE FROM tiendas WHERE idTienda = ' . (int) $id);
+        }
 
         unset($_SESSION['tiendaTpv']);
         parent::tearDown();
+    }
+
+    /**
+     * Tienda, usuario y cliente los crea la siembra por debajo, la primera vez que se le
+     * pide sembrar cualquier cosa. En un caso con retroceso desaparecen solos; aquí no
+     * hay retroceso, así que se piden de forma explícita y por adelantado para poder
+     * anotar sus identificadores y retirarlos al terminar. La tienda es la que importa:
+     * se siembra como principal y activa, y la aplicación no deja entrar si hay dos.
+     */
+    private function anotarLoQueSiembraPorDebajo(): void
+    {
+        $this->sembrado['tiendas'][] = $this->siembra->tiendaPorDefecto();
+        $this->sembrado['usuarios'][] = $this->siembra->usuarioPorDefecto();
+        $this->sembrado['clientes'][] = $this->siembra->clientePorDefecto();
     }
 
     public function test_T1_elBloqueDeLecturaRechazaLaTablaTemporalQueElComponenteConsumidoNecesita(): void
@@ -87,6 +119,8 @@ final class ComprobacionStockRecorridoIntegracionTest extends CasoIntegracion
         // El producto que se recupera es el que obliga al componente consumido a acotar
         // la ventana de recepción, que es lo que exige la tabla temporal. Sobre él, la
         // extracción entera tiene que llegar hasta el final con el bloque abierto.
+        $this->anotarLoQueSiembraPorDebajo();
+
         $idArticulo = $this->siembra->articulo('Producto que toca negativo y se recupera');
         $this->sembrado['articulos'][] = $idArticulo;
         $this->sembrado['albprot'][] = $this->siembra->entradaProveedor($idArticulo, 5.0, '2026-03-01');

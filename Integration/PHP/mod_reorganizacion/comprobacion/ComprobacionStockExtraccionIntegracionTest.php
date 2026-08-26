@@ -220,4 +220,132 @@ final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
         self::assertNull($this->fila($modoNormal, $idArticulo), 'La apertura sostiene el saldo por encima de cero');
         self::assertNotNull($this->fila($modoEstricto, $idArticulo), 'Con S0=0 la misma bajada de 10 ya es negativa');
     }
+
+    public function test_T9_unaEntradaExportadaCuentaEnElRecorridoIgualQueEnElSaldoDePartida(): void
+    {
+        // Un albarán de proveedor pasa a 'Exportado' cuando se exporta a XML, y sigue
+        // siendo una recepción real. Las dos mitades de la trayectoria —el saldo de
+        // partida y el recorrido del periodo— tienen que contarlo las dos: si una lo
+        // deja fuera, la curva baja por una entrada que sí existe y el producto sale
+        // examinado sin haber estado nunca en negativo.
+        $idArticulo = $this->siembra->articulo('Producto con recepcion exportada');
+        $this->siembra->entradaProveedor($idArticulo, 10.0, '2026-03-01', ['estado' => 'Exportado']);
+        $this->siembra->ventaTicket($idArticulo, 12.0, '2026-03-05');
+
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
+        $resultado = $comprobacion->extraer($this->contexto());
+
+        $fila = $this->fila($resultado, $idArticulo);
+        self::assertNotNull($fila);
+        // -2 es 10 recibidas menos 12 vendidas. Sin contar la entrada saldría -12.
+        self::assertSame(-2.0, $fila['saldoAlCorte']);
+        self::assertSame(-2.0, $fila['minimoAlcanzado']);
+    }
+
+    public function test_T10_alterarLaExistenciaRegistradaNoCambiaLaTrayectoria(): void
+    {
+        // La trayectoria se reconstruye desde los movimientos y no desde la existencia
+        // que la base declara. Si esa existencia entrara en el cálculo, un traspaso que
+        // hubiese importado de más quedaría escondido por construcción.
+        $this->asegurarTienda1();
+        $idArticulo = $this->siembra->articulo('Producto con existencia registrada enganosa');
+        $this->siembra->ventaTicket($idArticulo, 5.0, '2026-01-05');
+
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
+        $antes = $this->fila($comprobacion->extraer($this->contexto()), $idArticulo);
+
+        $this->db->query(
+            'INSERT INTO articulosStocks (idArticulo, idTienda, stockOn, stockMin, stockMax) '
+                . "VALUES ({$idArticulo}, 1, 999, 0, 0)"
+        );
+        $despues = $this->fila((new \ClaseComprobacionStockExtraccion())->extraer($this->contexto()), $idArticulo);
+
+        self::assertNotNull($antes);
+        self::assertNotNull($despues, 'El producto sigue examinandose: 999 registradas no borran la bajada');
+        self::assertSame($antes['saldoAlCorte'], $despues['saldoAlCorte']);
+        self::assertSame($antes['minimoAlcanzado'], $despues['minimoAlcanzado']);
+        self::assertSame($antes['saldoDeApertura'], $despues['saldoDeApertura']);
+    }
+
+    public function test_T11_laAperturaFechadaElUltimoDiaOElPrimeroDaElMismoSaldoDeArranque(): void
+    {
+        // Unas instalaciones fechan la importación de apertura el 31 de diciembre y
+        // otras el 1 de enero. El rango del saldo de partida abarca los dos días, de
+        // modo que la trayectoria arranca igual con cualquiera de las dos convenciones.
+        $conCierre = $this->siembra->articulo('Producto con apertura fechada el ultimo dia');
+        $this->siembra->entradaProveedor($conCierre, 6.0, '2025-12-31', ['idProveedor' => 112]);
+        $this->siembra->ventaTicket($conCierre, 9.0, '2026-02-10');
+
+        $conApertura = $this->siembra->articulo('Producto con apertura fechada el primer dia');
+        $this->siembra->entradaProveedor($conApertura, 6.0, '2026-01-01', ['idProveedor' => 112]);
+        $this->siembra->ventaTicket($conApertura, 9.0, '2026-02-10');
+
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
+        $resultado = $comprobacion->extraer($this->contexto());
+
+        $filaCierre = $this->fila($resultado, $conCierre);
+        $filaApertura = $this->fila($resultado, $conApertura);
+
+        self::assertNotNull($filaCierre);
+        self::assertNotNull($filaApertura);
+        self::assertSame(6.0, $filaCierre['saldoDeApertura']);
+        self::assertSame($filaCierre['saldoDeApertura'], $filaApertura['saldoDeApertura']);
+        self::assertSame($filaCierre['saldoAlCorte'], $filaApertura['saldoAlCorte']);
+        self::assertSame($filaCierre['minimoAlcanzado'], $filaApertura['minimoAlcanzado']);
+    }
+
+    public function test_T12_unProductoDadoDeBajaTambienSeExamina(): void
+    {
+        // El catálogo no se criba por estado: un producto dado de baja con trayectoria
+        // negativa es justo lo que hay que ver, y quien decide qué productos se examinan
+        // es el catálogo entero.
+        $idArticulo = $this->siembra->articulo('Producto dado de baja', ['estado' => 'Baja']);
+        $this->siembra->ventaTicket($idArticulo, 3.0, '2026-01-05');
+
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
+        $resultado = $comprobacion->extraer($this->contexto());
+
+        $fila = $this->fila($resultado, $idArticulo);
+        self::assertNotNull($fila, 'Un producto en baja no queda fuera del catalogo examinado');
+        self::assertSame(-3.0, $fila['saldoAlCorte']);
+    }
+
+    public function test_T13_unProductoQueAbreEnNegativoYSoloRecibeSeExaminaPorSuApertura(): void
+    {
+        // El punto de partida forma parte de la trayectoria. Este producto abre el
+        // ejercicio debiendo tres unidades y a partir de ahí solo sube: su mínimo es la
+        // propia apertura, y es el caso que el conjunto emitido tiene que recoger aunque
+        // el recorrido del periodo no baje en ningún momento.
+        $idArticulo = $this->siembra->articulo('Producto que abre en negativo y solo recibe');
+        $this->siembra->ventaTicket($idArticulo, 3.0, '2026-01-01');
+        $this->siembra->entradaProveedor($idArticulo, 10.0, '2026-03-01');
+
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
+        $resultado = $comprobacion->extraer($this->contexto());
+
+        $fila = $this->fila($resultado, $idArticulo);
+        self::assertNotNull($fila, 'El minimo es el saldo de apertura, y eso ya es negativo');
+        self::assertSame(-3.0, $fila['saldoDeApertura']);
+        self::assertSame(-3.0, $fila['minimoAlcanzado']);
+        self::assertSame(7.0, $fila['saldoAlCorte']);
+        self::assertFalse($fila['marcado'], 'Al corte ya no debe existencias');
+    }
+
+    public function test_T14_sinMovimientoQueExpliqueElMinimoNoSeAnotaPeriodoNoConsolidado(): void
+    {
+        // La condición dice que el mínimo cae en la ventana en que el periodo aún puede
+        // cambiar. Si el mínimo es el saldo de apertura no hay ningún movimiento del
+        // periodo que lo explique, y la condición no aplica por reciente que sea el corte.
+        $idArticulo = $this->siembra->articulo('Producto con minimo en la apertura');
+        $this->siembra->ventaTicket($idArticulo, 4.0, '2026-01-01');
+        $this->siembra->entradaProveedor($idArticulo, 1.0, '2026-01-21');
+
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
+        $resultado = $comprobacion->extraer($this->contexto(['ventanaDias' => 7]), false, '2026-01-23');
+
+        $fila = $this->fila($resultado, $idArticulo);
+        self::assertNotNull($fila);
+        self::assertSame(-4.0, $fila['minimoAlcanzado']);
+        self::assertNotContains('periodo_no_consolidado', $fila['condicionesConocidas']);
+    }
 }

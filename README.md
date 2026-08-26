@@ -79,6 +79,10 @@ npx playwright install               # navegadores; añade --with-deps si faltan
 El código bajo prueba se localiza en `../TPVFox` por defecto. Se puede apuntar a otra ruta con
 `TPVFOX_PATH` (Jest y PHPUnit) y `TPVFOX_URL` (Playwright).
 
+`TPVFOX_URL` admite un prefijo de ruta —`http://localhost:8080/TPVFox`— cuando la aplicación no
+se sirve en la raíz del servidor. La barra final la pone la configuración, así que da igual
+escribirla o no.
+
 Con esto ya corren los niveles unitarios. La integración y el E2E necesitan base de datos.
 
 ## La base de pruebas
