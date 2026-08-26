@@ -471,4 +471,118 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
         $this->expectException(\InvalidArgumentException::class);
         htmlTablaComprobacionStock($composicion, 'inexistente');
     }
+
+    /**
+     * Sustituir un valor en el fichero ya emitido y devolver si el resumen que viaja
+     * dentro sigue cuadrando con el que se recalcula al leerlo.
+     */
+    private function resumenCuadraTrasEditar(string $ruta, string $busca, string $pone): bool
+    {
+        file_put_contents($ruta, str_replace($busca, $pone, file_get_contents($ruta)));
+        $leido = \ClaseComprobacionStockIntercambioXML::simpleXMLToArray(
+            new \SimpleXMLElement(file_get_contents($ruta))
+        );
+        return $leido['resumenDeclarado'] === $leido['resumenRecalculado'];
+    }
+
+    public function test_T15_elResumenCubreDeQueEjecucionProcedeElFichero(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer($this->estadoProducto(), $this->contexto(), false);
+
+        $ruta = $this->rutaTemporal();
+        $emision->emitir($composicion, $ruta);
+
+        $momento = (string) (new \SimpleXMLElement(file_get_contents($ruta)))->Origen->Momento;
+
+        // El momento y el autor son una fecha y un número: cambiarlos por otra fecha
+        // y otro número pasa la comprobación de tipos del esquema sin objeción. Son
+        // además lo único que acredita de qué ejecución salió el fichero, así que si
+        // el resumen no los cubriera no quedaría nada que los sostuviera.
+        self::assertFalse(
+            $this->resumenCuadraTrasEditar($ruta, '<Momento>' . $momento . '</Momento>', '<Momento>2020-01-01T00:00:00+00:00</Momento>'),
+            'Editar el momento de la ejecución ha de romper el resumen'
+        );
+
+        $ruta = $this->rutaTemporal();
+        $emision->emitir($composicion, $ruta);
+        self::assertFalse(
+            $this->resumenCuadraTrasEditar($ruta, '<Autor>7</Autor>', '<Autor>99</Autor>'),
+            'Editar el autor de la ejecución ha de romper el resumen'
+        );
+    }
+
+    public function test_T16_elResumenCubreLoQueElFicheroDeclaraDeSiMismo(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer($this->estadoProducto(), $this->contexto(), false);
+
+        $ruta = $this->rutaTemporal();
+        $emision->emitir($composicion, $ruta);
+        $fecha = (string) (new \SimpleXMLElement(file_get_contents($ruta)))->Meta->FechaExportacion;
+
+        // La fecha de emisión y el identificador de origen repiten lo que el bloque
+        // de origen ya dice. Que lo repitan no los hace inocuos: quien lea el fichero
+        // por la cabecera leerá lo que diga la cabecera.
+        self::assertFalse(
+            $this->resumenCuadraTrasEditar($ruta, '<FechaExportacion>' . $fecha . '</FechaExportacion>', '<FechaExportacion>2020-01-01T00:00:00+00:00</FechaExportacion>'),
+            'Editar la fecha de emisión ha de romper el resumen'
+        );
+
+        $ruta = $this->rutaTemporal();
+        $emision->emitir($composicion, $ruta);
+        self::assertFalse(
+            $this->resumenCuadraTrasEditar($ruta, 'idOrigen="2026-1"', 'idOrigen="2025-4"'),
+            'Editar el identificador de origen ha de romper el resumen'
+        );
+    }
+
+    public function test_T17_unFicheroDeOtraVersionDelFormatoNoSeLlegaALeer(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer($this->estadoProducto(), $this->contexto(), false);
+
+        $ruta = $this->rutaTemporal();
+        $emision->emitir($composicion, $ruta);
+        file_put_contents($ruta, str_replace('<Version>1.0</Version>', '<Version>2.0</Version>', file_get_contents($ruta)));
+
+        // Lo detiene el esquema, no el código que consume el fichero: ese código lo
+        // lee entero dando por hecho que es de esta versión, y para cuando pudiera
+        // notar que no lo es ya habría leído mal.
+        $this->incluirTPVFox('/clases/ClaseIOXML.php');
+        $io = new \ClaseIOXML($ruta, RUTA_TPVFOX . '/modulos/mod_reorganizacion/comprobacion_stock_intercambio_v1.xsd');
+
+        $this->expectException(\Exception::class);
+        $io->cargar();
+    }
+
+    public function test_T18_elCatalogoCompletoSeEmiteYValidaEnUnaSolaEmision(): void
+    {
+        $filas = [];
+        for ($i = 1; $i <= 4000; $i++) {
+            $filas[] = [
+                'idArticulo' => $i,
+                'saldoAlCorte' => -1.5,
+                'minimoAlcanzado' => -3.0,
+                'saldoDeApertura' => 2.0,
+                'marcado' => true,
+                'tipoIncidencia' => null,
+                'condicionesConocidas' => [],
+            ];
+        }
+
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer($filas, $this->contexto(), false);
+
+        $ruta = $this->rutaTemporal();
+        // El camino de emisión completo sobre el orden de magnitud de un catálogo de
+        // tienda: componer, serializar, resumir y validar contra el esquema.
+        self::assertTrue($emision->emitir($composicion, $ruta));
+
+        $leido = \ClaseComprobacionStockIntercambioXML::simpleXMLToArray(
+            new \SimpleXMLElement(file_get_contents($ruta))
+        );
+        self::assertCount(4000, $leido['filas']);
+        self::assertSame($leido['resumenDeclarado'], $leido['resumenRecalculado']);
+    }
 }
