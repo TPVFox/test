@@ -119,7 +119,7 @@ final class Siembra
     /**
      * Entrada de proveedor: suma existencias.
      *
-     * @param array{estado?:string,estadoLinea?:string,idProveedor?:int} $opciones
+     * @param array{estado?:string,estadoLinea?:string,idProveedor?:int,idTienda?:int} $opciones
      * @return int Identificador del albaran, para anadirle mas lineas
      */
     public function entradaProveedor(int $idArticulo, float $unidades, string $fecha, array $opciones = []): int
@@ -129,7 +129,7 @@ final class Siembra
         $idAlbaran = $this->insertar('albprot', [
             'Numalbpro'    => $numero,
             'Fecha'        => $this->momento($fecha),
-            'idTienda'     => $this->tiendaPorDefecto(),
+            'idTienda'     => $opciones['idTienda'] ?? $this->tiendaPorDefecto(),
             'idUsuario'    => $this->usuarioPorDefecto(),
             'idProveedor'  => $opciones['idProveedor'] ?? 1,
             'estado'       => $opciones['estado'] ?? 'Guardado',
@@ -162,7 +162,7 @@ final class Siembra
     /**
      * Salida por ticket: resta existencias.
      *
-     * @param array{estado?:string,estadoLinea?:string} $opciones
+     * @param array{estado?:string,estadoLinea?:string,idTienda?:int} $opciones
      */
     public function ventaTicket(int $idArticulo, float $unidades, string $fecha, array $opciones = []): int
     {
@@ -172,7 +172,7 @@ final class Siembra
             'Numticket'     => $numero,
             'Numtempticket' => $numero,
             'Fecha'         => $this->momento($fecha),
-            'idTienda'      => $this->tiendaPorDefecto(),
+            'idTienda'      => $opciones['idTienda'] ?? $this->tiendaPorDefecto(),
             'idUsuario'     => $this->usuarioPorDefecto(),
             'idCliente'     => $this->clientePorDefecto(),
             'estado'        => $opciones['estado'] ?? 'Cerrado',
@@ -202,7 +202,7 @@ final class Siembra
     /**
      * Salida por albaran de cliente: resta existencias.
      *
-     * @param array{estado?:string,estadoLinea?:string} $opciones
+     * @param array{estado?:string,estadoLinea?:string,idTienda?:int} $opciones
      */
     public function ventaAlbaranCliente(int $idArticulo, float $unidades, string $fecha, array $opciones = []): int
     {
@@ -211,7 +211,7 @@ final class Siembra
         $idAlbaran = $this->insertar('albclit', [
             'Numalbcli' => $numero,
             'Fecha'     => $this->momento($fecha),
-            'idTienda'  => $this->tiendaPorDefecto(),
+            'idTienda'  => $opciones['idTienda'] ?? $this->tiendaPorDefecto(),
             'idUsuario' => $this->usuarioPorDefecto(),
             'idCliente' => $this->clientePorDefecto(),
             'estado'    => $opciones['estado'] ?? 'Guardado',

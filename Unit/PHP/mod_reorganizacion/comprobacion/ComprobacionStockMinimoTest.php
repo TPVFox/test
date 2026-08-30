@@ -141,4 +141,83 @@ final class ComprobacionStockMinimoTest extends TestCase
         self::assertSame('peso', $comprobacion->tipoSupuesto('peso'));
         self::assertSame('unidad', $comprobacion->tipoSupuesto('unidad'));
     }
+
+    public function test_T8_unLoteQueSeCancelaExactoNoCortaElRecorrido(): void
+    {
+        $comprobacion = self::instancia();
+
+        // El lote de marzo recibe 8,1 kg y vende 3,7 y 4,4: neto exactamente cero, y un
+        // cero no corta. Sumado en coma flotante da -8,88e-16, que es menor que cero
+        // para el lenguaje: sin la precisión del dominio ese lote sería el ancla y los
+        // seis del lote de enero, que sí sostienen existencia, quedarían fuera.
+        $movimientos = [
+            $this->movimiento('2025-01-10', 10.0, 'recepcion'),
+            $this->movimiento('2025-01-20', -4.0, 'venta'),
+            $this->movimiento('2025-03-01', 8.1, 'recepcion'),
+            $this->movimiento('2025-03-05', -3.7, 'venta'),
+            $this->movimiento('2025-03-10', -4.4, 'venta'),
+            $this->movimiento('2025-06-01', 5.0, 'recepcion'),
+        ];
+
+        $resultado = $comprobacion->justificar($movimientos, 'unidad');
+
+        self::assertSame(11.0, $resultado['stockJustificado']);
+    }
+
+    public function test_T9_siElLoteMasRecienteEsNegativoElMinimoEsCeroYNoUnaFaltaDeHistorico(): void
+    {
+        $comprobacion = self::instancia();
+
+        // El ancla es el primer lote del recorrido y no queda nada posterior. Cero aquí
+        // no es lo mismo que no tener histórico: hay lotes y se han recorrido, y lo que
+        // dicen es que ni el último tramo se sostiene. Es una restricción establecida y
+        // sale como cantidad, sin la condición de histórico incompleto.
+        $movimientos = [
+            $this->movimiento('2025-02-01', 10.0, 'recepcion'),
+            $this->movimiento('2025-02-10', -4.0, 'venta'),
+            $this->movimiento('2025-09-01', 3.0, 'recepcion'),
+            $this->movimiento('2025-09-15', -8.0, 'venta'),
+        ];
+
+        $resultado = $comprobacion->justificar($movimientos, 'unidad');
+
+        self::assertSame(0.0, $resultado['stockJustificado']);
+        self::assertSame([], $resultado['condicionesConocidas']);
+    }
+
+    public function test_T10_laSalidaPorAlbaranDeClienteTambienCuentaParaElMargen(): void
+    {
+        $comprobacion = self::instancia();
+
+        // Sesenta salidas por albarán de cliente, ninguna por ticket. Lo que el margen
+        // acota es la imprecisión que cada pesada acumula, y una salida por albarán se
+        // pesa igual: si no contaran, el margen se quedaría en su suelo de 0,5.
+        $movimientos = [$this->movimiento('2025-03-01', 100.0, 'recepcion')];
+        for ($i = 0; $i < 60; $i++) {
+            $movimientos[] = $this->movimiento('2025-03-05', -1.0, 'salida_cliente');
+        }
+
+        $resultado = $comprobacion->justificar($movimientos, 'peso');
+
+        self::assertSame(40.0, $resultado['stockJustificado']);
+        self::assertSame(0.6, $resultado['margen']);
+    }
+
+    public function test_T11_dentroDeUnMismoDiaLaRecepcionVaPrimeroYLaSalidaEntraEnSuLote(): void
+    {
+        $comprobacion = self::instancia();
+
+        // Los movimientos se fechan por día, sin hora, así que coincidir es lo corriente
+        // y hay que decidirlo. La venta se pasa antes que la recepción a propósito: si
+        // el orden lo decidiera la concatenación de los orígenes, esa venta quedaría
+        // antes de la primera recepción, fuera de todo lote, y el mínimo saldría 10.
+        $movimientos = [
+            $this->movimiento('2025-04-10', -6.0, 'venta'),
+            $this->movimiento('2025-04-10', 10.0, 'recepcion'),
+        ];
+
+        $resultado = $comprobacion->justificar($movimientos, 'unidad');
+
+        self::assertSame(4.0, $resultado['stockJustificado']);
+    }
 }

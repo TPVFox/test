@@ -1,9 +1,10 @@
 <?php
 /**
- * Reconstrucción del ejercicio anterior: los dos traspasos —identificados por el
- * proveedor que declara el fichero admitido— quedan fuera de la ventana; sin ninguna
- * recepción no hay lote que reconstruir; el margen solo cuenta ventas de los lotes
- * contados en productos que se registran por peso.
+ * Reconstrucción del ejercicio anterior: los dos albaranes de frontera —los del
+ * proveedor que declara el fichero admitido, fechados en los bordes del ejercicio—
+ * quedan fuera de la ventana, y sus compras corrientes no; sin ninguna recepción no
+ * hay lote que reconstruir; el margen solo cuenta salidas de los lotes contados en
+ * productos que se registran por peso. Ninguna de las lecturas acota por tienda.
  */
 
 declare(strict_types=1);
@@ -36,9 +37,9 @@ final class ComprobacionStockMinimoIntegracionTest extends CasoIntegracion
         ], $cambios);
     }
 
-    private function filaDe(int $idArticulo): array
+    private function filaDe(int $idArticulo, bool $comparable = true): array
     {
-        return ['idArticulo' => $idArticulo, 'condicionesConocidas' => []];
+        return ['idArticulo' => $idArticulo, 'comparable' => $comparable, 'condicionesConocidas' => []];
     }
 
     public function test_T1_elStockJustificadoExcluyeLosDosTraspasosYCortaEnElUltimoLoteNegativo(): void
@@ -127,16 +128,66 @@ final class ComprobacionStockMinimoIntegracionTest extends CasoIntegracion
         self::assertSame(15.0, $resultado[0]['stockJustificado']);
     }
 
-    public function test_T6_unProductoSinFilaEnArticulosSaleHistoricoIncompletoConMargenPorDefecto(): void
+    public function test_T6_unProductoNoComparableNoSeReconstruyeYNoSaleConHistoricoIncompleto(): void
     {
-        // Es el caso de un producto no comparable: no existe en el catálogo de este
-        // ejercicio, así que tampoco tiene movimientos ni tipo que consultar.
+        // No existe en el catálogo de este ejercicio: no hay nada que reconstruir, y lo
+        // que le pasa no es que su histórico esté incompleto. Colgarle esa condición
+        // pondría en el informe un hallazgo sobre un producto del que no hay hallazgo.
         $proveedorTraspaso = $this->siembra->proveedor('Proveedor de cierre');
 
         $comprobacion = new \ClaseComprobacionStockMinimo();
-        $resultado = $comprobacion->calcular([$this->filaDe(999999)], $this->contexto(), $proveedorTraspaso);
+        $resultado = $comprobacion->calcular([$this->filaDe(999999, false)], $this->contexto(), $proveedorTraspaso);
 
         self::assertNull($resultado[0]['stockJustificado']);
-        self::assertContains('historico_incompleto', $resultado[0]['condicionesConocidas']);
+        self::assertSame(0.0, $resultado[0]['margen']);
+        self::assertSame([], $resultado[0]['condicionesConocidas']);
+    }
+
+    public function test_T7_lasComprasCorrientesAlProveedorDelTraspasoSiEntranEnLaVentana(): void
+    {
+        $proveedorTraspaso = $this->siembra->proveedor('Proveedor de cierre');
+        $idArticulo = $this->siembra->articulo('Producto comprado tambien al proveedor del traspaso');
+
+        // Los dos albaranes de frontera, en los bordes del ejercicio: quedan fuera.
+        $this->siembra->entradaProveedor($idArticulo, 999.0, '2025-01-01', ['idProveedor' => $proveedorTraspaso, 'estado' => 'Importado']);
+        $this->siembra->entradaProveedor($idArticulo, -999.0, '2025-12-31', ['idProveedor' => $proveedorTraspaso, 'estado' => 'Guardado']);
+
+        // Y una compra corriente al mismo proveedor en mitad del ejercicio, que sí es
+        // movimiento del negocio: es la recepción que abre el único lote. Si la
+        // exclusión barriera al proveedor entero, este producto no tendría ninguna
+        // recepción y saldría sin stock justificado.
+        $this->siembra->entradaProveedor($idArticulo, 20.0, '2025-05-10', ['idProveedor' => $proveedorTraspaso]);
+        $this->siembra->ventaTicket($idArticulo, 5.0, '2025-05-20');
+
+        $comprobacion = new \ClaseComprobacionStockMinimo();
+        $resultado = $comprobacion->calcular([$this->filaDe($idArticulo)], $this->contexto(), $proveedorTraspaso);
+
+        self::assertSame(15.0, $resultado[0]['stockJustificado']);
+        self::assertSame([], $resultado[0]['condicionesConocidas']);
+    }
+
+    public function test_T8_laReconstruccionCuentaLosMovimientosDeCualquierTienda(): void
+    {
+        $principal = $this->siembra->tiendaPorDefecto();
+        $otra = $this->siembra->tienda('2026', 'secundaria');
+
+        $proveedorTraspaso = $this->siembra->proveedor('Proveedor de cierre');
+        $proveedorHabitual = $this->siembra->proveedor('Proveedor habitual');
+        $idArticulo = $this->siembra->articulo('Producto con movimiento en dos tiendas');
+
+        // Lo que se reconstruye aquí se compara después contra la existencia exigida del
+        // ejercicio vigente, que no acota por tienda. Acotar solo este lado dejaría la
+        // resta entre ambos sin significado: saldría 30 en vez de 18.
+        $this->siembra->entradaProveedor($idArticulo, 30.0, '2025-03-01', ['idProveedor' => $proveedorHabitual, 'idTienda' => $principal]);
+        $this->siembra->ventaTicket($idArticulo, 12.0, '2025-03-10', ['idTienda' => $otra]);
+
+        $comprobacion = new \ClaseComprobacionStockMinimo();
+        $resultado = $comprobacion->calcular(
+            [$this->filaDe($idArticulo)],
+            $this->contexto(['idTienda' => $principal]),
+            $proveedorTraspaso
+        );
+
+        self::assertSame(18.0, $resultado[0]['stockJustificado']);
     }
 }
