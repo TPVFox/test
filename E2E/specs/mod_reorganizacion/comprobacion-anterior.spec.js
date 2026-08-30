@@ -31,6 +31,13 @@ test.describe('Comprobación de existencias — ejercicio anterior', () => {
     await expect(fila).toBeVisible({ timeout: 15000 });
     // El estado nunca viaja solo: siempre va acompañado de la existencia exigida.
     await expect(fila.locator('td').nth(4)).not.toHaveText('');
+
+    // Y la pantalla dice de dónde vino lo que muestra. Es el único recorrido en que
+    // ese bloque se compone de un fichero realmente subido y admitido: en todo lo
+    // demás el contexto llega puesto a mano.
+    await expect(page.locator('#contextoComprobacionStockAnteriorOrigen')).toBeVisible();
+    await expect(page.locator('#contextoComprobacionStockAnteriorOrigen')).toContainText('Emitido el');
+    await expect(page.locator('#contextoComprobacionStockAnteriorOrigen')).toContainText('Autor');
   });
 
   test('T2 descarga el informe final con los dos contextos de cálculo', async ({ page }) => {

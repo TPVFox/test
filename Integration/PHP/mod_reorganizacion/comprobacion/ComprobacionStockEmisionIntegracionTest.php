@@ -1,8 +1,15 @@
 <?php
 /**
- * Composición única del resultado en el ejercicio vigente: una sola estructura
- * alimenta la vista y el fichero de intercambio, y ese fichero declara su origen, su
- * criterio y un resumen de contenido que detecta la edición.
+ * Composición única del resultado, en las dos ejecuciones. En el ejercicio vigente
+ * una sola estructura alimenta la vista y el fichero de intercambio, y ese fichero
+ * declara su origen, su criterio y un resumen de contenido que detecta la edición.
+ *
+ * En el anterior la misma estructura alimenta la vista y el informe final, y lleva
+ * dos contextos en vez de uno: el de este cálculo y el que trajo el fichero. Los
+ * dos salen a las dos salidas, porque de qué ejecución vino el fichero no lo puede
+ * comprobar el sistema y solo lo puede juzgar quien lo admite. Los cuatro estados
+ * se presentan ahí con los dos números que los sostienen, y el menor de los dos se
+ * nombra por lo que es: un mínimo que basta, no una cantidad contada.
  */
 
 declare(strict_types=1);
@@ -613,5 +620,227 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
         self::assertSame(-0.000001, $leido['filas'][0]['saldoAlCorte'], 'La cantidad no se pierde al escribirla');
         self::assertSame(-12.345678, $leido['filas'][1]['saldoAlCorte']);
         self::assertSame($leido['resumenDeclarado'], $leido['resumenRecalculado']);
+    }
+
+    /**
+     * Un producto por estado, tal como los cuatro llegan a la composición del
+     * ejercicio anterior. Los estados van puestos y no calculados a propósito: lo
+     * que se comprueba aquí es cómo se presentan, no si la regla acierta.
+     */
+    private function losCuatroEstados(): array
+    {
+        return [
+            ['idArticulo' => 30, 'comparable' => true, 'marcado' => false,
+             'condicionesConocidas' => [], 'existenciaExigida' => 10.0,
+             'stockJustificado' => 10.0, 'margen' => 0.5, 'estado' => 'seguro'],
+            ['idArticulo' => 31, 'comparable' => true, 'marcado' => true,
+             'condicionesConocidas' => ['periodo_no_consolidado'], 'existenciaExigida' => 5.0,
+             'stockJustificado' => 12.0, 'margen' => 0.5, 'estado' => 'no_seguro'],
+            ['idArticulo' => 32, 'comparable' => true, 'marcado' => false,
+             'condicionesConocidas' => ['historico_incompleto'], 'existenciaExigida' => 20.0,
+             'stockJustificado' => 3.0, 'margen' => 0.5, 'estado' => 'dudoso'],
+            ['idArticulo' => 33, 'comparable' => false, 'marcado' => true,
+             'condicionesConocidas' => [], 'existenciaExigida' => 4.0,
+             'stockJustificado' => null, 'margen' => 0.5, 'estado' => 'no_comparable'],
+        ];
+    }
+
+    public function test_T20_losCuatroEstadosSalenConLosDosNumerosQueLosSostienen(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer(
+            $this->losCuatroEstados(),
+            $this->contexto(['ano' => '2025']),
+            false,
+            null,
+            $this->contextoVigenteFixture()
+        );
+
+        $html = htmlTablaComprobacionStock($composicion, 'anterior');
+        $celdas = $this->celdasDeLaVista($html);
+
+        // Columnas del anterior: artículo, estado, marcado, condiciones, existencia
+        // exigida y mínimo necesario justificado.
+        self::assertSame(
+            ['Seguro', 'No seguro', 'Dudoso', 'No comparable'],
+            array_column($celdas, 1),
+            'Los cuatro estados salen, y en texto'
+        );
+
+        // Ninguno viaja solo: al lado van siempre las dos cantidades cuya distancia
+        // es lo que el estado resume. Sin ellas la etiqueta vuelve a leerse como un
+        // diagnóstico en vez de como una posición frente a un criterio.
+        self::assertSame(['10', '5', '20', '4'], array_column($celdas, 4));
+        self::assertSame(['10', '12', '3', '—'], array_column($celdas, 5));
+
+        // Y los cuatro se pintan igual entre sí: nada los ordena por gravedad ni
+        // señala uno como error. El que no tiene con qué compararse tampoco pierde
+        // la cantidad que el otro ejercicio sí estableció por su cuenta.
+        self::assertSame(
+            4,
+            substr_count($html, '<span class="label label-default">'),
+            'Los cuatro estados comparten presentación'
+        );
+    }
+
+    public function test_T21_laPantallaDelAnteriorDiceDeQueEjecucionVinoElFichero(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+
+        // Dos ficheros del mismo ejercicio y la misma tienda: la admisión los acepta
+        // igual porque por su contenido son admisibles los dos, y lo único que los
+        // separa es cuándo se emitieron y quién. Si eso no sale en pantalla, quien
+        // admite no tiene con qué notar que está clasificando contra el viejo.
+        $delVigente = array_merge($this->contextoVigenteFixture(), ['ventanaDias' => 3]);
+
+        $primero = $emision->componer(
+            $this->estadoProductoClasificado(),
+            $this->contexto(['ano' => '2025', 'ventanaDias' => 7]),
+            false,
+            null,
+            $delVigente
+        );
+        $segundo = $emision->componer(
+            $this->estadoProductoClasificado(),
+            $this->contexto(['ano' => '2025', 'ventanaDias' => 7]),
+            false,
+            null,
+            array_merge($delVigente, [
+                'momento' => '2026-02-14T18:30:00+01:00',
+                'autor' => 4,
+            ])
+        );
+
+        $htmlPrimero = htmlTablaComprobacionStock($primero, 'anterior');
+        $htmlSegundo = htmlTablaComprobacionStock($segundo, 'anterior');
+
+        foreach ([$htmlPrimero, $htmlSegundo] as $html) {
+            self::assertStringContainsString('id="contextoComprobacionStockAnterior"', $html);
+            self::assertStringContainsString('id="contextoComprobacionStockAnteriorOrigen"', $html);
+            self::assertStringContainsString('El fichero admitido se emitió en el ejercicio vigente', $html);
+            // El criterio del vigente también sale, y no es el de aquí: las condiciones
+            // que llegaron en el fichero se marcaron con esos umbrales, así que sin
+            // ellos la mitad de la fila queda sin con qué leerse.
+            self::assertStringContainsString('<li><strong>Ventana de consolidación:</strong> 7 día(s)</li>', $html);
+            self::assertStringContainsString('<li><strong>Ventana de consolidación:</strong> 3 día(s)</li>', $html);
+        }
+
+        self::assertStringContainsString(
+            '<li><strong>Emitido el:</strong> 2026-02-01T09:00:00+01:00</li><li><strong>Autor:</strong> 9</li>',
+            $htmlPrimero
+        );
+        self::assertStringContainsString(
+            '<li><strong>Emitido el:</strong> 2026-02-14T18:30:00+01:00</li><li><strong>Autor:</strong> 4</li>',
+            $htmlSegundo
+        );
+    }
+
+    public function test_T22_laPantallaDelAnteriorYElInformeLlevanLasMismasFilas(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer(
+            $this->losCuatroEstados(),
+            $this->contexto(['ano' => '2025']),
+            false,
+            null,
+            $this->contextoVigenteFixture()
+        );
+
+        $ruta = $this->rutaTemporal('csv');
+        $emision->emitirInforme($composicion, $ruta);
+        $lineas = explode("\n", trim(str_replace("\xEF\xBB\xBF", '', file_get_contents($ruta))));
+
+        // Las filas del informe empiezan tras su cabecera de columnas, que es la
+        // última línea con el nombre del primer campo.
+        $desde = 0;
+        foreach ($lineas as $indice => $linea) {
+            if (strpos($linea, 'IdArticulo;') === 0) {
+                $desde = $indice + 1;
+                break;
+            }
+        }
+        $delInforme = array_map(
+            static fn (string $linea): array => explode(';', $linea),
+            array_slice($lineas, $desde)
+        );
+
+        $deLaVista = $this->celdasDeLaVista(htmlTablaComprobacionStock($composicion, 'anterior'));
+
+        self::assertCount(count($delInforme), $deLaVista, 'Las dos salidas llevan tantas filas como la otra');
+
+        $etiquetas = ['seguro' => 'Seguro', 'no_seguro' => 'No seguro',
+                      'dudoso' => 'Dudoso', 'no_comparable' => 'No comparable'];
+
+        foreach ($delInforme as $indice => $filaInforme) {
+            $celdas = $deLaVista[$indice];
+
+            self::assertSame($filaInforme[0], $celdas[0]);
+            self::assertSame($etiquetas[$filaInforme[1]], $celdas[1]);
+            self::assertSame($filaInforme[2] === '1' ? 'Sí' : 'No', $celdas[2]);
+            self::assertSame(
+                $filaInforme[3] === '' ? '—' : implode(', ', explode(',', $filaInforme[3])),
+                $celdas[3]
+            );
+            // Las dos cantidades se escriben igual en las dos salidas: el informe se
+            // lee al lado de la pantalla, y un número escrito de dos maneras no se
+            // puede comparar fila a fila.
+            self::assertSame($filaInforme[4], $celdas[4]);
+            self::assertSame($filaInforme[5] === '' ? '—' : $filaInforme[5], $celdas[5]);
+        }
+    }
+
+    public function test_T23_elMinimoJustificadoSeNombraPorLoQueEsEnLasDosSalidas(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer(
+            $this->losCuatroEstados(),
+            $this->contexto(['ano' => '2025']),
+            false,
+            null,
+            $this->contextoVigenteFixture()
+        );
+
+        $html = htmlTablaComprobacionStock($composicion, 'anterior');
+
+        // El número es el mínimo que basta para explicar los movimientos, no un
+        // recuento. Llamarlo stock lo convierte en una existencia comprobada, y este
+        // informe se lee para decidir si se corrigen existencias.
+        self::assertStringNotContainsString('Stock justificado', $html);
+        self::assertStringContainsString('Mínimo necesario justificado <sup>*</sup>', $html);
+        self::assertStringContainsString('no un recuento ni una existencia comprobada', $html);
+
+        $ruta = $this->rutaTemporal('csv');
+        $emision->emitirInforme($composicion, $ruta);
+        $contenido = file_get_contents($ruta);
+
+        self::assertStringContainsString('MinimoNecesarioJustificado', $contenido);
+        self::assertStringNotContainsString('StockJustificado', $contenido);
+    }
+
+    public function test_T24_unaCantidadMinusculaSeEscribeIgualEnLaPantallaQueEnElInforme(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer(
+            [[
+                'idArticulo' => 40, 'comparable' => true, 'marcado' => false,
+                'condicionesConocidas' => [], 'existenciaExigida' => 0.000001,
+                'stockJustificado' => 0.000001, 'margen' => 0.0, 'estado' => 'seguro',
+            ]],
+            $this->contexto(['ano' => '2025']),
+            false,
+            null,
+            $this->contextoVigenteFixture()
+        );
+
+        // Una millonésima es una cantidad legítima: la base guarda seis decimales.
+        // El lenguaje la escribe «1.0E-6» al volcarla a texto, y así salía en la
+        // pantalla mientras el informe de esa misma composición escribía «0.000001».
+        $celdas = $this->celdasDeLaVista(htmlTablaComprobacionStock($composicion, 'anterior'))[0];
+        self::assertSame('0.000001', $celdas[4]);
+        self::assertSame('0.000001', $celdas[5]);
+
+        $ruta = $this->rutaTemporal('csv');
+        $emision->emitirInforme($composicion, $ruta);
+        self::assertStringContainsString('40;seguro;0;;0.000001;0.000001', file_get_contents($ruta));
     }
 }
