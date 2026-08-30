@@ -33,9 +33,15 @@ $estadoProducto = [
     ],
 ];
 
+// Una sola lectura del reloj, como la que hace el contexto de operación real: de ahí
+// salen el momento de la emisión y la fecha hasta la que se leyó.
+$instante = time();
+
 $contextoOperacion = [
     'ano' => $anoVigente,
     'idTienda' => $idTienda,
+    'momento' => date('c', $instante),
+    'fechaCorte' => date('Y-m-d', $instante),
     'ventanaDias' => 7,
     'umbralFraccionado' => 0.05,
     'umbralMagnitud' => 0.5,

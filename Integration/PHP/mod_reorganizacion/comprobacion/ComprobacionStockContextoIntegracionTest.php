@@ -183,4 +183,27 @@ final class ComprobacionStockContextoIntegracionTest extends CasoIntegracion
 
         $comprobacion->cerrar();
     }
+
+    public function test_T8_elMomentoYLaFechaDeCorteSalenDeUnaSolaLecturaDelReloj(): void
+    {
+        // Son los dos datos de la ejecución que dependen del reloj: cuándo se hizo y
+        // hasta dónde se leyó. Si cada uno lo mirase por su cuenta, una ejecución que
+        // cruzase la medianoche declararía un momento de un día sobre datos de otro,
+        // y nadie que leyera el resultado después podría notarlo. Saliendo de la misma
+        // lectura, no pueden discrepar.
+        $_SESSION['tiendaTpv'] = ['ano' => '2026', 'idTienda' => '1'];
+        $comprobacion = new \ClaseComprobacionStockContexto();
+
+        $contexto = $comprobacion->abrir();
+        self::assertTrue($contexto['ok']);
+
+        self::assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}$/', $contexto['fechaCorte']);
+        self::assertSame(
+            substr($contexto['momento'], 0, 10),
+            $contexto['fechaCorte'],
+            'La fecha de corte es el día del momento de la ejecución'
+        );
+
+        $comprobacion->cerrar();
+    }
 }

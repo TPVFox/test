@@ -131,8 +131,11 @@ final class ComprobacionStockRecorridoIntegracionTest extends CasoIntegracion
         $contextoClase = new \ClaseComprobacionStockContexto();
         $apertura = $contextoClase->abrir();
         self::assertTrue($apertura['ok']);
+        // El contexto real trae la fecha de corte del día en que se ejecuta. Aquí se
+        // sustituye por una fija para que el caso no dependa de cuándo se lance.
+        $apertura['fechaCorte'] = '2026-06-30';
 
-        $estadoProducto = (new \ClaseComprobacionStockExtraccion())->extraer($apertura, false, '2026-06-30');
+        $estadoProducto = (new \ClaseComprobacionStockExtraccion())->extraer($apertura);
         $contextoClase->cerrar();
 
         $fila = null;
@@ -155,8 +158,9 @@ final class ComprobacionStockRecorridoIntegracionTest extends CasoIntegracion
         $contextoClase = new \ClaseComprobacionStockContexto();
         $apertura = $contextoClase->abrir();
         self::assertTrue($apertura['ok']);
+        $apertura['fechaCorte'] = '2026-06-30';
 
-        (new \ClaseComprobacionStockExtraccion())->extraer($apertura, false, '2026-06-30');
+        (new \ClaseComprobacionStockExtraccion())->extraer($apertura);
 
         $enTransaccion = $this->db->query('SELECT @@in_transaction AS activa')->fetch_assoc();
         self::assertSame('0', $enTransaccion['activa'], 'La extracción tiene que cerrar el bloque antes de cruzar');

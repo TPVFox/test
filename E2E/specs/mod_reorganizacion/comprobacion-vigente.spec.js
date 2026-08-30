@@ -39,6 +39,9 @@ test.describe('Comprobación de existencias — ejercicio vigente', () => {
     const ruta = await download.path();
     const xml = fs.readFileSync(ruta, 'utf-8');
 
+    // Hasta qué fecha se leyó el ejercicio, que es lo que sitúa las existencias que
+    // el fichero declara cuando el otro ejercicio lo admite semanas después.
+    expect(xml).toMatch(/<FechaCorte>\d{4}-\d{2}-\d{2}<\/FechaCorte>/);
     expect(xml).not.toContain('<IdArticulo>' + idExcluido + '</IdArticulo>');
     for (const id of idsIncluidos) {
       expect(xml).toContain('<IdArticulo>' + id + '</IdArticulo>');

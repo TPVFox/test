@@ -31,6 +31,11 @@ final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
             'ano' => '2026',
             'idTienda' => '1',
             'familiasExcluidas' => [],
+            // La fecha hasta la que se lee es un dato del contexto, no del reloj. Fijarla
+            // aquí es lo que hace que estos casos den el mismo resultado el día que se
+            // escriben y cualquier otro; con el reloj, el mismo estado sembrado deja de
+            // marcar «periodo no consolidado» en cuanto pasa la ventana.
+            'fechaCorte' => '2026-06-30',
             'ventanaDias' => 0,
             'umbralFraccionado' => 0.05,
             'umbralMagnitud' => 0.5,
@@ -180,7 +185,7 @@ final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
 
         $comprobacion = new \ClaseComprobacionStockExtraccion();
         // Fecha de corte a 3 días del mínimo, con ventana de 7: cae dentro.
-        $resultado = $comprobacion->extraer($this->contexto(['ventanaDias' => 7]), false, '2026-01-23');
+        $resultado = $comprobacion->extraer($this->contexto(['ventanaDias' => 7, 'fechaCorte' => '2026-01-23']));
 
         $fila = $this->fila($resultado, $idArticulo);
         self::assertNotNull($fila);
@@ -347,7 +352,7 @@ final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
         $this->siembra->entradaProveedor($idArticulo, 1.0, '2026-01-21');
 
         $comprobacion = new \ClaseComprobacionStockExtraccion();
-        $resultado = $comprobacion->extraer($this->contexto(['ventanaDias' => 7]), false, '2026-01-23');
+        $resultado = $comprobacion->extraer($this->contexto(['ventanaDias' => 7, 'fechaCorte' => '2026-01-23']));
 
         $fila = $this->fila($resultado, $idArticulo);
         self::assertNotNull($fila);
@@ -388,9 +393,11 @@ final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
 
         $comprobacion = new \ClaseComprobacionStockExtraccion();
         $resultado = $comprobacion->extraer(
-            $this->contexto(['familiasExcluidas' => [$idFamilia], 'ventanaDias' => 7]),
-            false,
-            '2026-01-23'
+            $this->contexto([
+                'familiasExcluidas' => [$idFamilia],
+                'ventanaDias' => 7,
+                'fechaCorte' => '2026-01-23',
+            ])
         );
 
         $fila = $this->fila($resultado, $idArticulo);
@@ -435,7 +442,7 @@ final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
         $this->siembra->ventaTicket($idArticulo, 5.0, '2026-03-05');
 
         $comprobacion = new \ClaseComprobacionStockExtraccion();
-        $fila = $this->fila($comprobacion->extraer($this->contexto(), false, '2026-06-30'), $idArticulo);
+        $fila = $this->fila($comprobacion->extraer($this->contexto()), $idArticulo);
 
         self::assertNotNull($fila);
         self::assertSame(
@@ -461,7 +468,7 @@ final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
         $this->siembra->ventaTicket($idArticulo, 12.0, '2026-03-05');
 
         $comprobacion = new \ClaseComprobacionStockExtraccion();
-        $resultado = $comprobacion->extraer($this->contexto(), false, $corte);
+        $resultado = $comprobacion->extraer($this->contexto(['fechaCorte' => $corte]));
         self::assertNull($this->fila($resultado, $idArticulo), 'La trayectoria de aquí nunca baja de cero');
 
         // Y que el componente sí lo señale no es una suposición de este caso.
@@ -489,12 +496,42 @@ final class ComprobacionStockExtraccionIntegracionTest extends CasoIntegracion
         $this->siembra->entradaProveedor($idArticulo, 5.0, '2026-03-10');
 
         $comprobacion = new \ClaseComprobacionStockExtraccion();
-        $fila = $this->fila($comprobacion->extraer($this->contexto(), false, '2026-06-30'), $idArticulo);
+        $fila = $this->fila($comprobacion->extraer($this->contexto()), $idArticulo);
 
         self::assertNotNull($fila);
         self::assertSame(3.0, $fila['saldoAlCorte']);
         self::assertSame(-2.0, $fila['minimoAlcanzado']);
         self::assertFalse($fila['marcado']);
         self::assertSame('Inventario en negativo', $fila['tipoIncidencia']);
+    }
+
+    public function test_T21_elMismoEstadoLeidoHastaDosFechasDistintasNoDaElMismoResultado(): void
+    {
+        // La fecha hasta la que se lee decide dos cosas: qué movimientos entran en la
+        // trayectoria, y desde dónde se cuenta hacia atrás la ventana de consolidación.
+        // Sin sembrar nada nuevo, el mismo producto sale marcado como periodo no
+        // consolidado leído tres días después del mínimo, y sin esa condición leído
+        // seis meses después. Por eso es un dato del criterio y lo emitido tiene que
+        // declararlo: dos informes que no lo lleven parecen contradecirse.
+        $idArticulo = $this->siembra->articulo('Producto leído hasta dos fechas distintas');
+        $this->siembra->ventaTicket($idArticulo, 6.0, '2026-01-20');
+
+        $comprobacion = new \ClaseComprobacionStockExtraccion();
+
+        $cerca = $this->fila(
+            $comprobacion->extraer($this->contexto(['ventanaDias' => 7, 'fechaCorte' => '2026-01-23'])),
+            $idArticulo
+        );
+        $lejos = $this->fila(
+            (new \ClaseComprobacionStockExtraccion())
+                ->extraer($this->contexto(['ventanaDias' => 7, 'fechaCorte' => '2026-06-30'])),
+            $idArticulo
+        );
+
+        self::assertNotNull($cerca);
+        self::assertNotNull($lejos);
+        self::assertSame($cerca['minimoAlcanzado'], $lejos['minimoAlcanzado'], 'La trayectoria sembrada es la misma');
+        self::assertContains('periodo_no_consolidado', $cerca['condicionesConocidas']);
+        self::assertNotContains('periodo_no_consolidado', $lejos['condicionesConocidas']);
     }
 }

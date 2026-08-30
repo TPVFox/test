@@ -61,6 +61,8 @@ test.describe('Comprobación de existencias — ejercicio anterior', () => {
     // era todo o una parte, y con qué proveedor se identificó el traspaso.
     expect(contenido).toContain('ConjuntoPedido;');
     expect(contenido).toContain('ProveedorCierre;');
+    // Dos veces: hasta cuándo se leyó aquí y hasta cuándo alcanzaba el fichero admitido.
+    expect(contenido.match(/FechaCorte;/g)).toHaveLength(2);
     expect(contenido).toContain('9001');
   });
 

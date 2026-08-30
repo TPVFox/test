@@ -84,6 +84,8 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
         return array_merge([
             'ano' => '2026',
             'idTienda' => '1',
+            'momento' => '2026-02-01T09:00:00+01:00',
+            'fechaCorte' => '2026-02-01',
             'ventanaDias' => 7,
             'umbralFraccionado' => 0.05,
             'umbralMagnitud' => 0.5,
@@ -256,6 +258,7 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
             'momento' => '2026-02-01T09:00:00+01:00',
             'autor' => 9,
             'proveedorCierre' => 112,
+            'fechaCorte' => '2026-02-01',
             'ventanaDias' => 7,
             'umbralFraccionado' => 0.05,
             'umbralMagnitud' => 0.5,
@@ -548,21 +551,36 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
 
     public function test_T17_unFicheroDeOtraVersionDelFormatoNoSeLlegaALeer(): void
     {
-        $emision = new \ClaseComprobacionStockEmision();
-        $composicion = $emision->componer($this->estadoProducto(), $this->contexto(), false);
-
-        $ruta = $this->rutaTemporal();
-        $emision->emitir($composicion, $ruta);
-        file_put_contents($ruta, str_replace('<Version>1.0</Version>', '<Version>2.0</Version>', file_get_contents($ruta)));
-
-        // Lo detiene el esquema, no el código que consume el fichero: ese código lo
-        // lee entero dando por hecho que es de esta versión, y para cuando pudiera
-        // notar que no lo es ya habría leído mal.
+        // Una versión que nunca existió y la anterior a la vigente. La segunda es el
+        // caso real: cuando el contenido del formato cambia, los ficheros ya emitidos
+        // siguen por ahí, y lo que los separa de los nuevos es esta línea. Admitirlos
+        // sería leer como vacío un campo que aquel formato no llevaba.
         $this->incluirTPVFox('/clases/ClaseIOXML.php');
-        $io = new \ClaseIOXML($ruta, RUTA_TPVFOX . '/modulos/mod_reorganizacion/comprobacion_stock_intercambio_v1.xsd');
 
-        $this->expectException(\Exception::class);
-        $io->cargar();
+        foreach (['2.0', '1.0'] as $version) {
+            $emision = new \ClaseComprobacionStockEmision();
+            $composicion = $emision->componer($this->estadoProducto(), $this->contexto(), false);
+
+            $ruta = $this->rutaTemporal();
+            $emision->emitir($composicion, $ruta);
+            file_put_contents(
+                $ruta,
+                str_replace('<Version>1.1</Version>', '<Version>' . $version . '</Version>', file_get_contents($ruta))
+            );
+
+            // Lo detiene el esquema, no el código que consume el fichero: ese código lo
+            // lee entero dando por hecho que es de esta versión, y para cuando pudiera
+            // notar que no lo es ya habría leído mal.
+            $io = new \ClaseIOXML($ruta, RUTA_TPVFOX . '/modulos/mod_reorganizacion/comprobacion_stock_intercambio_v1.xsd');
+
+            $rechazado = false;
+            try {
+                $io->cargar();
+            } catch (\Exception $e) {
+                $rechazado = true;
+            }
+            self::assertTrue($rechazado, 'La versión ' . $version . ' del formato no se admite');
+        }
     }
 
     public function test_T18_elCatalogoCompletoSeEmiteYValidaEnUnaSolaEmision(): void
@@ -1033,5 +1051,87 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
         $informe = $emision->contenidoDelInforme($composicion);
         self::assertStringContainsString('CondicionesDeEsteEjercicio;CondicionesDelVigente', $informe);
         self::assertStringContainsString('50;no_seguro;1;historico_incompleto;periodo_no_consolidado;', $informe);
+    }
+
+    public function test_T30_elContextoDeCalculoNoVuelveAMirarElRelojYCopiaElDeLaEjecucion(): void
+    {
+        // Momento y fecha de corte se copian del contexto de operación como se copian
+        // los umbrales: quien los fijó fue la ejecución, no la composición. Componer
+        // dos veces lo mismo tiene que dar lo mismo, incluidos esos dos campos; si la
+        // composición leyera el reloj, dos emisiones del mismo cálculo se declararían
+        // hechas en instantes distintos sin que nada hubiera cambiado.
+        $_SESSION['usuarioTpv'] = ['id' => 9];
+        $operacion = $this->contexto(['momento' => '2026-02-01T09:00:00+01:00', 'fechaCorte' => '2026-02-01']);
+
+        $emision = new \ClaseComprobacionStockEmision();
+        $primera = $emision->componer($this->estadoProducto(), $operacion, false);
+        $segunda = (new \ClaseComprobacionStockEmision())->componer($this->estadoProducto(), $operacion, false);
+
+        self::assertSame('2026-02-01T09:00:00+01:00', $primera['contexto']['momento']);
+        self::assertSame('2026-02-01', $primera['contexto']['fechaCorte']);
+        self::assertSame($primera['contexto'], $segunda['contexto']);
+
+        // Y la pantalla la enseña, en las dos ramas: cuándo se hizo y hasta dónde
+        // llegan los datos no son la misma fecha y no se leen igual.
+        $html = htmlTablaComprobacionStock($primera, 'vigente');
+        self::assertStringContainsString('<li><strong>Existencias hasta el:</strong> 2026-02-01</li>', $html);
+    }
+
+    public function test_T31_laFechaDeCorteViajaEnElFicheroYElResumenLaCubre(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer(
+            $this->estadoProducto(),
+            $this->contexto(['fechaCorte' => '2026-02-01']),
+            false
+        );
+
+        $ruta = $this->rutaTemporal();
+        self::assertTrue($emision->emitir($composicion, $ruta));
+
+        $xml = new \SimpleXMLElement(file_get_contents($ruta));
+        self::assertSame('2026-02-01', (string) $xml->Criterio->FechaCorte);
+
+        // El ejercicio anterior la recupera con el resto del criterio: sin ella no
+        // sabría hasta cuándo alcanzan las existencias que el fichero declara.
+        $leido = \ClaseComprobacionStockIntercambioXML::simpleXMLToArray($xml);
+        self::assertSame('2026-02-01', $leido['contexto']['fechaCorte']);
+        self::assertSame($leido['resumenDeclarado'], $leido['resumenRecalculado']);
+
+        // Es una fecha, del mismo tipo que el esquema admite: cambiarla por otra pasa
+        // la validación entera, así que lo único que la protege es el resumen.
+        self::assertFalse(
+            $this->resumenCuadraTrasEditar($ruta, '<FechaCorte>2026-02-01</FechaCorte>', '<FechaCorte>2026-06-30</FechaCorte>'),
+            'Editar la fecha de corte ha de romper el resumen'
+        );
+    }
+
+    public function test_T32_elInformeDeclaraHastaDondeLleganLosDatosDeCadaEjercicio(): void
+    {
+        // El informe se archiva y se lee meses después. Entre la emisión del vigente y
+        // esta lectura el vigente ha seguido recibiendo movimientos, y lo único que
+        // sitúa lo que el documento describe es hasta qué fecha se leyó cada ejercicio.
+        $_SESSION['usuarioTpv'] = ['id' => 7];
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $emision->componer(
+            $this->estadoProductoClasificado(),
+            $this->contexto(['ano' => '2025', 'fechaCorte' => '2026-02-14']),
+            false,
+            null,
+            $this->contextoVigenteFixture()
+        );
+
+        $informe = str_replace("\xEF\xBB\xBF", '', $emision->contenidoDelInforme($composicion));
+
+        self::assertMatchesRegularExpression(
+            '/Contexto;Anterior\n.*FechaCorte;2026-02-14/s',
+            $informe,
+            'El bloque del anterior declara hasta cuándo se leyó aquí'
+        );
+        self::assertMatchesRegularExpression(
+            '/Contexto;Vigente\n.*FechaCorte;2026-02-01/s',
+            $informe,
+            'Y el del vigente, hasta cuándo alcanzaba el fichero admitido'
+        );
     }
 }

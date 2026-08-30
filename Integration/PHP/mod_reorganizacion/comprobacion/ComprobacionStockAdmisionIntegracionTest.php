@@ -55,6 +55,8 @@ final class ComprobacionStockAdmisionIntegracionTest extends CasoIntegracion
         return array_merge([
             'ano' => '2026',
             'idTienda' => '1',
+            'momento' => '2026-02-01T09:00:00+01:00',
+            'fechaCorte' => '2026-02-01',
             'ventanaDias' => 7,
             'umbralFraccionado' => 0.05,
             'umbralMagnitud' => 0.5,
@@ -71,6 +73,8 @@ final class ComprobacionStockAdmisionIntegracionTest extends CasoIntegracion
         return array_merge([
             'ano' => '2025',
             'idTienda' => '1',
+            'momento' => '2026-02-14T18:30:00+01:00',
+            'fechaCorte' => '2026-02-14',
             'ventanaDias' => 7,
             'umbralFraccionado' => 0.05,
             'umbralMagnitud' => 0.5,
