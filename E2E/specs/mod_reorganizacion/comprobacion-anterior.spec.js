@@ -57,6 +57,28 @@ test.describe('Comprobación de existencias — ejercicio anterior', () => {
 
     expect(contenido).toContain('Contexto;Anterior');
     expect(contenido).toContain('Contexto;Vigente');
+    // Un informe que se archiva tiene que decir si el resultado del otro ejercicio
+    // era todo o una parte, y con qué proveedor se identificó el traspaso.
+    expect(contenido).toContain('ConjuntoPedido;');
+    expect(contenido).toContain('ProveedorCierre;');
     expect(contenido).toContain('9001');
+  });
+
+  test('T3 no entrega el informe si el resultado no vuelve como salió', async ({ page }) => {
+    await page.setInputFiles('#ficheroComprobacionStock', FICHERO_EJEMPLO);
+    await page.click('#btnComprobacionStockAnteriorAdmitir');
+    await expect(page.locator('#areaComprobacionStockAnterior table')).toBeVisible({ timeout: 15000 });
+
+    // Es el único recorrido donde el resultado sale de verdad del servidor, viaja al
+    // navegador y vuelve en otra petición. Tocarlo aquí es tocarlo donde puede
+    // tocarse: entre las dos peticiones no hay nada en servidor que lo recuerde.
+    await page.evaluate(() => {
+      window.comprobacionStockAnteriorComposicion.filas[0].stockJustificado = 99999;
+    });
+
+    await page.click('#btnComprobacionStockAnteriorExportar');
+
+    // No hay descarga: la respuesta es el motivo, y llega en lugar del documento.
+    await expect(page.locator('body')).toContainText('no es el que se calculó', { timeout: 15000 });
   });
 });

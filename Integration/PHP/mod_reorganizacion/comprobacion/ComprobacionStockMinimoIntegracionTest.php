@@ -190,4 +190,43 @@ final class ComprobacionStockMinimoIntegracionTest extends CasoIntegracion
 
         self::assertSame(18.0, $resultado[0]['stockJustificado']);
     }
+
+    public function test_T9_lasCondicionesQueLlegaronNoSeMezclanConLasDeLaReconstruccion(): void
+    {
+        $proveedorTraspaso = $this->siembra->proveedor('Proveedor de cierre');
+        $idArticulo = $this->siembra->articulo('Producto con condición traída del otro ejercicio');
+
+        // Sin recepciones, la reconstrucción produce su propia condición. La fila
+        // llega además con una que se marcó en el otro ejercicio y con los umbrales
+        // de allí: juntarlas deja al lector con «periodo no consolidado» sin poder
+        // saber de qué periodo habla, y es sobre este sobre el que se decide si se
+        // corrigen existencias.
+        $this->siembra->ventaTicket($idArticulo, 3.0, '2025-04-01');
+
+        $fila = $this->filaDe($idArticulo);
+        $fila['condicionesConocidas'] = ['periodo_no_consolidado', 'familia_excluida'];
+
+        $comprobacion = new \ClaseComprobacionStockMinimo();
+        $resultado = $comprobacion->calcular([$fila], $this->contexto(), $proveedorTraspaso);
+
+        self::assertSame(['historico_incompleto'], $resultado[0]['condicionesConocidas']);
+        self::assertSame(['periodo_no_consolidado', 'familia_excluida'], $resultado[0]['condicionesDelVigente']);
+    }
+
+    public function test_T10_elProductoQueAquiNoExisteConservaLoQueTraiaEnSuColumna(): void
+    {
+        $proveedorTraspaso = $this->siembra->proveedor('Proveedor de cierre');
+
+        // Un producto que no está en el catálogo de este ejercicio sale sin pasar por
+        // la reconstrucción, y ese atajo es donde una lista fusionada se conservaría
+        // entera bajo el rótulo equivocado: nada de lo que trae es de aquí.
+        $fila = $this->filaDe(999999, false);
+        $fila['condicionesConocidas'] = ['nunca_incluido_en_cierre'];
+
+        $comprobacion = new \ClaseComprobacionStockMinimo();
+        $resultado = $comprobacion->calcular([$fila], $this->contexto(), $proveedorTraspaso);
+
+        self::assertSame([], $resultado[0]['condicionesConocidas']);
+        self::assertSame(['nunca_incluido_en_cierre'], $resultado[0]['condicionesDelVigente']);
+    }
 }

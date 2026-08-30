@@ -224,7 +224,8 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
                 'minimoAlcanzado' => -4.0,
                 'saldoDeApertura' => 6.0,
                 'marcado' => true,
-                'condicionesConocidas' => ['periodo_no_consolidado'],
+                'condicionesConocidas' => ['historico_incompleto'],
+                'condicionesDelVigente' => ['periodo_no_consolidado'],
                 'stockJustificado' => 10.0,
                 'margen' => 0.5,
                 'existenciaExigida' => 10.0,
@@ -237,6 +238,7 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
                 'saldoDeApertura' => 0.0,
                 'marcado' => true,
                 'condicionesConocidas' => [],
+                'condicionesDelVigente' => [],
                 'stockJustificado' => null,
                 'margen' => 0.5,
                 'existenciaExigida' => 1.0,
@@ -283,12 +285,12 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
 
         $sinBom = substr($contenido, 3);
         self::assertStringContainsString(
-            "20;seguro;1;periodo_no_consolidado;10;10",
+            "20;seguro;1;historico_incompleto;periodo_no_consolidado;10;10",
             str_replace('.0', '', $sinBom),
             'La fila del informe coincide con la de la composición que también alimenta la pantalla'
         );
         self::assertStringContainsString(
-            "21;no_comparable;1;;1;",
+            "21;no_comparable;1;;;1;",
             str_replace('.0', '', $sinBom)
         );
     }
@@ -631,16 +633,19 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
     {
         return [
             ['idArticulo' => 30, 'comparable' => true, 'marcado' => false,
-             'condicionesConocidas' => [], 'existenciaExigida' => 10.0,
+             'condicionesConocidas' => [], 'condicionesDelVigente' => [], 'existenciaExigida' => 10.0,
              'stockJustificado' => 10.0, 'margen' => 0.5, 'estado' => 'seguro'],
             ['idArticulo' => 31, 'comparable' => true, 'marcado' => true,
-             'condicionesConocidas' => ['periodo_no_consolidado'], 'existenciaExigida' => 5.0,
+             'condicionesConocidas' => [], 'condicionesDelVigente' => ['periodo_no_consolidado'],
+             'existenciaExigida' => 5.0,
              'stockJustificado' => 12.0, 'margen' => 0.5, 'estado' => 'no_seguro'],
             ['idArticulo' => 32, 'comparable' => true, 'marcado' => false,
-             'condicionesConocidas' => ['historico_incompleto'], 'existenciaExigida' => 20.0,
+             'condicionesConocidas' => ['historico_incompleto'], 'condicionesDelVigente' => ['familia_excluida'],
+             'existenciaExigida' => 20.0,
              'stockJustificado' => 3.0, 'margen' => 0.5, 'estado' => 'dudoso'],
             ['idArticulo' => 33, 'comparable' => false, 'marcado' => true,
-             'condicionesConocidas' => [], 'existenciaExigida' => 4.0,
+             'condicionesConocidas' => [], 'condicionesDelVigente' => ['nunca_incluido_en_cierre'],
+             'existenciaExigida' => 4.0,
              'stockJustificado' => null, 'margen' => 0.5, 'estado' => 'no_comparable'],
         ];
     }
@@ -659,8 +664,9 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
         $html = htmlTablaComprobacionStock($composicion, 'anterior');
         $celdas = $this->celdasDeLaVista($html);
 
-        // Columnas del anterior: artículo, estado, marcado, condiciones, existencia
-        // exigida y mínimo necesario justificado.
+        // Columnas del anterior: artículo, estado, marcado, condiciones de este
+        // ejercicio, condiciones del vigente, existencia exigida y mínimo necesario
+        // justificado.
         self::assertSame(
             ['Seguro', 'No seguro', 'Dudoso', 'No comparable'],
             array_column($celdas, 1),
@@ -670,8 +676,8 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
         // Ninguno viaja solo: al lado van siempre las dos cantidades cuya distancia
         // es lo que el estado resume. Sin ellas la etiqueta vuelve a leerse como un
         // diagnóstico en vez de como una posición frente a un criterio.
-        self::assertSame(['10', '5', '20', '4'], array_column($celdas, 4));
-        self::assertSame(['10', '12', '3', '—'], array_column($celdas, 5));
+        self::assertSame(['10', '5', '20', '4'], array_column($celdas, 5));
+        self::assertSame(['10', '12', '3', '—'], array_column($celdas, 6));
 
         // Y los cuatro se pintan igual entre sí: nada los ordena por gravedad ni
         // señala uno como error. El que no tiene con qué compararse tampoco pierde
@@ -777,15 +783,20 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
             self::assertSame($filaInforme[0], $celdas[0]);
             self::assertSame($etiquetas[$filaInforme[1]], $celdas[1]);
             self::assertSame($filaInforme[2] === '1' ? 'Sí' : 'No', $celdas[2]);
-            self::assertSame(
-                $filaInforme[3] === '' ? '—' : implode(', ', explode(',', $filaInforme[3])),
-                $celdas[3]
-            );
+            // Las condiciones de cada ejercicio caen en su columna en las dos
+            // salidas, y en el mismo orden: si una salida las juntara y la otra no,
+            // compararlas fila a fila dejaría de ser posible.
+            foreach ([3, 4] as $columna) {
+                self::assertSame(
+                    $filaInforme[$columna] === '' ? '—' : implode(', ', explode(',', $filaInforme[$columna])),
+                    $celdas[$columna]
+                );
+            }
             // Las dos cantidades se escriben igual en las dos salidas: el informe se
             // lee al lado de la pantalla, y un número escrito de dos maneras no se
             // puede comparar fila a fila.
-            self::assertSame($filaInforme[4], $celdas[4]);
-            self::assertSame($filaInforme[5] === '' ? '—' : $filaInforme[5], $celdas[5]);
+            self::assertSame($filaInforme[5], $celdas[5]);
+            self::assertSame($filaInforme[6] === '' ? '—' : $filaInforme[6], $celdas[6]);
         }
     }
 
@@ -806,7 +817,7 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
         // recuento. Llamarlo stock lo convierte en una existencia comprobada, y este
         // informe se lee para decidir si se corrigen existencias.
         self::assertStringNotContainsString('Stock justificado', $html);
-        self::assertStringContainsString('Mínimo necesario justificado <sup>*</sup>', $html);
+        self::assertStringContainsString('Mínimo necesario justificado <sup>**</sup>', $html);
         self::assertStringContainsString('no un recuento ni una existencia comprobada', $html);
 
         $ruta = $this->rutaTemporal('csv');
@@ -823,7 +834,8 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
         $composicion = $emision->componer(
             [[
                 'idArticulo' => 40, 'comparable' => true, 'marcado' => false,
-                'condicionesConocidas' => [], 'existenciaExigida' => 0.000001,
+                'condicionesConocidas' => [], 'condicionesDelVigente' => [],
+                'existenciaExigida' => 0.000001,
                 'stockJustificado' => 0.000001, 'margen' => 0.0, 'estado' => 'seguro',
             ]],
             $this->contexto(['ano' => '2025']),
@@ -836,11 +848,190 @@ final class ComprobacionStockEmisionIntegracionTest extends CasoIntegracion
         // El lenguaje la escribe «1.0E-6» al volcarla a texto, y así salía en la
         // pantalla mientras el informe de esa misma composición escribía «0.000001».
         $celdas = $this->celdasDeLaVista(htmlTablaComprobacionStock($composicion, 'anterior'))[0];
-        self::assertSame('0.000001', $celdas[4]);
         self::assertSame('0.000001', $celdas[5]);
+        self::assertSame('0.000001', $celdas[6]);
 
         $ruta = $this->rutaTemporal('csv');
         $emision->emitirInforme($composicion, $ruta);
-        self::assertStringContainsString('40;seguro;0;;0.000001;0.000001', file_get_contents($ruta));
+        self::assertStringContainsString('40;seguro;0;;;0.000001;0.000001', file_get_contents($ruta));
+    }
+
+    /**
+     * Una composición del anterior con todos sus campos, que es lo que el resumen
+     * tiene que cubrir: los que llegaron en el fichero, los que puso la
+     * reconstrucción y los que puso la clasificación.
+     */
+    private function composicionDelAnterior(array $cambiosDelVigente = []): array
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        return $emision->componer(
+            [
+                ['idArticulo' => 50, 'saldoAlCorte' => -5.0, 'minimoAlcanzado' => -8.0,
+                 'saldoDeApertura' => 3.0, 'marcado' => true, 'tipoIncidencia' => 'Inventario en negativo',
+                 'condicionesConocidas' => ['historico_incompleto'],
+                 'condicionesDelVigente' => ['periodo_no_consolidado'], 'comparable' => true,
+                 'stockJustificado' => 10.0, 'margen' => 0.5, 'existenciaExigida' => 11.0,
+                 'estado' => 'no_seguro'],
+                ['idArticulo' => 51, 'saldoAlCorte' => -1.0, 'minimoAlcanzado' => -1.0,
+                 'saldoDeApertura' => 0.0, 'marcado' => false, 'tipoIncidencia' => null,
+                 'condicionesConocidas' => [], 'condicionesDelVigente' => [], 'comparable' => false,
+                 'stockJustificado' => null, 'margen' => 0.0, 'existenciaExigida' => 1.0,
+                 'estado' => 'no_comparable'],
+            ],
+            $this->contexto(['ano' => '2025']),
+            false,
+            null,
+            array_merge($this->contextoVigenteFixture(), $cambiosDelVigente)
+        );
+    }
+
+    /** El viaje real de la composición: sale a JSON, vuelve de JSON. */
+    private function trasElViaje(array $composicion): array
+    {
+        return json_decode(json_encode($composicion), true);
+    }
+
+    public function test_T25_laComposicionQueVuelveDelNavegadorSeReconoceComoLaQueSalio(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $this->composicionDelAnterior();
+        $resumen = $emision->resumenDeComposicion($composicion);
+
+        // Entre pintar la pantalla y escribir el informe hay dos peticiones y nada en
+        // servidor que recuerde la primera. Lo que vuelve tiene que reconocerse por
+        // sí solo, y el viaje de ida y vuelta no lo conserva intacto: una cantidad
+        // entera sale como decimal y vuelve como entero. El resumen se calcula sobre
+        // el valor normalizado justamente para que ese cambio no cuente como
+        // alteración, y cualquier otro sí.
+        $vuelta = $this->trasElViaje($composicion);
+        self::assertSame(10, $vuelta['filas'][0]['stockJustificado'], 'El viaje cambia el tipo del número');
+        self::assertTrue($emision->composicionAdmisible($vuelta, $resumen)['ok']);
+    }
+
+    public function test_T26_unaComposicionAlteradaEnElCaminoNoProduceInforme(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $this->composicionDelAnterior();
+        $resumen = $emision->resumenDeComposicion($composicion);
+
+        // Cada uno de estos cambios es indetectable por la forma: lo que llega sigue
+        // teniendo todos sus campos y todos sus tipos. Sin el resumen, el informe se
+        // escribiría con ellos y quedaría archivado sin nada que lo contradiga.
+        $cambios = [
+            'una cantidad' => static function (array $c): array {
+                $c['filas'][0]['stockJustificado'] = 9.0;
+                return $c;
+            },
+            'un estado' => static function (array $c): array {
+                $c['filas'][0]['estado'] = 'seguro';
+                return $c;
+            },
+            'el autor de este ejercicio' => static function (array $c): array {
+                $c['contexto']['autor'] = 99;
+                return $c;
+            },
+            'el momento del fichero admitido' => static function (array $c): array {
+                $c['contextoVigente']['momento'] = '2020-01-01T00:00:00+01:00';
+                return $c;
+            },
+            'un umbral del fichero admitido' => static function (array $c): array {
+                $c['contextoVigente']['ventanaDias'] = 90;
+                return $c;
+            },
+            'una condición de otro ejercicio' => static function (array $c): array {
+                $c['filas'][0]['condicionesDelVigente'] = [];
+                return $c;
+            },
+        ];
+
+        foreach ($cambios as $queCambia => $cambiar) {
+            $resultado = $emision->composicionAdmisible($cambiar($this->trasElViaje($composicion)), $resumen);
+            self::assertFalse($resultado['ok'], 'Cambiar ' . $queCambia . ' no pasa desapercibido');
+            self::assertStringContainsString('no es el que se calculó', $resultado['motivo']);
+        }
+
+        // Una cantidad ausente y una de cero no son lo mismo, y el resumen tiene que
+        // separarlas: un producto sin nada que reconstruir no puede resumir igual que
+        // uno cuyo mínimo justificado resultó ser cero.
+        $aCero = $composicion;
+        $aCero['filas'][1]['stockJustificado'] = 0.0;
+        self::assertNotSame($resumen, $emision->resumenDeComposicion($aCero));
+    }
+
+    public function test_T27_loQueLlegaAMediasOSinResumenTampocoProduceInforme(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $this->composicionDelAnterior();
+        $resumen = $emision->resumenDeComposicion($composicion);
+
+        // Que la petición llegue entera es un supuesto, no un hecho: por encima de lo
+        // que el motor admite por petición, lo enviado no llega y el operador tiene
+        // que leer que no llegó, no que su resultado esté mal.
+        $sinNada = $emision->composicionAdmisible(null, null);
+        self::assertFalse($sinNada['ok']);
+        self::assertStringContainsString('no llegó al servidor', $sinNada['motivo']);
+
+        $sinResumen = $emision->composicionAdmisible($this->trasElViaje($composicion), null);
+        self::assertFalse($sinResumen['ok']);
+
+        // Una fila de menos es un recorte, no una alteración, y no se distingue de un
+        // resultado legítimo más corto por nada que no sea el resumen.
+        $recortada = $this->trasElViaje($composicion);
+        array_pop($recortada['filas']);
+        self::assertFalse($emision->composicionAdmisible($recortada, $resumen)['ok']);
+
+        // Y lo que no tiene la forma esperada se detiene con su motivo, no con un
+        // fallo del motor: el resumen se calcula leyendo estos campos, y calcularlo
+        // sobre algo que no los tiene rompería antes de poder decir nada.
+        $deforme = $this->trasElViaje($composicion);
+        $deforme['filas'][0]['condicionesConocidas'] = 'periodo_no_consolidado';
+        $resultado = $emision->composicionAdmisible($deforme, $resumen);
+        self::assertFalse($resultado['ok']);
+        self::assertStringContainsString('llegó incompleto', $resultado['motivo']);
+
+        $sinUnCampoDeContexto = $this->trasElViaje($composicion);
+        unset($sinUnCampoDeContexto['contextoVigente']['proveedorCierre']);
+        self::assertFalse($emision->composicionAdmisible($sinUnCampoDeContexto, $resumen)['ok']);
+    }
+
+    public function test_T28_elInformeDiceSiElResultadoDelVigenteEraCompletoOParcial(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+
+        $completo = $emision->contenidoDelInforme($this->composicionDelAnterior());
+        $parcial = $emision->contenidoDelInforme($this->composicionDelAnterior(['filtro' => [50, 51]]));
+
+        // El informe se archiva y nadie vuelve a contrastarlo con nada. Si el vigente
+        // emitió solo unos cuantos productos y el informe no lo dice, lo que queda
+        // guardado es un resultado parcial con aspecto de completo.
+        self::assertStringContainsString("\nConjuntoPedido;completo", $completo);
+        self::assertStringContainsString("\nConjuntoPedido;50,51", $parcial);
+
+        // Y el proveedor del traspaso, que es lo que fija qué movimientos quedaron
+        // fuera de la reconstrucción: sin él, dos informes del mismo ejercicio no se
+        // pueden comparar aunque declaren los mismos umbrales.
+        self::assertStringContainsString("\nProveedorCierre;112", $completo);
+    }
+
+    public function test_T29_lasCondicionesDeCadaEjercicioSalenSeparadasEnLasDosSalidas(): void
+    {
+        $emision = new \ClaseComprobacionStockEmision();
+        $composicion = $this->composicionDelAnterior();
+
+        // «Periodo no consolidado» habla del periodo del ejercicio vigente y se marcó
+        // con los umbrales de allí. En una lista única se lee como si fuera de este
+        // ejercicio, que es sobre el que se decide corregir existencias.
+        $html = htmlTablaComprobacionStock($composicion, 'anterior');
+        self::assertStringContainsString('Condiciones de este ejercicio', $html);
+        self::assertStringContainsString('Condiciones del ejercicio vigente <sup>*</sup>', $html);
+        self::assertStringContainsString('Hablan de aquel periodo, no de este', $html);
+
+        $celdas = $this->celdasDeLaVista($html)[0];
+        self::assertSame('historico_incompleto', $celdas[3]);
+        self::assertSame('periodo_no_consolidado', $celdas[4]);
+
+        $informe = $emision->contenidoDelInforme($composicion);
+        self::assertStringContainsString('CondicionesDeEsteEjercicio;CondicionesDelVigente', $informe);
+        self::assertStringContainsString('50;no_seguro;1;historico_incompleto;periodo_no_consolidado;', $informe);
     }
 }
