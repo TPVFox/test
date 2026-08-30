@@ -1,8 +1,13 @@
 <?php
 /**
- * Admisión del resultado del ejercicio vigente: un fallo de esquema, de resumen o de
+ * Admisión del resultado del ejercicio vigente: un fallo de formato, de resumen o de
  * correspondencia de ejercicio y tienda rechaza el fichero entero antes de calcular;
  * la falta de contraparte en el catálogo marca solo esa fila, sin hacerla desaparecer.
+ *
+ * Y la distinción entre los dos desenlaces: rechazar dice que el material no vale y
+ * que hay que traer otro, y no poder terminar dice que el material puede estar bien.
+ * Lo que se le dice a quien admite lo compone este sistema, sin repetir lo que dijo
+ * quien leyó el fichero.
  */
 
 declare(strict_types=1);
@@ -103,7 +108,82 @@ final class ComprobacionStockAdmisionIntegracionTest extends CasoIntegracion
         $resultado = $admision->admitir($ruta, $this->contextoAnterior());
 
         self::assertFalse($resultado['ok']);
-        self::assertStringContainsString('esquema', $resultado['motivo']);
+        self::assertStringContainsString('formato de intercambio', $resultado['motivo']);
+        // El motivo lo establece este sistema. Lo que dijo quien leyó el fichero nombra
+        // el fichero del servidor donde vive el formato, y quien sube no puede hacer
+        // nada con esa ruta.
+        self::assertSame([], $this->rutasDelServidorEn($resultado['motivo']));
+    }
+
+    public function test_T9_unFicheroQueNoEsUnDocumentoSeRechazaYNoSeAnunciaComoFalloDelSistema(): void
+    {
+        // El rechazo más corriente de todos: un fichero de otro tipo, o copiado a
+        // medias. Quien admite tiene que salir sabiendo que hay que traer otro, no que
+        // el sistema falló y conviene reintentar con el mismo.
+        foreach (['esto no es un documento', '<?xml version="1.0"?><Comprobacion><Meta>'] as $contenido) {
+            $ruta = $this->rutaTemporal();
+            file_put_contents($ruta, $contenido);
+
+            $resultado = (new \ClaseComprobacionStockAdmision())->admitir($ruta, $this->contextoAnterior());
+
+            self::assertFalse($resultado['ok'], 'Es un rechazo, no una admisión');
+            self::assertNotSame('', trim($resultado['motivo']), 'El rechazo lleva motivo');
+            self::assertSame([], $this->rutasDelServidorEn($resultado['motivo']));
+        }
+    }
+
+    public function test_T10_faltarElFormatoEnElServidorNoSeLeAtribuyeAQuienSubeElFichero(): void
+    {
+        // Que el formato no esté donde tiene que estar es del servidor y no del
+        // fichero. Decirle a quien admite que su fichero no vale sería atribuirle algo
+        // que no hizo, y le haría buscar otro fichero que tampoco funcionaría.
+        $ruta = $this->rutaTemporal();
+        file_put_contents($ruta, '<?xml version="1.0"?><ComprobacionIntercambio idOrigen="x"><Meta/></ComprobacionIntercambio>');
+
+        $admision = new \ClaseComprobacionStockAdmision();
+        $rutaDelFormato = new \ReflectionProperty(\ClaseComprobacionStockAdmision::class, 'rutaXSD');
+        $rutaDelFormato->setAccessible(true);
+        $rutaDelFormato->setValue($admision, '/modulos/mod_reorganizacion/no_existe.xsd');
+
+        $this->expectException(\RuntimeException::class);
+        $admision->admitir($ruta, $this->contextoAnterior());
+    }
+
+    public function test_T11_ningunMotivoDeRechazoLlevaUnaRutaDelServidor(): void
+    {
+        // Los cuatro caminos por los que se rechaza un fichero entero, recorridos de
+        // una vez: lo que sale a pantalla lo compone este sistema en los cuatro.
+        $sinDocumento = $this->rutaTemporal();
+        file_put_contents($sinDocumento, 'no es un documento');
+
+        $sinFormato = $this->rutaTemporal();
+        file_put_contents($sinFormato, '<?xml version="1.0"?><ComprobacionIntercambio idOrigen="x"><Meta/></ComprobacionIntercambio>');
+
+        $fila = ['idArticulo' => 10, 'saldoAlCorte' => -5.0, 'minimoAlcanzado' => -8.5, 'saldoDeApertura' => 3.0, 'marcado' => true, 'tipoIncidencia' => null, 'condicionesConocidas' => []];
+
+        $conResumenRoto = $this->emitirFichero([$fila], $this->contextoVigente());
+        file_put_contents($conResumenRoto, str_replace(
+            '<SaldoAlCorte>-5</SaldoAlCorte>',
+            '<SaldoAlCorte>-500</SaldoAlCorte>',
+            file_get_contents($conResumenRoto)
+        ));
+
+        $deOtroEjercicio = $this->emitirFichero([$fila], $this->contextoVigente(['ano' => '2099']));
+
+        $admision = new \ClaseComprobacionStockAdmision();
+        foreach ([$sinDocumento, $sinFormato, $conResumenRoto, $deOtroEjercicio] as $ruta) {
+            $resultado = $admision->admitir($ruta, $this->contextoAnterior());
+
+            self::assertFalse($resultado['ok']);
+            self::assertSame([], $this->rutasDelServidorEn($resultado['motivo']), $resultado['motivo']);
+        }
+    }
+
+    /** Fragmentos con forma de ruta del servidor —tres tramos o más— dentro de un texto. */
+    private function rutasDelServidorEn(string $texto): array
+    {
+        preg_match_all('#(?:/[A-Za-z0-9._-]+){3,}#', $texto, $encontradas);
+        return $encontradas[0];
     }
 
     public function test_T2_unFicheroEditadoTrasEmitirseSeRechazaPorElResumen(): void
