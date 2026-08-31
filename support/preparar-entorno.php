@@ -143,40 +143,51 @@ function indiceDelUsuario(mysqli $db, int $idTienda, int $idUsuario): void
 /**
  * Apunta el TPVFox desplegado a la base del ejercicio indicado.
  *
- * Ese fichero no se versiona y cada despliegue real tiene el suyo, de modo que este guion
- * solo lo escribe si lo que hay ya apunta a una base de pruebas —o si no hay nada—. Un
- * fichero que apunte a otro sitio se deja intacto y se avisa: sobrescribirlo dejaria sin
- * configuracion a una instalacion que no es esta.
+ * **Cambia una linea y nada mas.** La configuracion de un despliegue declara mucho mas que
+ * la base de datos —las rutas del servidor con las que arranca la aplicacion, el directorio
+ * temporal por el que pasan el fichero que se exporta y el que se sube, el correo—, y este
+ * guion no las conoce todas. Reescribir el fichero entero con lo que si conoce deja una
+ * instalacion que arranca a medias: la aplicacion se queda sin las rutas y ninguna pantalla
+ * llega a componerse.
+ *
+ * De modo que aqui solo se sustituye el nombre de la base. Si no hay fichero, este guion no
+ * lo inventa: lo dice y remite al ejemplo que el propio producto trae.
  */
 function escribirConfiguracion(string $ejercicio): void
 {
     $ruta = RUTA_TPVFOX . '/configuracion.php';
     $base = nombreDeLaBase($ejercicio);
 
-    if (is_file($ruta)) {
-        $actual = file_get_contents($ruta);
-        if (preg_match('/\$nombrebdMysql\s*=\s*[\'"]([^\'"]+)[\'"]/', $actual, $coincidencia)
-            && strpos($coincidencia[1], PREFIJO_ADMITIDO) !== 0) {
-            fwrite(STDERR,
-                "  {$ruta} apunta a «{$coincidencia[1]}», que no es una base de pruebas.\n" .
-                "  No se toca. Si de verdad quieres apuntarlo a las pruebas, retira ese fichero antes.\n");
-            exit(1);
-        }
+    if (!is_file($ruta)) {
+        fwrite(STDERR,
+            "  No hay configuracion de despliegue en el clon de TPVFox.\n" .
+            "  Este guion no la redacta: declara rutas del servidor que solo conoce quien instalo.\n" .
+            "  Copia configuracion_sample.php, rellenala, y vuelve a lanzar esto.\n");
+        exit(1);
     }
 
-    $contenido = "<?php\n"
-        . "// Generado por test/support/preparar-entorno.php. No se versiona.\n"
-        . "\$servidorMysql = '" . Entorno::valor('TPVFOX_TEST_DB_HOST', 'localhost') . "';\n"
-        . "\$nombrebdMysql = '" . $base . "';\n"
-        . "\$usuarioMysql  = '" . Entorno::valor('TPVFOX_TEST_DB_USER') . "';\n"
-        . "\$passwordMysql = '" . Entorno::valor('TPVFOX_TEST_DB_PASS') . "';\n";
+    $actual = file_get_contents($ruta);
 
-    if (file_put_contents($ruta, $contenido) === false) {
+    if (!preg_match('/\$nombrebdMysql\s*=\s*[\'"]([^\'"]*)[\'"]\s*;/', $actual, $coincidencia)) {
+        fwrite(STDERR, "  {$ruta} no declara \$nombrebdMysql: no se toca.\n");
+        exit(1);
+    }
+
+    if ($coincidencia[1] !== '' && strpos($coincidencia[1], PREFIJO_ADMITIDO) !== 0) {
+        fwrite(STDERR,
+            "  {$ruta} apunta a «{$coincidencia[1]}», que no es una base de pruebas.\n" .
+            "  No se toca: podria ser la configuracion de una instalacion real.\n");
+        exit(1);
+    }
+
+    $nuevo = str_replace($coincidencia[0], "\$nombrebdMysql = '{$base}';", $actual);
+
+    if (file_put_contents($ruta, $nuevo) === false) {
         fwrite(STDERR, "  No se pudo escribir {$ruta}.\n");
         exit(1);
     }
 
-    echo "  {$ruta} -> {$base}\n";
+    echo "  ejercicio del despliegue: {$ejercicio} · el resto de la configuracion, intacta\n";
 }
 
 // --- Apoyos ---------------------------------------------------------------
