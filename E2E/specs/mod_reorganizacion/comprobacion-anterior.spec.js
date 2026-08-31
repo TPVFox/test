@@ -13,11 +13,18 @@ const fs = require('fs');
 const { iniciarSesion } = require('../../fixtures/autenticacion');
 
 const FICHERO_EJEMPLO = path.join(__dirname, '..', '..', 'fixtures', 'comprobacion-vigente-ejemplo.xml');
+// Qué producto declara ese fichero lo dice el propio generador, junto al fichero. Antes
+// estaba escrito aquí a mano: si la siembra cambiaba de producto, el recorrido seguía
+// buscando el anterior y fallaba sin decir por qué.
+const DECLARACION = path.join(__dirname, '..', '..', 'fixtures', 'comprobacion-vigente-ejemplo.json');
+const producto = fs.existsSync(DECLARACION)
+  ? String(JSON.parse(fs.readFileSync(DECLARACION, 'utf-8')).idArticulo)
+  : null;
 
 test.describe('Comprobación de existencias — ejercicio anterior', () => {
   test.beforeEach(async ({ page }) => {
     test.skip(
-      !fs.existsSync(FICHERO_EJEMPLO),
+      !fs.existsSync(FICHERO_EJEMPLO) || producto === null,
       'Falta el fixture: genera «php support/generar-fixture-e2e.php» antes de correr este recorrido.'
     );
     await iniciarSesion(page, 'modulos/mod_reorganizacion/ComprobacionStockAnterior.php');
@@ -27,7 +34,7 @@ test.describe('Comprobación de existencias — ejercicio anterior', () => {
     await page.setInputFiles('#ficheroComprobacionStock', FICHERO_EJEMPLO);
     await page.click('#btnComprobacionStockAnteriorAdmitir');
 
-    const fila = page.locator('#areaComprobacionStockAnterior table tbody tr', { hasText: '9001' });
+    const fila = page.locator('#areaComprobacionStockAnterior table tbody tr', { hasText: producto });
     await expect(fila).toBeVisible({ timeout: 15000 });
     // El estado nunca viaja solo: siempre va acompañado de la existencia exigida.
     await expect(fila.locator('td').nth(4)).not.toHaveText('');
@@ -63,7 +70,7 @@ test.describe('Comprobación de existencias — ejercicio anterior', () => {
     expect(contenido).toContain('ProveedorCierre;');
     // Dos veces: hasta cuándo se leyó aquí y hasta cuándo alcanzaba el fichero admitido.
     expect(contenido.match(/FechaCorte;/g)).toHaveLength(2);
-    expect(contenido).toContain('9001');
+    expect(contenido).toContain(producto);
   });
 
   test('T3 no entrega el informe si el resultado no vuelve como salió', async ({ page }) => {

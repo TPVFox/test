@@ -15,6 +15,7 @@ namespace TPVFox\Test\Integration\ModReorganizacion\Comprobacion;
 
 use mysqli_sql_exception;
 use TPVFox\Test\CasoIntegracion;
+use TPVFox\Test\Siembra\EscenarioComprobacionStock;
 use TPVFox\Test\Siembra\Siembra;
 
 final class ComprobacionStockRecorridoIntegracionTest extends CasoIntegracion
@@ -25,69 +26,63 @@ final class ComprobacionStockRecorridoIntegracionTest extends CasoIntegracion
     protected bool $compartirConexionConElProducto = true;
 
     private Siembra $siembra;
-
-    /** Lo sembrado por este caso, para retirarlo en el orden inverso. */
-    private array $sembrado = [
-        'ticketst' => [],
-        'albprot' => [],
-        'articulos' => [],
-        'tiendas' => [],
-        'usuarios' => [],
-        'clientes' => [],
-    ];
+    private EscenarioComprobacionStock $escenario;
 
     protected function setUp(): void
     {
         parent::setUp();
         $_SESSION ??= [];
         $this->siembra = new Siembra($this->db);
+        $this->escenario = $this->nuevoEscenario($this->siembra);
         $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockContexto.php');
         $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockExtraccion.php');
     }
 
+    /**
+     * Retira lo que este caso haya insertado, en el orden inverso al de las dependencias.
+     *
+     * Se pregunta a la siembra qué insertó ella, en lugar de llevar la cuenta aquí: los
+     * apoyos por debajo —tienda, usuario, cliente— reutilizan los que ya haya en la base
+     * en vez de crear otros, y una lista llevada a mano no distingue lo creado de lo
+     * encontrado. Borrar por esa lista se lleva por delante filas que ya estaban y de las
+     * que cuelgan otras.
+     */
     protected function tearDown(): void
     {
         $this->db->query('COMMIT');
-        foreach ($this->sembrado['ticketst'] as $id) {
-            $this->db->query('DELETE FROM ticketslinea WHERE idticketst = ' . (int) $id);
-            $this->db->query('DELETE FROM ticketst WHERE id = ' . (int) $id);
+        // El desglose de impuestos cuelga de su documento por clave foránea: si no se
+        // retira antes, el borrado del documento lo rechaza el motor.
+        foreach ($this->siembra->insertadoEn('ticketst') as $id) {
+            $this->db->query('DELETE FROM ticketstIva WHERE idticketst = ' . $id);
+            $this->db->query('DELETE FROM ticketslinea WHERE idticketst = ' . $id);
+            $this->db->query('DELETE FROM ticketst WHERE id = ' . $id);
         }
-        foreach ($this->sembrado['albprot'] as $id) {
-            $this->db->query('DELETE FROM albprolinea WHERE idalbpro = ' . (int) $id);
-            $this->db->query('DELETE FROM albprot WHERE id = ' . (int) $id);
+        foreach ($this->siembra->insertadoEn('albprot') as $id) {
+            $this->db->query('DELETE FROM albproIva WHERE idalbpro = ' . $id);
+            $this->db->query('DELETE FROM albprolinea WHERE idalbpro = ' . $id);
+            $this->db->query('DELETE FROM albprot WHERE id = ' . $id);
         }
-        foreach ($this->sembrado['articulos'] as $id) {
-            $this->db->query('DELETE FROM articulosFamilias WHERE idArticulo = ' . (int) $id);
-            $this->db->query('DELETE FROM articulos WHERE idArticulo = ' . (int) $id);
+        foreach ($this->siembra->insertadoEn('articulos') as $id) {
+            $this->db->query('DELETE FROM articulosFamilias WHERE idArticulo = ' . $id);
+            $this->db->query('DELETE FROM articulos WHERE idArticulo = ' . $id);
         }
-        foreach ($this->sembrado['clientes'] as $id) {
-            $this->db->query('DELETE FROM clientes WHERE idClientes = ' . (int) $id);
+        foreach ($this->siembra->insertadoEn('clientes') as $id) {
+            $this->db->query('DELETE FROM clientes WHERE idClientes = ' . $id);
         }
-        foreach ($this->sembrado['usuarios'] as $id) {
-            $this->db->query('DELETE FROM usuarios WHERE id = ' . (int) $id);
+        foreach ($this->siembra->insertadoEn('usuarios') as $id) {
+            $this->db->query('DELETE FROM usuarios WHERE id = ' . $id);
         }
-        // La tienda va la última y es la que más importa: se siembra como principal y
-        // activa, y dos filas así a la vez impiden entrar a la aplicación.
-        foreach ($this->sembrado['tiendas'] as $id) {
-            $this->db->query('DELETE FROM tiendas WHERE idTienda = ' . (int) $id);
+        foreach ($this->siembra->insertadoEn('proveedores') as $id) {
+            $this->db->query('DELETE FROM proveedores WHERE idProveedor = ' . $id);
+        }
+        // La tienda va la última: es principal y activa, y dos filas así a la vez impiden
+        // entrar a la aplicación. Solo se retira si la creó este caso.
+        foreach ($this->siembra->insertadoEn('tiendas') as $id) {
+            $this->db->query('DELETE FROM tiendas WHERE idTienda = ' . $id);
         }
 
         unset($_SESSION['tiendaTpv']);
         parent::tearDown();
-    }
-
-    /**
-     * Tienda, usuario y cliente los crea la siembra por debajo, la primera vez que se le
-     * pide sembrar cualquier cosa. En un caso con retroceso desaparecen solos; aquí no
-     * hay retroceso, así que se piden de forma explícita y por adelantado para poder
-     * anotar sus identificadores y retirarlos al terminar. La tienda es la que importa:
-     * se siembra como principal y activa, y la aplicación no deja entrar si hay dos.
-     */
-    private function anotarLoQueSiembraPorDebajo(): void
-    {
-        $this->sembrado['tiendas'][] = $this->siembra->tiendaPorDefecto();
-        $this->sembrado['usuarios'][] = $this->siembra->usuarioPorDefecto();
-        $this->sembrado['clientes'][] = $this->siembra->clientePorDefecto();
     }
 
     public function test_T1_elBloqueDeLecturaRechazaLaTablaTemporalQueElComponenteConsumidoNecesita(): void
@@ -95,7 +90,7 @@ final class ComprobacionStockRecorridoIntegracionTest extends CasoIntegracion
         // Esta es la restricción que ordena el recorrido: mientras el bloque esté
         // abierto, la tabla temporal con que el componente consumido acota la ventana
         // de recepción no puede crearse. En cuanto se cierra, sí.
-        $_SESSION['tiendaTpv'] = ['ano' => '2026', 'idTienda' => '1'];
+        $_SESSION['tiendaTpv'] = ['ano' => $this->ano(), 'idTienda' => (string) $this->siembra->tiendaPorDefecto()];
         $contextoClase = new \ClaseComprobacionStockContexto();
 
         self::assertTrue($contextoClase->abrir()['ok']);
@@ -119,21 +114,15 @@ final class ComprobacionStockRecorridoIntegracionTest extends CasoIntegracion
         // El producto que se recupera es el que obliga al componente consumido a acotar
         // la ventana de recepción, que es lo que exige la tabla temporal. Sobre él, la
         // extracción entera tiene que llegar hasta el final con el bloque abierto.
-        $this->anotarLoQueSiembraPorDebajo();
+        $idArticulo = $this->escenario->E28()['idArticulo'];
 
-        $idArticulo = $this->siembra->articulo('Producto que toca negativo y se recupera');
-        $this->sembrado['articulos'][] = $idArticulo;
-        $this->sembrado['albprot'][] = $this->siembra->entradaProveedor($idArticulo, 5.0, '2026-03-01');
-        $this->sembrado['ticketst'][] = $this->siembra->ventaTicket($idArticulo, 8.0, '2026-03-02');
-        $this->sembrado['albprot'][] = $this->siembra->entradaProveedor($idArticulo, 5.0, '2026-03-03');
-
-        $_SESSION['tiendaTpv'] = ['ano' => '2026', 'idTienda' => '1'];
+        $_SESSION['tiendaTpv'] = ['ano' => $this->ano(), 'idTienda' => (string) $this->siembra->tiendaPorDefecto()];
         $contextoClase = new \ClaseComprobacionStockContexto();
         $apertura = $contextoClase->abrir();
         self::assertTrue($apertura['ok']);
         // El contexto real trae la fecha de corte del día en que se ejecuta. Aquí se
         // sustituye por una fija para que el caso no dependa de cuándo se lance.
-        $apertura['fechaCorte'] = '2026-06-30';
+        $apertura['fechaCorte'] = $this->ano() . '-06-30';
 
         $estadoProducto = (new \ClaseComprobacionStockExtraccion())->extraer($apertura);
         $contextoClase->cerrar();
@@ -154,11 +143,11 @@ final class ComprobacionStockRecorridoIntegracionTest extends CasoIntegracion
 
     public function test_T3_laExtraccionDejaElBloqueCerradoAntesDeCruzarAlComponenteConsumido(): void
     {
-        $_SESSION['tiendaTpv'] = ['ano' => '2026', 'idTienda' => '1'];
+        $_SESSION['tiendaTpv'] = ['ano' => $this->ano(), 'idTienda' => (string) $this->siembra->tiendaPorDefecto()];
         $contextoClase = new \ClaseComprobacionStockContexto();
         $apertura = $contextoClase->abrir();
         self::assertTrue($apertura['ok']);
-        $apertura['fechaCorte'] = '2026-06-30';
+        $apertura['fechaCorte'] = $this->ano() . '-06-30';
 
         (new \ClaseComprobacionStockExtraccion())->extraer($apertura);
 

@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace TPVFox\Test\Integration\ModReorganizacion\Comprobacion;
 
 use TPVFox\Test\CasoIntegracion;
+use TPVFox\Test\Siembra\EscenarioComprobacionStock;
 use TPVFox\Test\Siembra\Siembra;
 
 final class ComprobacionStockConsultaIntegracionTest extends CasoIntegracion
@@ -19,11 +20,13 @@ final class ComprobacionStockConsultaIntegracionTest extends CasoIntegracion
     protected bool $compartirConexionConElProducto = true;
 
     private Siembra $siembra;
+    private EscenarioComprobacionStock $escenario;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->siembra = new Siembra($this->db);
+        $this->escenario = $this->nuevoEscenario($this->siembra);
         $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockConsulta.php');
     }
 
@@ -34,12 +37,12 @@ final class ComprobacionStockConsultaIntegracionTest extends CasoIntegracion
 
     public function test_T1_elSaldoDePartidaDeUnaListaVaciaEsElConjuntoVacio(): void
     {
-        self::assertSame([], $this->consulta()->stockBase('2026-01-01', '2026-12-31', []));
+        self::assertSame([], $this->consulta()->stockBase($this->ano() . '-01-01', $this->ano() . '-12-31', []));
     }
 
     public function test_T2_sinProductosOSinFamiliasNoSeConsultaLaExclusion(): void
     {
-        $idFamilia = $this->siembra->familia('Familia excluida de la comprobación');
+        $idFamilia = $this->escenario->E24()['idFamilia'];
         $consulta = $this->consulta();
 
         // Las dos ausencias significan lo mismo para el resultado —ningún producto
@@ -56,7 +59,7 @@ final class ComprobacionStockConsultaIntegracionTest extends CasoIntegracion
 
     public function test_T4_sinProductosNoSePreguntaPorRegularizaciones(): void
     {
-        self::assertSame([], $this->consulta()->conRegularizacionEntre([], '2026-01-01', '2026-12-31'));
+        self::assertSame([], $this->consulta()->conRegularizacionEntre([], $this->ano() . '-01-01', $this->ano() . '-12-31'));
     }
 
     public function test_T5_elCatalogoDeUnaListaVaciaEsElConjuntoVacio(): void
@@ -73,7 +76,7 @@ final class ComprobacionStockConsultaIntegracionTest extends CasoIntegracion
 
     public function test_T7_unProductoDelCatalogoDeclaraSuTipo(): void
     {
-        $idArticulo = $this->siembra->articulo('Producto de peso para la consulta', ['tipo' => 'peso']);
+        $idArticulo = $this->escenario->E25()['idArticulo'];
 
         self::assertSame('peso', $this->consulta()->tipoDeArticulo($idArticulo));
     }
@@ -97,9 +100,7 @@ final class ComprobacionStockConsultaIntegracionTest extends CasoIntegracion
         // Un producto de 0,7 de entrada y 1,0 de venta cierra en -0,3: negativo, con
         // parte decimal y de magnitud pequeña, que es la combinación sobre la que actúan
         // los tres.
-        $idArticulo = $this->siembra->articulo('Producto con negativo decimal');
-        $this->siembra->entradaProveedor($idArticulo, 0.7, '2026-03-01');
-        $this->siembra->ventaTicket($idArticulo, 1.0, '2026-03-02');
+        $idArticulo = $this->escenario->E26()['idArticulo'];
 
         // Con los tres holgados, el componente atribuye el negativo al redondeo del
         // pesaje y rebaja la señal.
@@ -121,10 +122,7 @@ final class ComprobacionStockConsultaIntegracionTest extends CasoIntegracion
         // El cuarto umbral no cambia la señal sino la ventana en que el componente busca
         // una recepción que explique el negativo puntual. Un producto que toca -3 el día 2
         // y se repone el 5 queda dentro o fuera según cuántos días abarque esa ventana.
-        $idArticulo = $this->siembra->articulo('Producto que toca negativo y se repone tres dias despues');
-        $this->siembra->entradaProveedor($idArticulo, 5.0, '2026-03-01');
-        $this->siembra->ventaTicket($idArticulo, 8.0, '2026-03-02');
-        $this->siembra->entradaProveedor($idArticulo, 5.0, '2026-03-05');
+        $idArticulo = $this->escenario->E27()['idArticulo'];
 
         $conVentanaCorta = $this->incidenciaDe($idArticulo, ['timingVentanaDias' => 1]);
         $conVentanaLarga = $this->incidenciaDe($idArticulo, ['timingVentanaDias' => 5]);
@@ -157,10 +155,10 @@ final class ComprobacionStockConsultaIntegracionTest extends CasoIntegracion
         ], $cambios);
 
         $incidencias = $this->consulta()->incidenciasC1(
-            '2026-01-02',
-            '2026-06-30',
-            '2025-12-31',
-            '2026-01-01',
+            $this->ano() . '-01-02',
+            $this->ano() . '-06-30',
+            $this->anoAnterior() . '-12-31',
+            $this->ano() . '-01-01',
             [],
             $umbrales
         );

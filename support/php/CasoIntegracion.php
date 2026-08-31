@@ -15,6 +15,8 @@ use mysqli;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 use RuntimeException;
+use TPVFox\Test\Siembra\EscenarioComprobacionStock;
+use TPVFox\Test\Siembra\Siembra;
 
 abstract class CasoIntegracion extends TestCase
 {
@@ -100,6 +102,41 @@ abstract class CasoIntegracion extends TestCase
         $propiedad = new ReflectionProperty('ModeloP', 'db');
         $propiedad->setAccessible(true);
         $propiedad->setValue(null, $conexion);
+    }
+
+    /**
+     * El ejercicio de la base sobre la que corre este caso.
+     *
+     * Sale del nombre de la base, que por convencion del repositorio termina en el
+     * ejercicio de cuatro cifras. Escribir el ano dentro de cada caso lo ata a un par de
+     * bases concreto: el mismo caso deja de valer en cuanto la instalacion avanza de ano,
+     * y el fallo se manifiesta como un resultado vacio, no como un error.
+     */
+    protected function ano(): string
+    {
+        $variable = $this->ejercicio === 'anterior' ? 'TPVFOX_TEST_DB_ANTERIOR' : 'TPVFOX_TEST_DB_VIGENTE';
+        $base = Entorno::valor($variable);
+
+        if (!preg_match('/(\d{4})$/', $base, $coincidencia)) {
+            throw new RuntimeException(
+                "La base «{$base}» no termina en un ejercicio de cuatro cifras, de modo que no se " .
+                "puede deducir sobre que ano corre el caso. La convencion es «tpvfox_test_<ano>»."
+            );
+        }
+
+        return $coincidencia[1];
+    }
+
+    /** El ejercicio inmediatamente anterior al de la base sobre la que corre el caso. */
+    protected function anoAnterior(): string
+    {
+        return (string) ((int) $this->ano() - 1);
+    }
+
+    /** El catalogo de escenarios, atado al papel y al ejercicio de este caso. */
+    protected function nuevoEscenario(Siembra $siembra): EscenarioComprobacionStock
+    {
+        return new EscenarioComprobacionStock($siembra, $this->ejercicio, $this->ano());
     }
 
     /**

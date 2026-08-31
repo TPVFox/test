@@ -15,6 +15,7 @@ declare(strict_types=1);
 namespace TPVFox\Test\Integration\ModReorganizacion\Comprobacion;
 
 use TPVFox\Test\CasoIntegracion;
+use TPVFox\Test\Siembra\EscenarioComprobacionStock;
 use TPVFox\Test\Siembra\Siembra;
 
 final class ComprobacionStockClasificacionIntegracionTest extends CasoIntegracion
@@ -24,11 +25,13 @@ final class ComprobacionStockClasificacionIntegracionTest extends CasoIntegracio
     protected bool $compartirConexionConElProducto = true;
 
     private Siembra $siembra;
+    private EscenarioComprobacionStock $escenario;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->siembra = new Siembra($this->db);
+        $this->escenario = $this->nuevoEscenario($this->siembra);
         $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockMinimo.php');
         $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockClasificacion.php');
     }
@@ -36,7 +39,7 @@ final class ComprobacionStockClasificacionIntegracionTest extends CasoIntegracio
     private function contexto(): array
     {
         return [
-            'ano' => '2025',
+            'ano' => $this->ano(),
             'idTienda' => $this->siembra->tiendaPorDefecto(),
         ];
     }
@@ -57,9 +60,7 @@ final class ComprobacionStockClasificacionIntegracionTest extends CasoIntegracio
     public function test_T1_sinRecepcionesEnElAnteriorSaleNoComparableConSuCondicion(): void
     {
         $proveedorTraspaso = $this->siembra->proveedor('Proveedor de cierre');
-        $idArticulo = $this->siembra->articulo('Producto sin recepciones en el anterior');
-
-        $this->siembra->ventaTicket($idArticulo, 3.0, '2025-04-01');
+        $idArticulo = $this->escenario->E37()['idArticulo'];
 
         $minimo = new \ClaseComprobacionStockMinimo();
         $filas = $minimo->calcular([$this->filaVigente($idArticulo, -1.0, 2.0)], $this->contexto(), $proveedorTraspaso);
@@ -75,14 +76,9 @@ final class ComprobacionStockClasificacionIntegracionTest extends CasoIntegracio
     {
         $proveedorTraspaso = $this->siembra->proveedor('Proveedor de cierre');
         $proveedorHabitual = $this->siembra->proveedor('Proveedor habitual');
-        $idArticulo = $this->siembra->articulo('Producto con lote negativo intermedio');
-
         // El mismo ejemplo con lote negativo intermedio usado en el cálculo del
         // mínimo: el stock justificado reconstruido es 10.
-        $this->siembra->entradaProveedor($idArticulo, 24.0, '2025-06-25', ['idProveedor' => $proveedorHabitual]);
-        $this->siembra->ventaTicket($idArticulo, 25.0, '2025-07-15');
-        $this->siembra->entradaProveedor($idArticulo, 24.0, '2025-11-12', ['idProveedor' => $proveedorHabitual]);
-        $this->siembra->ventaTicket($idArticulo, 14.0, '2025-12-01');
+        $idArticulo = $this->escenario->E38($proveedorHabitual)['idArticulo'];
 
         $minimo = new \ClaseComprobacionStockMinimo();
         // Existencia exigida en el vigente: |-4| + 6 = 10, igual que el justificado.
@@ -99,12 +95,7 @@ final class ComprobacionStockClasificacionIntegracionTest extends CasoIntegracio
     {
         $proveedorTraspaso = $this->siembra->proveedor('Proveedor de cierre');
         $proveedorHabitual = $this->siembra->proveedor('Proveedor habitual');
-        $idArticulo = $this->siembra->articulo('Producto que traspaso mas de lo que se le exige');
-
-        $this->siembra->entradaProveedor($idArticulo, 24.0, '2025-06-25', ['idProveedor' => $proveedorHabitual]);
-        $this->siembra->ventaTicket($idArticulo, 25.0, '2025-07-15');
-        $this->siembra->entradaProveedor($idArticulo, 24.0, '2025-11-12', ['idProveedor' => $proveedorHabitual]);
-        $this->siembra->ventaTicket($idArticulo, 14.0, '2025-12-01');
+        $idArticulo = $this->escenario->E39($proveedorHabitual)['idArticulo'];
 
         $minimo = new \ClaseComprobacionStockMinimo();
         // Reconstruido 10; exigido |2 - (-3)| = 5. Sobra existencia frente a la que los
@@ -123,12 +114,7 @@ final class ComprobacionStockClasificacionIntegracionTest extends CasoIntegracio
     {
         $proveedorTraspaso = $this->siembra->proveedor('Proveedor de cierre');
         $proveedorHabitual = $this->siembra->proveedor('Proveedor habitual');
-        $idArticulo = $this->siembra->articulo('Producto al que se le exige mas de lo reconstruido');
-
-        $this->siembra->entradaProveedor($idArticulo, 24.0, '2025-06-25', ['idProveedor' => $proveedorHabitual]);
-        $this->siembra->ventaTicket($idArticulo, 25.0, '2025-07-15');
-        $this->siembra->entradaProveedor($idArticulo, 24.0, '2025-11-12', ['idProveedor' => $proveedorHabitual]);
-        $this->siembra->ventaTicket($idArticulo, 14.0, '2025-12-01');
+        $idArticulo = $this->escenario->E40($proveedorHabitual)['idArticulo'];
 
         $minimo = new \ClaseComprobacionStockMinimo();
         // Reconstruido 10; exigido 25. El histórico del anterior no sostiene lo que los
@@ -151,15 +137,7 @@ final class ComprobacionStockClasificacionIntegracionTest extends CasoIntegracio
         // que los dos reconstruyen 15 con un margen de medio kilo. Lo único que cambia es
         // cuánto se les exige, y es el margen el que decide: cuatro décimas caben y una
         // unidad no. Con un producto que no se registrara por peso los dos saldrían fuera.
-        $dentro = $this->siembra->articulo('Producto de peso dentro del margen', ['tipo' => 'peso']);
-        $fuera = $this->siembra->articulo('Producto de peso fuera del margen', ['tipo' => 'peso']);
-
-        foreach ([$dentro, $fuera] as $idArticulo) {
-            $this->siembra->entradaProveedor($idArticulo, 30.0, '2025-03-01', ['idProveedor' => $proveedorHabitual]);
-            $this->siembra->ventaTicket($idArticulo, 5.0, '2025-03-02');
-            $this->siembra->ventaTicket($idArticulo, 5.0, '2025-03-03');
-            $this->siembra->ventaTicket($idArticulo, 5.0, '2025-03-04');
-        }
+        [$dentro, $fuera] = $this->escenario->E41($proveedorHabitual)['idArticulos'];
 
         $minimo = new \ClaseComprobacionStockMinimo();
         $filas = $minimo->calcular(

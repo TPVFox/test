@@ -9,6 +9,13 @@
  * ano-vigente es el ejercicio del despliegue E2E que sube el fichero (el vigente,
  * Recorrido 1). El recorrido 2 debe correr contra el despliegue del ejercicio
  * anterior a ese, con la misma tienda: es lo que exige ClaseComprobacionStockAdmision.
+ *
+ * **El producto que declara el fichero es el del puente**, el mismo que la siembra
+ * persistente pone en las dos bases con idéntico identificador. Ni el identificador ni
+ * la trayectoria se escriben aquí a mano: el primero lo da el catálogo de escenarios, y
+ * la segunda es la que ese escenario siembra. Un fichero que declarase un producto que
+ * no está en la base del ejercicio anterior probaría la falta de contraparte, que es
+ * justo lo contrario de lo que estos recorridos recorren.
  */
 
 declare(strict_types=1);
@@ -16,14 +23,23 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 require_once RUTA_TPVFOX . '/modulos/mod_reorganizacion/clases/ClaseComprobacionStockEmision.php';
 
-$anoVigente = $argv[1] ?? '2026';
+use TPVFox\Test\Siembra\EscenarioComprobacionStock;
+
+const ESCENARIO_DEL_PUENTE = 'E55';
+
+$anoVigente = $argv[1] ?? date('Y');
 $idTienda = isset($argv[2]) ? (int) $argv[2] : 1;
+
+$idArticulo = EscenarioComprobacionStock::identificadorFijoDe(ESCENARIO_DEL_PUENTE);
 
 $_SESSION['usuarioTpv'] = ['id' => 1];
 
+// Los tres números son los que produce la historia del producto del puente en el
+// ejercicio vigente: abre con 3, baja a −8 y se recupera hasta −5 al corte. Si esa
+// historia cambia en el catálogo, estos tienen que cambiar con ella.
 $estadoProducto = [
     [
-        'idArticulo' => 9001,
+        'idArticulo' => $idArticulo,
         'saldoAlCorte' => -5.0,
         'minimoAlcanzado' => -8.0,
         'saldoDeApertura' => 3.0,
@@ -60,7 +76,18 @@ if (!$emision->emitir($composicion, $destino)) {
     exit(1);
 }
 
+// El recorrido del ejercicio anterior busca en pantalla la fila de este producto. Que el
+// número esté escrito en dos sitios —aquí y en el recorrido— es una costura que se rompe
+// en silencio: el recorrido lo lee de aquí.
+$declaracion = __DIR__ . '/../E2E/fixtures/comprobacion-vigente-ejemplo.json';
+file_put_contents($declaracion, json_encode([
+    'idArticulo' => $idArticulo,
+    'anoVigente' => $anoVigente,
+    'anoAnterior' => (string) ((int) $anoVigente - 1),
+    'idTienda' => $idTienda,
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n");
+
 fwrite(STDOUT, "Fixture generado en {$destino}\n");
 fwrite(STDOUT, "Declara el ejercicio vigente {$anoVigente}, tienda {$idTienda}.\n");
 fwrite(STDOUT, "El recorrido E2E del anterior debe correr contra el ejercicio " . ((int) $anoVigente - 1) . ".\n");
-fwrite(STDOUT, "Artículo de ejemplo: 9001.\n");
+fwrite(STDOUT, "Producto del puente: {$idArticulo} (escenario " . ESCENARIO_DEL_PUENTE . ").\n");

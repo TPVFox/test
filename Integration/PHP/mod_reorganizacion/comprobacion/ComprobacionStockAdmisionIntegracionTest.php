@@ -15,6 +15,7 @@ declare(strict_types=1);
 namespace TPVFox\Test\Integration\ModReorganizacion\Comprobacion;
 
 use TPVFox\Test\CasoIntegracion;
+use TPVFox\Test\Siembra\EscenarioComprobacionStock;
 use TPVFox\Test\Siembra\Siembra;
 
 final class ComprobacionStockAdmisionIntegracionTest extends CasoIntegracion
@@ -22,6 +23,7 @@ final class ComprobacionStockAdmisionIntegracionTest extends CasoIntegracion
     protected bool $compartirConexionConElProducto = true;
 
     private Siembra $siembra;
+    private EscenarioComprobacionStock $escenario;
 
     private array $rutasEmitidas = [];
 
@@ -31,6 +33,7 @@ final class ComprobacionStockAdmisionIntegracionTest extends CasoIntegracion
         $_SESSION ??= [];
         $_SESSION['usuarioTpv'] = ['id' => 7];
         $this->siembra = new Siembra($this->db);
+        $this->escenario = $this->nuevoEscenario($this->siembra);
         $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockAdmision.php');
         $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockEmision.php');
         $this->incluirTPVFox('/modulos/mod_reorganizacion/clases/ClaseComprobacionStockIntercambioXML.php');
@@ -58,7 +61,7 @@ final class ComprobacionStockAdmisionIntegracionTest extends CasoIntegracion
     private function contextoVigente(array $cambios = []): array
     {
         return array_merge([
-            'ano' => '2026',
+            'ano' => $this->ano(),
             'idTienda' => '1',
             'momento' => '2026-02-01T09:00:00+01:00',
             'fechaCorte' => '2026-02-01',
@@ -76,7 +79,7 @@ final class ComprobacionStockAdmisionIntegracionTest extends CasoIntegracion
     private function contextoAnterior(array $cambios = []): array
     {
         return array_merge([
-            'ano' => '2025',
+            'ano' => $this->anoAnterior(),
             'idTienda' => '1',
             'momento' => '2026-02-14T18:30:00+01:00',
             'fechaCorte' => '2026-02-14',
@@ -234,7 +237,7 @@ final class ComprobacionStockAdmisionIntegracionTest extends CasoIntegracion
 
     public function test_T5_unProductoConContraparteQuedaEmparejadoYElResultadoSeAdmite(): void
     {
-        $idArticulo = $this->siembra->articulo('Producto con contraparte en el anterior');
+        $idArticulo = $this->escenario->E42()['idArticulo'];
 
         $ruta = $this->emitirFichero(
             [['idArticulo' => $idArticulo, 'saldoAlCorte' => -3.0, 'minimoAlcanzado' => -6.0, 'saldoDeApertura' => 3.0, 'marcado' => true, 'tipoIncidencia' => 'Inventario en negativo', 'condicionesConocidas' => ['periodo_no_consolidado']]],
