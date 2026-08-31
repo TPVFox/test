@@ -12,6 +12,9 @@
         "test:e2e": "playwright test",
         "test:e2e:ui": "playwright test --ui",
         "bases:preparar": "php support/preparar-bases.php",
+        "entorno:preparar": "php support/preparar-entorno.php",
+        "escenarios:sembrar": "php support/sembrar-escenarios.php",
+        "esfuerzo:medir": "php support/medir-esfuerzo.php",
         "entorno:up": "docker compose -f entorno/docker-compose.yml up -d",
         "entorno:down": "docker compose -f entorno/docker-compose.yml down -v"
     },
