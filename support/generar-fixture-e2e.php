@@ -30,6 +30,15 @@ const ESCENARIO_DEL_PUENTE = 'E55';
 $anoVigente = $argv[1] ?? date('Y');
 $idTienda = isset($argv[2]) ? (int) $argv[2] : 1;
 
+// El ejercicio viaja dentro del fichero y es una de las dos dimensiones por las que el
+// otro extremo decide si lo admite. Sin esta comprobación, cualquier cadena pasa: el
+// fichero se genera igual, declara un ejercicio que no existe, y el rechazo aparece
+// mucho después, en la admisión, como si el problema fuera del sistema.
+if (!preg_match('/^\d{4}$/', (string) $anoVigente)) {
+    fwrite(STDERR, "El ejercicio vigente se indica con cuatro cifras, no «{$anoVigente}».\n");
+    exit(1);
+}
+
 $idArticulo = EscenarioComprobacionStock::identificadorFijoDe(ESCENARIO_DEL_PUENTE);
 
 $_SESSION['usuarioTpv'] = ['id' => 1];
