@@ -197,6 +197,37 @@ final class Siembra
     }
 
     /**
+     * Precio y ficha de tienda del articulo, en la tienda que se indique.
+     *
+     * `articulo()` no las crea porque el calculo de saldo del sistema bajo prueba nunca
+     * las lee (usa `articulos.ultimoCoste`/`iva`/`beneficio` directamente, via
+     * `datosArticulo()`); las necesita quien lea `articulosPrecios`/`articulosTiendas` en
+     * vez del calculo, como `clases/articulos.php`. Metodo aparte, no una ampliacion de
+     * `articulo()`, para no anadir escrituras a un helper que ya usan otros PCP sin que las
+     * pidan.
+     *
+     * @param int|null $idTienda Sin valor, la tienda principal.
+     */
+    public function precioYTienda(int $idArticulo, float $pvpCiva, float $pvpSiva, ?int $idTienda = null, array $opciones = []): void
+    {
+        $idTienda ??= $this->tiendaPorDefecto();
+
+        $this->insertar('articulosPrecios', [
+            'idArticulo' => $idArticulo,
+            'pvpCiva'    => $pvpCiva,
+            'pvpSiva'    => $pvpSiva,
+            'idTienda'   => $idTienda,
+        ]);
+
+        $this->insertar('articulosTiendas', [
+            'idArticulo' => $idArticulo,
+            'idTienda'   => $idTienda,
+            'crefTienda' => $opciones['crefTienda'] ?? ('REF-' . $idArticulo),
+            'estado'     => $opciones['estado'] ?? 'Activo',
+        ]);
+    }
+
+    /**
      * Fija la existencia registrada del articulo, en la tienda que se indique.
      *
      * El sistema bajo prueba no la lee, de modo que sirve para comprobar precisamente
@@ -396,6 +427,7 @@ final class Siembra
             'idalbcli'    => $idAlbaran,
             'Numalbcli'   => $this->numeroDe('albclit', 'Numalbcli', $idAlbaran),
             'idArticulo'  => $idArticulo,
+            'cdetalle'    => $this->filaDe('articulos', 'idArticulo', $idArticulo)['articulo_name'],
             'ncant'       => $unidades,
             'nunidades'   => $unidades,
             'estadoLinea' => $opciones['estadoLinea'] ?? 'Activo',
@@ -406,6 +438,70 @@ final class Siembra
         ]);
 
         $this->cuadrar('albclit', $idAlbaran, $base, $articulo['iva']);
+
+        return $id;
+    }
+
+    /**
+     * Un pedido de cliente ya guardado, con una linea.
+     *
+     * `Numtemp_pedcli` es el id del temporal del que salio el pedido cuando el producto lo
+     * convierte de temporal a definitivo (unico documento de venta que lo lleva: ni el
+     * albaran ni la factura tienen ese enlace). Un pedido sembrado sin pasar por un
+     * temporal no tiene ese origen, y por defecto va a 0; un caso que si lo necesite lo
+     * pide por `$opciones['Numtemp_pedcli']`.
+     */
+    public function pedidoVentaCliente(int $idArticulo, float $unidades, string $fecha, array $opciones = []): int
+    {
+        $numero = $this->siguienteNumero('pedclit', 'Numpedcli');
+
+        $idPedido = $this->insertar('pedclit', [
+            'Numpedcli'      => $numero,
+            'Numtemp_pedcli' => $opciones['Numtemp_pedcli'] ?? 0,
+            'Fecha'          => $this->momento($fecha),
+            'idTienda'       => $opciones['idTienda'] ?? $this->tiendaPorDefecto(),
+            'idUsuario'      => $this->usuarioPorDefecto(),
+            'idCliente'      => $this->clientePorDefecto(),
+            'estado'         => $opciones['estado'] ?? 'Guardado',
+            'formaPago'      => 'Efectivo',
+            'entregado'      => 0,
+            'total'          => 0,
+        ]);
+
+        $this->numeroDeDocumento['pedclit:' . $idPedido] = $numero;
+        $this->lineaPedidoVentaCliente($idPedido, $idArticulo, $unidades, $opciones);
+
+        return $idPedido;
+    }
+
+    /**
+     * Anade una linea a un pedido de cliente ya creado.
+     *
+     * A diferencia de `albclilinea`, `pedclilinea.cdetalle` es `NOT NULL` sin valor por
+     * defecto: una inconsistencia real entre las dos tablas hermanas, no una decision de
+     * esta siembra. Se resuelve leyendo el nombre del articulo.
+     */
+    public function lineaPedidoVentaCliente(int $idPedido, int $idArticulo, float $unidades, array $opciones = []): int
+    {
+        $articulo = $this->datosArticulo($idArticulo);
+        $precioSinIva = $this->precioDeVenta($articulo);
+        $base = $this->dinero($precioSinIva * $unidades);
+
+        $id = $this->insertar('pedclilinea', [
+            'idpedcli'    => $idPedido,
+            'Numpedcli'   => $this->numeroDe('pedclit', 'Numpedcli', $idPedido),
+            'idArticulo'  => $idArticulo,
+            'cdetalle'    => $this->filaDe('articulos', 'idArticulo', $idArticulo)['articulo_name'],
+            'ncant'       => $unidades,
+            'nunidades'   => $unidades,
+            'estadoLinea' => $opciones['estadoLinea'] ?? 'Activo',
+            'pvpSiva'     => $precioSinIva,
+            'precioCiva'  => $this->dinero($precioSinIva * (1 + $articulo['iva'] / 100)),
+            'iva'         => $articulo['iva'],
+            'nfila'       => $this->siguienteFila('pedclit', $idPedido),
+        ]);
+
+        $this->cuadrar('pedclit', $idPedido, $base, $articulo['iva']);
 
         return $id;
     }
@@ -592,6 +688,133 @@ final class Siembra
         $this->actualizar('albclit', 'id', $idAlbaran, ['estado' => 'Procesado']);
 
         return $idFactura;
+    }
+
+    // --- Temporales de venta (mod_venta) -------------------------------------
+    //
+    // Un temporal no es un documento: es el borrador que `AddTemporal.php` guarda mientras
+    // el usuario compone pedido, albaran o factura antes de darlo por bueno. `Productos` —y,
+    // en albaran y factura, `Pedidos`/`Albaranes`— viaja como texto JSON, tal como lo dejan
+    // `insertarDatosTemporal()` y `modificarDatosTemporal()` de las tres clases de venta: no
+    // serializado de PHP, pese al tipo `mediumblob`/`varbinary` de la columna.
+
+    /**
+     * Un pedido temporal, sin convertir a documento.
+     *
+     * @param array<int,array<string,mixed>> $productos Lineas ya con la forma que
+     *                                                    `modificarArrayProductos()` produce
+     */
+    public function pedidoTemporal(array $productos = [], array $opciones = []): int
+    {
+        return $this->insertar('pedcliltemporales', [
+            'idTienda'    => $opciones['idTienda'] ?? $this->tiendaPorDefecto(),
+            'idUsuario'   => $this->usuarioPorDefecto(),
+            'fechaInicio' => $this->momento($opciones['fecha'] ?? '2026-01-01'),
+            'Fecha'       => $this->momento($opciones['fecha'] ?? '2026-01-01'),
+            'idCliente'   => $opciones['idCliente'] ?? $this->clientePorDefecto(),
+            'total'       => $opciones['total'] ?? 0,
+            'total_ivas'  => $opciones['total_ivas'] ?? '0',
+            'Productos'   => json_encode($productos),
+            'Numpedcli'   => $opciones['Numpedcli'] ?? null,
+        ]);
+    }
+
+    /**
+     * Un albaran temporal, sin convertir a documento.
+     *
+     * @param array<int,array<string,mixed>> $productos Lineas del albaran
+     * @param array<int,array<string,mixed>> $pedidos   Adjuntos de pedido ya incorporados
+     */
+    public function albaranTemporal(array $productos = [], array $pedidos = [], array $opciones = []): int
+    {
+        return $this->insertar('albcliltemporales', [
+            'Numalbcli'   => $opciones['Numalbcli'] ?? null,
+            'idTienda'    => $opciones['idTienda'] ?? $this->tiendaPorDefecto(),
+            'idUsuario'   => $this->usuarioPorDefecto(),
+            'fechaInicio' => $this->momento($opciones['fecha'] ?? '2026-01-01'),
+            'Fecha'       => $this->momento($opciones['fecha'] ?? '2026-01-01'),
+            'idCliente'   => $opciones['idCliente'] ?? $this->clientePorDefecto(),
+            'total'       => $opciones['total'] ?? 0,
+            'total_ivas'  => $opciones['total_ivas'] ?? '0',
+            'Productos'   => json_encode($productos),
+            'Pedidos'     => json_encode($pedidos),
+        ]);
+    }
+
+    /**
+     * Una factura temporal, sin convertir a documento.
+     *
+     * @param array<int,array<string,mixed>> $productos Lineas de la factura
+     * @param array<int,array<string,mixed>> $albaranes Adjuntos de albaran ya incorporados
+     */
+    public function facturaTemporal(array $productos = [], array $albaranes = [], array $opciones = []): int
+    {
+        return $this->insertar('faccliltemporales', [
+            'Numfaccli'        => $opciones['Numfaccli'] ?? null,
+            'idTienda'         => $opciones['idTienda'] ?? $this->tiendaPorDefecto(),
+            'idUsuario'        => $this->usuarioPorDefecto(),
+            'Fecha'            => $this->momento($opciones['fecha'] ?? '2026-01-01'),
+            'fechaInicio'      => $this->momento($opciones['fecha'] ?? '2026-01-01'),
+            'fechaVencimiento' => $this->momento($opciones['fechaVencimiento'] ?? '2026-01-31'),
+            'idCliente'        => $opciones['idCliente'] ?? $this->clientePorDefecto(),
+            'total'            => $opciones['total'] ?? 0,
+            'total_ivas'       => $opciones['total_ivas'] ?? '0',
+            'Productos'        => json_encode($productos),
+            'Albaranes'        => json_encode($albaranes),
+        ]);
+    }
+
+    // --- Incidencias ----------------------------------------------------------
+
+    /** Una incidencia de un documento, tal como la deja `ClaseIncidencia::addIncidencia()`. */
+    public function incidencia(string $dedonde, array $datos, string $mensaje, array $opciones = []): int
+    {
+        $numero = $this->siguienteNumero('modulo_incidencia', 'num_incidencia');
+
+        return $this->insertar('modulo_incidencia', [
+            'num_incidencia' => $numero,
+            'fecha_creacion' => $this->momento($opciones['fecha'] ?? '2026-01-01'),
+            'id_usuario'     => $this->usuarioPorDefecto(),
+            'dedonde'        => $dedonde,
+            'mensaje'        => $mensaje,
+            'datos'          => json_encode($datos),
+            'estado'         => $opciones['estado'] ?? 'No resuelto',
+        ]);
+    }
+
+    // --- Historico de precios y proveedor de articulo (clases/articulos.php) --
+
+    /** Una linea de `historico_precios`, tal como la deja `Articulos::addHistorico()`. */
+    public function historicoPrecio(int $idArticulo, float $antes, float $nuevo, string $dedonde, int $numDoc, array $opciones = []): int
+    {
+        return $this->insertar('historico_precios', [
+            'idArticulo'     => $idArticulo,
+            'Antes'          => $antes,
+            'Nuevo'          => $nuevo,
+            'Fecha_Creacion' => $this->momento($opciones['fecha'] ?? '2026-01-01'),
+            'NumDoc'         => $numDoc,
+            'Dedonde'        => $dedonde,
+            'Tipo'           => $opciones['tipo'] ?? 'compra',
+            'idUsuario'      => $this->usuarioPorDefecto(),
+            'estado'         => $opciones['estado'] ?? 'Sin revisar',
+        ]);
+    }
+
+    /**
+     * La relacion articulo-proveedor de `articulosProveedores`, clave compuesta sin
+     * autoincremento: no hay identificador que devolver, a diferencia del resto de la
+     * siembra.
+     */
+    public function articuloProveedor(int $idArticulo, int $idProveedor, float $coste, array $opciones = []): void
+    {
+        $this->insertar('articulosProveedores', [
+            'idArticulo'         => $idArticulo,
+            'idProveedor'        => $idProveedor,
+            'crefProveedor'      => $opciones['crefProveedor'] ?? 'REF-' . $idArticulo,
+            'coste'              => $coste,
+            'fechaActualizacion' => $opciones['fecha'] ?? '2026-01-01',
+            'estado'             => $opciones['estado'] ?? 'Activo',
+        ]);
     }
 
     // --- Apoyos -------------------------------------------------------------
@@ -822,6 +1045,7 @@ final class Siembra
             'albprot'  => ['albproIva', 'idalbpro', 'Numalbpro'],
             'ticketst' => ['ticketstIva', 'idticketst', 'Numticket'],
             'albclit'  => ['albcliIva', 'idalbcli', 'Numalbcli'],
+            'pedclit'  => ['pedcliIva', 'idpedcli', 'Numpedcli'],
         };
 
         $clave = $tabla . ':' . $id . ':' . $iva;
