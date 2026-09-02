@@ -7,6 +7,7 @@
 
 const { test, expect } = require('@playwright/test');
 const { iniciarSesion } = require('../../fixtures/autenticacion');
+const { seleccionarCliente } = require('../../fixtures/seleccionarCliente');
 
 const ID_CLIENTE = 921; // '[E2E venta] Cliente teclado', support/sembrar-e2e-venta.php
 const ID_ARTICULO = 14678; // '[E2E venta] Manzana Golden'
@@ -15,8 +16,7 @@ test.describe('Pedido — añadir producto por teclado', () => {
   test('T1 escribir el id exacto y pulsar Intro añade la línea', async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedido.php');
 
-    await page.fill('#id_cliente', String(ID_CLIENTE));
-    await page.locator('#id_cliente').press('Enter');
+    await seleccionarCliente(page, ID_CLIENTE);
     await expect(page.locator('#idArticulo')).toBeVisible({ timeout: 10000 });
 
     await page.fill('#idArticulo', String(ID_ARTICULO));

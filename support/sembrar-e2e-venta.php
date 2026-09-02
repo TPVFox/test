@@ -75,9 +75,15 @@ foreach ($articulos as $datos) {
 // paralelo por defecto (sin workers:1 en playwright.config.js). Dos specs manipulando el
 // mismo cliente a la vez corren la carrera de verse el temporal el uno al otro.
 $nombresCliente = [
-    'teclado' => PREFIJO . 'Cliente teclado',
-    'raton'   => PREFIJO . 'Cliente raton',
-    'defecto' => PREFIJO . 'Cliente defecto comprobar adjuntos',
+    'teclado'         => PREFIJO . 'Cliente teclado',
+    'raton'           => PREFIJO . 'Cliente raton',
+    'defecto'         => PREFIJO . 'Cliente defecto comprobar adjuntos',
+    'navegacion'      => PREFIJO . 'Cliente navegacion teclado',
+    'eliminar'        => PREFIJO . 'Cliente eliminar raton',
+    'albaran'         => PREFIJO . 'Cliente albaran teclado',
+    'albaran_adjunto' => PREFIJO . 'Cliente albaran adjunto pedido',
+    'factura'         => PREFIJO . 'Cliente factura teclado',
+    'factura_adjunto' => PREFIJO . 'Cliente factura adjunto albaran',
 ];
 
 $idsCliente = [];
@@ -90,6 +96,49 @@ foreach ($nombresCliente as $clave => $nombreCliente) {
         echo "Cliente ya sembrado: {$nombreCliente} (id {$idCliente})\n";
     }
     $idsCliente[$clave] = $idCliente;
+}
+
+// Un pedido 'Guardado' para el cliente que prueba adjuntar pedido -> albaran
+// (BuscarAdjunto.php busca por Numpedcli, idCliente y estado="Guardado"). Idempotente por
+// idCliente: si ya tiene un pedido Guardado, no siembra otro.
+$filaPedido = $db->query(
+    'SELECT Numpedcli FROM pedclit WHERE idCliente = ' . (int) $idsCliente['albaran_adjunto']
+    . ' AND estado = "Guardado" LIMIT 1'
+)->fetch_assoc();
+
+if ($filaPedido !== null) {
+    $numPedidoGuardado = (int) $filaPedido['Numpedcli'];
+    echo "Pedido Guardado ya sembrado (cliente {$idsCliente['albaran_adjunto']}): Numpedcli={$numPedidoGuardado}\n";
+} else {
+    $idPedidoGuardado = $siembra->pedidoVentaCliente($idsArticulo[0], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idsCliente['albaran_adjunto'],
+    ]);
+    $numPedidoGuardado = (int) $db->query('SELECT Numpedcli FROM pedclit WHERE id = ' . (int) $idPedidoGuardado)
+        ->fetch_assoc()['Numpedcli'];
+    echo "Pedido Guardado sembrado (cliente {$idsCliente['albaran_adjunto']}): Numpedcli={$numPedidoGuardado}\n";
+}
+
+// Mismo patron, un albaran 'Guardado' para adjuntar albaran -> factura
+// (AlbaranClienteGuardado() busca por Numalbcli, idCliente y estado="Guardado").
+$filaAlbaran = $db->query(
+    'SELECT Numalbcli FROM albclit WHERE idCliente = ' . (int) $idsCliente['factura_adjunto']
+    . ' AND estado = "Guardado" LIMIT 1'
+)->fetch_assoc();
+
+if ($filaAlbaran !== null) {
+    $numAlbaranGuardado = (int) $filaAlbaran['Numalbcli'];
+    echo "Albaran Guardado ya sembrado (cliente {$idsCliente['factura_adjunto']}): Numalbcli={$numAlbaranGuardado}\n";
+} else {
+    $idAlbaranGuardado = $siembra->ventaAlbaranCliente($idsArticulo[0], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idsCliente['factura_adjunto'],
+    ]);
+    $numAlbaranGuardado = (int) $db->query('SELECT Numalbcli FROM albclit WHERE id = ' . (int) $idAlbaranGuardado)
+        ->fetch_assoc()['Numalbcli'];
+    echo "Albaran Guardado sembrado (cliente {$idsCliente['factura_adjunto']}): Numalbcli={$numAlbaranGuardado}\n";
 }
 
 echo "\nArticulos disponibles para los recorridos: " . implode(', ', $idsArticulo) . "\n";

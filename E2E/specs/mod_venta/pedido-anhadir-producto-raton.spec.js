@@ -7,6 +7,7 @@
 
 const { test, expect } = require('@playwright/test');
 const { iniciarSesion } = require('../../fixtures/autenticacion');
+const { seleccionarCliente } = require('../../fixtures/seleccionarCliente');
 
 const ID_CLIENTE = 922; // '[E2E venta] Cliente raton', support/sembrar-e2e-venta.php
 
@@ -14,8 +15,7 @@ test.describe('Pedido — añadir producto por ratón', () => {
   test('T1 una búsqueda con varias coincidencias abre listado; clic en una fila añade la línea', async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedido.php');
 
-    await page.fill('#id_cliente', String(ID_CLIENTE));
-    await page.locator('#id_cliente').press('Enter');
+    await seleccionarCliente(page, ID_CLIENTE);
     await expect(page.locator('#Descripcion')).toBeVisible({ timeout: 10000 });
 
     await page.fill('#Descripcion', '[E2E venta] Manzana');
