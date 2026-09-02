@@ -1,0 +1,33 @@
+/**
+ * Flujo por teclado: buscar un artículo por su identificador exacto en la caja de
+ * `idArticulo` y confirmar con Intro añade la línea directamente, sin pasar por listado
+ * (`cajas_input`: tecla 13 en `cajaidArticulo` → `controlEventos()` → `controladorAcciones`
+ * → `buscarProductos()`).
+ */
+
+const { test, expect } = require('@playwright/test');
+const { iniciarSesion } = require('../../fixtures/autenticacion');
+
+const ID_CLIENTE = 921; // '[E2E venta] Cliente teclado', support/sembrar-e2e-venta.php
+const ID_ARTICULO = 14678; // '[E2E venta] Manzana Golden'
+
+test.describe('Pedido — añadir producto por teclado', () => {
+  test('T1 escribir el id exacto y pulsar Intro añade la línea', async ({ page }) => {
+    await iniciarSesion(page, 'modulos/mod_venta/pedido.php');
+
+    await page.fill('#id_cliente', String(ID_CLIENTE));
+    await page.locator('#id_cliente').press('Enter');
+    await expect(page.locator('#idArticulo')).toBeVisible({ timeout: 10000 });
+
+    await page.fill('#idArticulo', String(ID_ARTICULO));
+    await page.locator('#idArticulo').press('Enter');
+
+    const filaNueva = page.locator(`#tabla tr:has-text("${ID_ARTICULO}")`).first();
+    await expect(filaNueva).toBeVisible({ timeout: 10000 });
+    await expect(filaNueva).toContainText('[E2E venta] Manzana Golden');
+
+    // El salto de foco tras anadir vuelve a idArticulo (funciones.js::buscarProductos),
+    // listo para seguir tecleando sin usar el raton.
+    await expect(page.locator('#idArticulo')).toBeFocused();
+  });
+});
