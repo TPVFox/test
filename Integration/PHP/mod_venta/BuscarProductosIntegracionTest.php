@@ -29,10 +29,13 @@ final class BuscarProductosIntegracionTest extends CasoIntegracion
 
     public function test_cajaBusqueda_conVariosResultadosDaListado(): void
     {
-        $this->siembra->articulo('Manzana Golden');
-        $this->siembra->articulo('Manzana Reineta');
+        // Termino unico e improbable en cualquier catalogo: la busqueda cuenta filas de forma
+        // absoluta, y un termino generico chocaria con la siembra persistente de los recorridos
+        // E2E, que vive en la misma base sin transaccion que la deshaga.
+        $this->siembra->articulo('Zumaque Alfa');
+        $this->siembra->articulo('Zumaque Beta');
 
-        $resultado = \BuscarProductos('cajaBusqueda', 'a.articulo_name', 'Manzana', $this->db, $this->idCliente);
+        $resultado = \BuscarProductos('cajaBusqueda', 'a.articulo_name', 'Zumaque', $this->db, $this->idCliente);
 
         self::assertSame('Listado', $resultado['Estado']);
         self::assertSame(2, $resultado['Nitems']);
@@ -48,9 +51,11 @@ final class BuscarProductosIntegracionTest extends CasoIntegracion
 
     public function test_idcajaDistinta_conUnaSolaPalabraCoincidenciaExactaDaCorrecto(): void
     {
-        $this->siembra->articulo('Golden');
+        // El nombre coincide exactamente con la busqueda: es lo que activa el primer intento de
+        // igualdad y fija Estado='Correcto'. Token unico para no colisionar con la siembra E2E.
+        $this->siembra->articulo('Zumaque');
 
-        $resultado = \BuscarProductos('idArticulo', 'a.articulo_name', 'Golden', $this->db, $this->idCliente);
+        $resultado = \BuscarProductos('idArticulo', 'a.articulo_name', 'Zumaque', $this->db, $this->idCliente);
 
         self::assertSame('Correcto', $resultado['Estado']);
         self::assertSame(1, $resultado['Nitems']);
@@ -60,12 +65,12 @@ final class BuscarProductosIntegracionTest extends CasoIntegracion
      * Defecto: con una busqueda de varias palabras e `idcaja` distinta de `cajaBusqueda`,
      * `Estado` puede quedar sin definir.
      *
-     * Sintoma: `BuscarProductos('idArticulo', ..., 'Manzana Golden', ...)` con un solo
+     * Sintoma: `BuscarProductos('idArticulo', ..., 'Zumaque Alfa', ...)` con un solo
      * articulo que coincide devuelve `Nitems=1` pero sin la clave `Estado` en absoluto (PHP
      * avisa de "Undefined array key Estado"). Causa raiz: para `idcaja !== 'cajaBusqueda'`,
      * `funciones.php` arma primero una busqueda "identica" que encadena con `and` una
-     * igualdad por cada palabra sobre la MISMA columna (`campo = "Manzana" and campo =
-     * "Golden"`) — una condicion que ninguna fila puede cumplir nunca con mas de una
+     * igualdad por cada palabra sobre la MISMA columna (`campo = "Zumaque" and campo =
+     * "Alfa"`) — una condicion que ninguna fila puede cumplir nunca con mas de una
      * palabra, asi que ese primer intento siempre da cero filas. El codigo solo marca
      * `Estado = 'Correcto'` cuando el primer intento (`$i === 0`) encuentra algo, y solo
      * marca `Estado = 'Listado'` cuando el `Nitems` final es mayor que uno: el hueco entre
@@ -76,14 +81,14 @@ final class BuscarProductosIntegracionTest extends CasoIntegracion
      * (documentado como "1: Un producto unico. 2: Un listado. 3: O nada un error.") queda
      * incumplido para este caso. Correccion propuesta: la busqueda "identica" solo tiene
      * sentido con una palabra; con varias, se debe generar como frase completa
-     * (`campo = "Manzana Golden"`) en vez de encadenar igualdades por palabra. Evidencia:
+     * (`campo = "Zumaque Alfa"`) en vez de encadenar igualdades por palabra. Evidencia:
      * este test, en rojo mientras el defecto siga sin corregirse por CC.
      */
     public function test_defecto_conVariasPalabrasYUnSoloResultadoPorLikeElEstadoQuedaSinDefinir(): void
     {
-        $this->siembra->articulo('Manzana Golden');
+        $this->siembra->articulo('Zumaque Alfa');
 
-        $resultado = \BuscarProductos('idArticulo', 'a.articulo_name', 'Manzana Golden', $this->db, $this->idCliente);
+        $resultado = \BuscarProductos('idArticulo', 'a.articulo_name', 'Zumaque Alfa', $this->db, $this->idCliente);
 
         self::assertArrayHasKey(
             'Estado',

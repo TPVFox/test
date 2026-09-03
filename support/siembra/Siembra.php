@@ -864,6 +864,21 @@ final class Siembra
         ]);
     }
 
+    /**
+     * Un cliente con nombre propio, para las busquedas de FS-002 que el cliente por
+     * defecto no cubre: nombre comercial y razon social distintos, estado inactivo.
+     *
+     * @param array{razonsocial?: string, estado?: string} $opciones
+     */
+    public function cliente(string $nombre, array $opciones = []): int
+    {
+        return $this->insertar('clientes', [
+            'Nombre'      => $nombre,
+            'razonsocial' => $opciones['razonsocial'] ?? $nombre,
+            'estado'      => $opciones['estado'] ?? 'Activo',
+        ]);
+    }
+
     /** Crea un proveedor y devuelve su identificador. */
     public function proveedor(string $razonSocial = 'Proveedor de pruebas'): int
     {

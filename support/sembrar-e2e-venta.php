@@ -15,8 +15,14 @@
  *
  * Uso: php support/sembrar-e2e-venta.php
  *
- * Sin opcion de --rehacer: los articulos llevan nombre fijo y el guion no vuelve a
- * insertarlos si ya existen (idempotente por nombre, no por identificador).
+ * Los articulos y los clientes se siembran con **identificador fijo**, no por
+ * auto-incremento: los recorridos referencian el cliente y el articulo por su id (no hay
+ * conexion a la base desde Playwright para resolverlo por nombre), de modo que un id que
+ * cambiara al rehacer la base dejaria los specs apuntando a datos que ya no existen. Con id
+ * fijo la siembra es reproducible: tras `preparar-entorno.php --rehacer` vuelve a caer en
+ * los mismos numeros. Es idempotente por identificador —si ya existe, no se reinserta—, el
+ * mismo criterio que `Siembra::proveedorConId` y `sembrar-escenarios.php` aplican a los
+ * datos persistentes que cruzan a los recorridos de navegador.
  */
 
 declare(strict_types=1);
@@ -49,8 +55,8 @@ $db->set_charset('utf8mb4');
 $siembra = new Siembra($db);
 
 $articulos = [
-    ['nombre' => PREFIJO . 'Manzana Golden', 'coste' => 1.0, 'beneficio' => 50],
-    ['nombre' => PREFIJO . 'Manzana Reineta', 'coste' => 1.2, 'beneficio' => 50],
+    ['id' => 14678, 'nombre' => PREFIJO . 'Manzana Golden', 'coste' => 1.0, 'beneficio' => 50],
+    ['id' => 14679, 'nombre' => PREFIJO . 'Manzana Reineta', 'coste' => 1.2, 'beneficio' => 50],
 ];
 
 $idsArticulo = [];
@@ -62,11 +68,15 @@ foreach ($articulos as $datos) {
         continue;
     }
 
-    $id = $siembra->articulo($datos['nombre'], ['ultimoCoste' => $datos['coste'], 'beneficio' => $datos['beneficio'], 'iva' => 21]);
+    $id = $siembra->articulo($datos['nombre'], ['id' => $datos['id'], 'ultimoCoste' => $datos['coste'], 'beneficio' => $datos['beneficio'], 'iva' => 21]);
     $precioCiva = round($datos['coste'] * (1 + $datos['beneficio'] / 100) * 1.21, 2);
     $precioSiva = round($datos['coste'] * (1 + $datos['beneficio'] / 100), 2);
-    $siembra->precioYTienda($id, $precioCiva, $precioSiva);
-    echo "Articulo sembrado: {$datos['nombre']} (id {$id}), pvpCiva={$precioCiva}\n";
+    // El precio se escribe en la tienda 1, no en la principal del entorno: la busqueda de
+    // producto de la capa compartida fija `idTienda = 1` en la consulta (DS-TPY-COM-018,
+    // funciones.php:49-50), de modo que un precio en otra tienda no lo encontraria. La tienda
+    // 1 no tiene por que existir en `tiendas` —la consulta no la une—, basta la fila de precio.
+    $siembra->precioYTienda($id, $precioCiva, $precioSiva, 1);
+    echo "Articulo sembrado: {$datos['nombre']} (id {$id}), pvpCiva={$precioCiva} en tienda 1\n";
     $idsArticulo[] = $id;
 }
 
@@ -74,23 +84,26 @@ foreach ($articulos as $datos) {
 // "actual" ligado al cliente seleccionado, y Playwright corre los ficheros de spec en
 // paralelo por defecto (sin workers:1 en playwright.config.js). Dos specs manipulando el
 // mismo cliente a la vez corren la carrera de verse el temporal el uno al otro.
+// Id fijo por cliente: es el que cada spec referencia en su constante ID_CLIENTE. El orden
+// no basta para fijarlo —el auto-incremento cambia al rehacer la base—, asi que el numero
+// es explicito y vive aqui, junto al nombre que lo identifica.
 $nombresCliente = [
-    'teclado'         => PREFIJO . 'Cliente teclado',
-    'raton'           => PREFIJO . 'Cliente raton',
-    'defecto'         => PREFIJO . 'Cliente defecto comprobar adjuntos',
-    'navegacion'      => PREFIJO . 'Cliente navegacion teclado',
-    'eliminar'        => PREFIJO . 'Cliente eliminar raton',
-    'albaran'         => PREFIJO . 'Cliente albaran teclado',
-    'albaran_adjunto' => PREFIJO . 'Cliente albaran adjunto pedido',
-    'factura'         => PREFIJO . 'Cliente factura teclado',
-    'factura_adjunto' => PREFIJO . 'Cliente factura adjunto albaran',
+    'teclado'         => [921, PREFIJO . 'Cliente teclado'],
+    'raton'           => [922, PREFIJO . 'Cliente raton'],
+    'defecto'         => [923, PREFIJO . 'Cliente defecto comprobar adjuntos'],
+    'navegacion'      => [924, PREFIJO . 'Cliente navegacion teclado'],
+    'eliminar'        => [925, PREFIJO . 'Cliente eliminar raton'],
+    'albaran'         => [926, PREFIJO . 'Cliente albaran teclado'],
+    'albaran_adjunto' => [927, PREFIJO . 'Cliente albaran adjunto pedido'],
+    'factura'         => [928, PREFIJO . 'Cliente factura teclado'],
+    'factura_adjunto' => [929, PREFIJO . 'Cliente factura adjunto albaran'],
 ];
 
 $idsCliente = [];
-foreach ($nombresCliente as $clave => $nombreCliente) {
+foreach ($nombresCliente as $clave => [$idFijo, $nombreCliente]) {
     $idCliente = existente($db, 'clientes', 'Nombre', $nombreCliente);
     if ($idCliente === null) {
-        $idCliente = insertarCliente($db, $nombreCliente);
+        $idCliente = insertarCliente($db, $idFijo, $nombreCliente);
         echo "Cliente sembrado: {$nombreCliente} (id {$idCliente})\n";
     } else {
         echo "Cliente ya sembrado: {$nombreCliente} (id {$idCliente})\n";
@@ -164,11 +177,11 @@ function existente(mysqli $db, string $tabla, string $campo, string $valor): ?in
     return $fila === null ? null : (int) $fila[0];
 }
 
-function insertarCliente(mysqli $db, string $nombre): int
+function insertarCliente(mysqli $db, int $idFijo, string $nombre): int
 {
-    $sentencia = $db->prepare('INSERT INTO clientes (Nombre, estado) VALUES (?, ?)');
+    $sentencia = $db->prepare('INSERT INTO clientes (idClientes, Nombre, estado) VALUES (?, ?, ?)');
     $activo = 'Activo';
-    $sentencia->bind_param('ss', $nombre, $activo);
+    $sentencia->bind_param('iss', $idFijo, $nombre, $activo);
     $sentencia->execute();
 
     return (int) $db->insert_id;
