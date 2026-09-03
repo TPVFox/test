@@ -97,6 +97,9 @@ $nombresCliente = [
     'albaran_adjunto' => [927, PREFIJO . 'Cliente albaran adjunto pedido'],
     'factura'         => [928, PREFIJO . 'Cliente factura teclado'],
     'factura_adjunto' => [929, PREFIJO . 'Cliente factura adjunto albaran'],
+    'albaran_entradas' => [930, PREFIJO . 'Cliente albaran entradas'],
+    'albaran_guardar'  => [931, PREFIJO . 'Cliente albaran guardar'],
+    'albaran_listado'  => [932, PREFIJO . 'Cliente albaran listado'],
 ];
 
 $idsCliente = [];
@@ -152,6 +155,52 @@ if ($filaAlbaran !== null) {
     $numAlbaranGuardado = (int) $db->query('SELECT Numalbcli FROM albclit WHERE id = ' . (int) $idAlbaranGuardado)
         ->fetch_assoc()['Numalbcli'];
     echo "Albaran Guardado sembrado (cliente {$idsCliente['factura_adjunto']}): Numalbcli={$numAlbaranGuardado}\n";
+}
+
+// Los recorridos del componente 2 llegan al albaran desde el listado, no por su id en la
+// URL: `albclit` no admite id fijo en la siembra y el auto-incremento cambia al rehacer la
+// base, de modo que un id escrito en el spec dejaria de valer. Basta con que cada uno de
+// esos clientes tenga un albaran 'Guardado' con el que aparecer en el listado.
+foreach (['albaran_entradas', 'albaran_listado'] as $clave) {
+    $idCliente = (int) $idsCliente[$clave];
+    $fila = $db->query(
+        'SELECT Numalbcli FROM albclit WHERE idCliente = ' . $idCliente . ' AND estado = "Guardado" LIMIT 1'
+    )->fetch_assoc();
+
+    if ($fila !== null) {
+        echo "Albaran Guardado ya sembrado (cliente {$idCliente}): Numalbcli={$fila['Numalbcli']}\n";
+        continue;
+    }
+
+    $idAlbaran = $siembra->ventaAlbaranCliente($idsArticulo[0], 2.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idCliente,
+    ]);
+    $numero = (int) $db->query('SELECT Numalbcli FROM albclit WHERE id = ' . (int) $idAlbaran)
+        ->fetch_assoc()['Numalbcli'];
+    echo "Albaran Guardado sembrado (cliente {$idCliente}): id={$idAlbaran}, Numalbcli={$numero}\n";
+}
+
+// El recorrido del listado necesita ademas un albaran en un estado distinto, o el filtro
+// por estado no se puede verificar: filtrar por el unico estado que existe no distingue un
+// filtro que funciona de uno que se ignora. Se llega a 'Procesado' facturandolo, que es el
+// unico camino por el que el producto lo deja asi.
+$idClienteListado = (int) $idsCliente['albaran_listado'];
+$filaProcesado = $db->query(
+    'SELECT Numalbcli FROM albclit WHERE idCliente = ' . $idClienteListado . ' AND estado = "Procesado" LIMIT 1'
+)->fetch_assoc();
+
+if ($filaProcesado !== null) {
+    echo "Albaran Procesado ya sembrado (cliente {$idClienteListado}): Numalbcli={$filaProcesado['Numalbcli']}\n";
+} else {
+    $idAlbaranAFacturar = $siembra->ventaAlbaranCliente($idsArticulo[1], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteListado,
+    ]);
+    $siembra->facturarAlbaranCliente($idAlbaranAFacturar);
+    echo "Albaran Procesado sembrado (cliente {$idClienteListado}): id={$idAlbaranAFacturar}\n";
 }
 
 echo "\nArticulos disponibles para los recorridos: " . implode(', ', $idsArticulo) . "\n";
