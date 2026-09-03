@@ -139,6 +139,31 @@ final class ArticulosLecturaIntegracionTest extends CasoIntegracion
         self::assertCount(1, $resultado);
     }
 
+    /**
+     * Defecto: `buscarPorNombre()` concatena `$valor` sin escapar dentro de un `LIKE` (CV-19,
+     * DS-TPY-COM-005). Una entrada que cierra la comilla y comenta el resto de la condición anula el
+     * filtro de tienda: la busqueda deja de estar acotada a la tienda pedida y alcanza a todo
+     * `articulos`. Se conserva en rojo.
+     */
+    public function test_defecto_buscarPorNombreEntradaConCargaIgnoraElFiltroDeTienda(): void
+    {
+        $idTiendaA = $this->siembra->tiendaPorDefecto();
+        $idTiendaB = $this->siembra->tienda('2025');
+        $idArticuloA = $this->siembra->articulo('CargaTienda uno');
+        $idArticuloB = $this->siembra->articulo('CargaTienda dos');
+        $this->siembra->precioYTienda($idArticuloA, 5.0, 4.0, $idTiendaA);
+        $this->siembra->precioYTienda($idArticuloB, 6.0, 5.0, $idTiendaB);
+
+        $legitimo = $this->articulos->buscarPorNombre('CargaTienda', $idTiendaA);
+        $conCarga = $this->articulos->buscarPorNombre('CargaTienda%" OR 1=1-- ', $idTiendaA);
+
+        self::assertGreaterThan(
+            count($legitimo),
+            count($conCarga),
+            'una entrada del operador no debe poder ignorar el filtro de tienda'
+        );
+    }
+
     public function test_getTipoArticulo_devuelveElTipoIndexadoPorId(): void
     {
         $idArticulo = $this->siembra->articulo('Articulo de peso', ['tipo' => 'peso']);

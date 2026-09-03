@@ -8,6 +8,11 @@
  * Los quince casos de despacho se reparten en dos ficheros: los que se comportan como cabe
  * esperar, aquí, y los tres defectuosos (`modificarEstadoDocumento`, `anhadirPedidoTemp`,
  * `buscarPedido`) en `TareasDefectosIntegracionTest`.
+ *
+ * Cada caso comprueba ademas el conjunto exacto de claves de la respuesta (`array_keys`), no solo
+ * el valor que le interesa a ese test: no hay contrato declarado en ningun fichero (nada mas lo
+ * comprueba), y el navegador lee esas claves de memoria. Si una clave cambia de nombre, se anhade o
+ * se retira sin tocar la funcion de `funciones.js` que la lee, esta aserción es la que lo detecta.
  */
 
 declare(strict_types=1);
@@ -69,6 +74,7 @@ final class TareasDespachoIntegracionTest extends CasoIntegracion
         ]);
 
         self::assertSame('Listado', $r['Estado']);
+        self::assertSame(['listado', 'Estado', 'datos'], array_keys($r), 'contrato: claves que buscarProductos() del navegador lee');
     }
 
     public function test_buscarClientes_porId(): void
@@ -83,6 +89,7 @@ final class TareasDespachoIntegracionTest extends CasoIntegracion
         ]);
 
         self::assertSame((string) $idCliente, $r['id'], 'mysqli::fetch_assoc devuelve todo como cadena');
+        self::assertSame(['Nitems', 'id', 'nombre', 'formasVenci', 'datos'], array_keys($r), 'contrato: claves que buscarClientes() del navegador lee');
     }
 
     public function test_buscarAdjunto_sinCoincidenciasMuestraModalVacio(): void
@@ -97,6 +104,7 @@ final class TareasDespachoIntegracionTest extends CasoIntegracion
         ]);
 
         self::assertSame(0, $r['Nitems']);
+        self::assertSame(['res', 'Nitems', 'html'], array_keys($r), 'contrato: claves que buscarAdjunto() del navegador lee');
     }
 
     public function test_comprobarAlbaran_conAlbaranesGuardadosLosCuenta(): void
@@ -115,6 +123,7 @@ final class TareasDespachoIntegracionTest extends CasoIntegracion
         // entre dos partes de la misma capa, sin efecto funcional mas alla de la confusion
         // al leer el codigo que consume una u otra.
         self::assertGreaterThan(0, $r['NItems'] ?? 0);
+        self::assertSame(['NItems'], array_keys($r), 'contrato: claves que comprobarAdjuntosExis() del navegador lee');
     }
 
     public function test_anhadirTemporal_creaElRegistro(): void
@@ -134,6 +143,11 @@ final class TareasDespachoIntegracionTest extends CasoIntegracion
         self::assertArrayHasKey('id', $r);
         $fila = $this->db->query("SELECT COUNT(*) c FROM pedcliltemporales WHERE id={$r['id']}")->fetch_assoc();
         self::assertSame('1', $fila['c']);
+        self::assertSame(
+            ['numDocumento', 'total', 'totales', 'htmlTabla', 'id', 'existe', 'productos'],
+            array_keys($r),
+            'contrato: claves que addTemporal() del navegador lee'
+        );
     }
 
     public function test_cancelarTemporal_conIdCeroAvisaQueSoloSeCancelaLoTemporal(): void
@@ -145,6 +159,7 @@ final class TareasDespachoIntegracionTest extends CasoIntegracion
         ]);
 
         self::assertSame('Info!', $r['tipo']);
+        self::assertSame(['tipo', 'dato', 'class', 'mensaje'], array_keys($r), 'contrato: claves que cancelarTemporal() del navegador lee');
     }
 
     public function test_htmlAgregarFilaAdjunto_componeLaFila(): void
@@ -156,6 +171,7 @@ final class TareasDespachoIntegracionTest extends CasoIntegracion
         ]);
 
         self::assertStringContainsString('lineaP1', $r['html']);
+        self::assertSame(['html'], array_keys($r), 'contrato: claves que AgregarFilaAdjunto() del navegador lee');
     }
 
     public function test_htmlAgregarFilasProductos_conUnProductoSuelto(): void
@@ -173,6 +189,7 @@ final class TareasDespachoIntegracionTest extends CasoIntegracion
         ]);
 
         self::assertStringContainsString('Row1', $r['html']);
+        self::assertSame(['html'], array_keys($r), 'contrato: claves que AgregarFilaProductosAl() del navegador lee');
     }
 
     public function test_abririncidencia_componeElModal(): void
@@ -186,6 +203,7 @@ final class TareasDespachoIntegracionTest extends CasoIntegracion
 
         self::assertArrayHasKey('html', $r);
         self::assertArrayHasKey('datos', $r);
+        self::assertSame(['html', 'datos'], array_keys($r), 'contrato: claves que abrirModalIndicencia() del navegador lee');
     }
 
     public function test_abrirIncidenciasAdjuntas_sinIncidenciasDevuelveHtmlVacio(): void
@@ -200,6 +218,7 @@ final class TareasDespachoIntegracionTest extends CasoIntegracion
         ]);
 
         self::assertSame('', $r['html']);
+        self::assertSame(['html'], array_keys($r), 'contrato: claves que abrirIncidenciasAdjuntas() del navegador lee');
     }
 
     public function test_nuevaIncidencia_laInsertaConElUsuarioDeSesion(): void
@@ -216,6 +235,10 @@ final class TareasDespachoIntegracionTest extends CasoIntegracion
         ]);
 
         self::assertArrayHasKey('id', $r);
+        // El navegador solo lee `resultado.error` (ausente aqui, luego falsy) y, si lo hay,
+        // `resultado.mensaje`: no consume `id` ni `sql`, asi que el contrato de esta llamada es mas
+        // laxo que el de las demas -- se deja constancia igualmente de lo que hoy se emite.
+        self::assertSame(['id', 'sql'], array_keys($r), 'contrato: forma actual de la respuesta de nuevaIncidencia()');
     }
 
     public function test_datosImprimir_generaElPdfYDevuelveSuRuta(): void
@@ -229,6 +252,7 @@ final class TareasDespachoIntegracionTest extends CasoIntegracion
             'tienda' => 1,
         ]);
 
+        // Contrato de este caso: la respuesta entera es la ruta, sin envoltura de array.
         self::assertIsString($ruta);
         $rutaReal = RUTA_TPVFOX . '/../datos/tmp/pedidoventas.pdf';
         $this->rutasEmitidas[] = $rutaReal;

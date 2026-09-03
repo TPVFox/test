@@ -114,4 +114,19 @@ final class ClientesBusquedaIntegracionTest extends CasoIntegracion
 
         self::assertCount(1, $r['datos'], 'la palabra buscada no debe convertirse en el nombre de la columna');
     }
+
+    /**
+     * Via por id x SQL invalido: `consulta()` da por hecho que `mysqli::query()` devuelve `false` en
+     * un fallo, y construye `['error']`/`['consulta']` en ese caso. En PHP >= 8.1, sin
+     * `mysqli_report()` invocado en ningun punto del producto, un fallo de sintaxis lanza
+     * `mysqli_sql_exception` antes de llegar ahi: esa rama no se alcanza nunca.
+     *
+     * Defecto: se conserva en rojo.
+     */
+    public function test_defecto_idInvalidoLanzaExcepcionEnVezDeDevolverError(): void
+    {
+        $this->expectException(\mysqli_sql_exception::class);
+
+        $this->cliente->DatosClientePorId('no_es_un_id');
+    }
 }
