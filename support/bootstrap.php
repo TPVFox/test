@@ -36,3 +36,11 @@ define('RUTA_TPVFOX', $rutaCodigo);
 $RutaServidor = '';
 $HostNombre = RUTA_TPVFOX;
 $URLCom = RUTA_TPVFOX;
+
+// Formatos de fecha que inicial.php define en produccion antes de cargar nada mas. La
+// suite no incluye inicial.php —abre conexion y sesion—, asi que los repite aqui con el
+// mismo valor: sin ellos, cualquier fichero del producto que feche un registro falla por
+// constante indefinida en cuanto un caso lo alcanza.
+define('FORMATO_FECHA_ES', 'd-m-Y H:i:s');
+define('FORMATO_FECHA_MYSQL', 'Y-m-d H:i:s');
+define('FORMATO_FECHA_INPUT', 'Y-m-d');

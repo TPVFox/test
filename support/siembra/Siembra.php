@@ -690,6 +690,22 @@ final class Siembra
         return $idFactura;
     }
 
+    /**
+     * Adjunta un pedido de cliente a un albaran, tal como lo deja el guardado del albaran
+     * cuando el operador incorpora un pedido como adjunto.
+     *
+     * @return int Identificador de la fila de enlace
+     */
+    public function adjuntarPedidoAAlbaran(int $idAlbaran, int $idPedido): int
+    {
+        return $this->insertar('pedcliAlb', [
+            'idAlbaran'  => $idAlbaran,
+            'numAlbaran' => $this->numeroDe('albclit', 'Numalbcli', $idAlbaran),
+            'idPedido'   => $idPedido,
+            'numPedido'  => $this->numeroDe('pedclit', 'Numpedcli', $idPedido),
+        ]);
+    }
+
     // --- Temporales de venta (mod_venta) -------------------------------------
     //
     // Un temporal no es un documento: es el borrador que `AddTemporal.php` guarda mientras
