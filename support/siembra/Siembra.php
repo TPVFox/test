@@ -136,6 +136,36 @@ final class Siembra
         return $idTienda;
     }
 
+    /**
+     * Un tipo de IVA del catalogo que `mod_configuracion` mantiene (tablas principales).
+     *
+     * Es un catalogo, no una restriccion: ninguna tabla de venta tiene clave ajena contra
+     * el, y el flujo de venta no lo consulta —el iva de cada linea viaja copiado desde el
+     * articulo—. Lo consumen `mod_cierres` y la tabla de articulos.
+     */
+    public function tipoIva(float $iva, float $recargo = 0.0, ?string $descripcion = null): int
+    {
+        return $this->insertar('iva', [
+            'descripcionIva' => $descripcion ?? ('IVA ' . rtrim(rtrim(number_format($iva, 2, '.', ''), '0'), '.') . '%'),
+            'iva'            => $iva,
+            'recargo'        => $recargo,
+        ]);
+    }
+
+    /**
+     * Los tres tipos vigentes en Espana, con su recargo de equivalencia.
+     *
+     * @return array<string,int> Descripcion => idIva
+     */
+    public function catalogoDeIvas(): array
+    {
+        return [
+            'superreducido' => $this->tipoIva(4.0, 0.5),
+            'reducido'      => $this->tipoIva(10.0, 1.4),
+            'general'       => $this->tipoIva(21.0, 5.2),
+        ];
+    }
+
     public function familia(string $nombre, int $padre = 0): int
     {
         return $this->insertar('familias', [
