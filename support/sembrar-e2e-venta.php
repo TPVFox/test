@@ -100,6 +100,10 @@ $nombresCliente = [
     'albaran_entradas' => [930, PREFIJO . 'Cliente albaran entradas'],
     'albaran_guardar'  => [931, PREFIJO . 'Cliente albaran guardar'],
     'albaran_listado'  => [932, PREFIJO . 'Cliente albaran listado'],
+    'pedido_entradas'  => [933, PREFIJO . 'Cliente pedido entradas'],
+    'pedido_listado'   => [934, PREFIJO . 'Cliente pedido listado'],
+    'pedido_guardar'   => [935, PREFIJO . 'Cliente pedido guardar'],
+    'pedido_estados'   => [936, PREFIJO . 'Cliente pedido estados'],
 ];
 
 $idsCliente = [];
@@ -201,6 +205,130 @@ if ($filaProcesado !== null) {
     ]);
     $siembra->facturarAlbaranCliente($idAlbaranAFacturar);
     echo "Albaran Procesado sembrado (cliente {$idClienteListado}): id={$idAlbaranAFacturar}\n";
+}
+
+// Los recorridos del componente 3 llegan al pedido desde su listado, con el mismo criterio
+// que los del componente 2: cada uno de esos clientes necesita un pedido 'Guardado' con el
+// que aparecer.
+foreach (['pedido_entradas', 'pedido_listado'] as $clave) {
+    $idCliente = (int) $idsCliente[$clave];
+    $fila = $db->query(
+        'SELECT Numpedcli FROM pedclit WHERE idCliente = ' . $idCliente . ' AND estado = "Guardado" LIMIT 1'
+    )->fetch_assoc();
+
+    if ($fila !== null) {
+        echo "Pedido Guardado ya sembrado (cliente {$idCliente}): Numpedcli={$fila['Numpedcli']}\n";
+        continue;
+    }
+
+    $idPedido = $siembra->pedidoVentaCliente($idsArticulo[0], 2.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idCliente,
+    ]);
+    $numero = (int) $db->query('SELECT Numpedcli FROM pedclit WHERE id = ' . (int) $idPedido)
+        ->fetch_assoc()['Numpedcli'];
+    echo "Pedido Guardado sembrado (cliente {$idCliente}): id={$idPedido}, Numpedcli={$numero}\n";
+}
+
+// Y el listado necesita ademas un pedido en otro estado, o filtrar por el unico estado que
+// existe no distingue un filtro que funciona de uno que se ignora. Se llega a 'Procesado'
+// sirviendolo con un albaran, que es el camino por el que el producto lo deja asi.
+// Se siembra para los dos clientes y no solo para el del listado: el recorrido de entradas
+// necesita tambien un pedido Procesado para comprobar que la pantalla rechaza editarlo, y
+// compartir el documento entre dos ficheros de spec los pondria a competir por el.
+foreach (['pedido_entradas', 'pedido_listado'] as $clave) {
+    $idClientePedidos = (int) $idsCliente[$clave];
+    $filaPedidoProcesado = $db->query(
+        'SELECT Numpedcli FROM pedclit WHERE idCliente = ' . $idClientePedidos . ' AND estado = "Procesado" LIMIT 1'
+    )->fetch_assoc();
+
+    if ($filaPedidoProcesado !== null) {
+        echo "Pedido Procesado ya sembrado (cliente {$idClientePedidos}): Numpedcli={$filaPedidoProcesado['Numpedcli']}\n";
+        continue;
+    }
+
+    $idPedidoServido = $siembra->pedidoVentaCliente($idsArticulo[1], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Procesado',
+        'idCliente' => $idClientePedidos,
+    ]);
+    $idAlbaranQueSirve = $siembra->ventaAlbaranCliente($idsArticulo[1], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClientePedidos,
+    ]);
+    $siembra->adjuntarPedidoAAlbaran($idAlbaranQueSirve, $idPedidoServido);
+    echo "Pedido Procesado sembrado (cliente {$idClientePedidos}): id={$idPedidoServido}\n";
+}
+
+// El recorrido de estados del componente 3 necesita cuatro pedidos en situaciones que la
+// base admite y el codigo no impide. Dos de ellos hacen falta con el numero desplazado
+// respecto del identificador: es la condicion sin la cual el marcado del pedido servido
+// acierta por casualidad y el recorrido no demuestra nada.
+$idClienteEstados = (int) $idsCliente['pedido_estados'];
+$yaSembrado = (int) $db->query('SELECT COUNT(*) as n FROM pedclit WHERE idCliente = ' . $idClienteEstados)
+    ->fetch_assoc()['n'];
+
+if ($yaSembrado > 0) {
+    // A diferencia del resto de la siembra, aqui no basta con no repetir: el recorrido de
+    // T1 cambia el estado de dos de estos pedidos, y sin restituirlo la segunda ejecucion
+    // partiria de un escenario que ya no es el que el caso necesita. Se devuelven a
+    // 'Guardado' los dos del par —el que se sirve y el que queda marcado en su lugar—,
+    // identificados por la propia relacion que los define: uno lleva como numero el
+    // identificador del otro.
+    $par = $db->query(
+        'SELECT a.id AS servido, b.id AS ajeno
+           FROM pedclit a JOIN pedclit b ON a.Numpedcli = b.id AND a.id <> b.id
+          WHERE a.idCliente = ' . $idClienteEstados . ' AND b.idCliente = ' . $idClienteEstados
+    )->fetch_assoc();
+
+    if ($par !== null) {
+        $db->query("UPDATE pedclit SET estado='Guardado' WHERE id IN ({$par['servido']}, {$par['ajeno']})");
+        echo "Pedidos de estados restituidos (cliente {$idClienteEstados}): "
+            . "servido id={$par['servido']}, marcado id={$par['ajeno']}, los dos a Guardado\n";
+    } else {
+        echo "Pedidos de estados ya sembrados (cliente {$idClienteEstados}): {$yaSembrado}, sin par que restituir\n";
+    }
+} else {
+    // El que se va a servir, y el que quedara marcado en su lugar.
+    $elQueSeSirve = $siembra->pedidoVentaCliente($idsArticulo[0], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteEstados,
+    ]);
+    $elQueSeMarcara = $siembra->pedidoVentaCliente($idsArticulo[1], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteEstados,
+    ]);
+    // El numero del primero pasa a ser el identificador del segundo: al adjuntar el primero,
+    // el navegador enviara ese numero y el servidor lo aplicara al segundo.
+    $db->query("UPDATE pedclit SET Numpedcli={$elQueSeMarcara} WHERE id={$elQueSeSirve}");
+
+    // Procesado sin relacion: la pantalla lo detecta y avisa.
+    $huerfano = $siembra->pedidoVentaCliente($idsArticulo[0], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Procesado',
+        'idCliente' => $idClienteEstados,
+    ]);
+
+    // Guardado con relacion: la pantalla avisa en el sentido contrario.
+    $enlazado = $siembra->pedidoVentaCliente($idsArticulo[1], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteEstados,
+    ]);
+    $albaranDelEnlazado = $siembra->ventaAlbaranCliente($idsArticulo[1], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteEstados,
+    ]);
+    $siembra->adjuntarPedidoAAlbaran($albaranDelEnlazado, $enlazado);
+
+    echo "Pedidos de estados sembrados (cliente {$idClienteEstados}):"
+        . " se sirve id={$elQueSeSirve} con numero {$elQueSeMarcara},"
+        . " se marcara id={$elQueSeMarcara}, huerfano id={$huerfano}, enlazado id={$enlazado}\n";
 }
 
 echo "\nArticulos disponibles para los recorridos: " . implode(', ', $idsArticulo) . "\n";
