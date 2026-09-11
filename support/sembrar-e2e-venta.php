@@ -104,6 +104,12 @@ $nombresCliente = [
     'pedido_listado'   => [934, PREFIJO . 'Cliente pedido listado'],
     'pedido_guardar'   => [935, PREFIJO . 'Cliente pedido guardar'],
     'pedido_estados'   => [936, PREFIJO . 'Cliente pedido estados'],
+    'factura_entradas' => [937, PREFIJO . 'Cliente factura entradas'],
+    'factura_listado'  => [938, PREFIJO . 'Cliente factura relacion'],
+    'factura_guardar'  => [939, PREFIJO . 'Cliente factura guardar'],
+    'factura_sinvenci' => [940, PREFIJO . 'Cliente factura sin vencimiento'],
+    'factura_desdealb' => [941, PREFIJO . 'Cliente factura desde albaran'],
+    'factura_duplicado' => [942, PREFIJO . 'Cliente factura duplicidad'],
 ];
 
 $idsCliente = [];
@@ -329,6 +335,245 @@ if ($yaSembrado > 0) {
     echo "Pedidos de estados sembrados (cliente {$idClienteEstados}):"
         . " se sirve id={$elQueSeSirve} con numero {$elQueSeMarcara},"
         . " se marcara id={$elQueSeMarcara}, huerfano id={$huerfano}, enlazado id={$enlazado}\n";
+}
+
+// --- Componente 4: factura de cliente ----------------------------------------
+
+// La vista de factura pide a la ficha del cliente su tipo de vencimiento y consulta con el
+// la tabla de tipos. Sin tipos no hay desplegable, asi que se siembra el catalogo minimo.
+$hayTiposVencimiento = (int) $db->query('SELECT COUNT(*) as n FROM tiposVencimiento')->fetch_assoc()['n'];
+if ($hayTiposVencimiento === 0) {
+    foreach ([['Contado', 0], ['30 dias', 30], ['60 dias', 60]] as [$descripcion, $dias]) {
+        $sentencia = $db->prepare('INSERT INTO tiposVencimiento (descripcion, dias) VALUES (?, ?)');
+        $sentencia->bind_param('si', $descripcion, $dias);
+        $sentencia->execute();
+    }
+    echo "Tipos de vencimiento sembrados: Contado, 30 dias, 60 dias\n";
+} else {
+    echo "Tipos de vencimiento ya sembrados: {$hayTiposVencimiento}\n";
+}
+
+// Los tres clientes cuyos recorridos abren facturas guardadas necesitan su forma de
+// vencimiento puesta: sin ella la pantalla no llega a montarse. El cuarto se deja sin ella
+// a proposito, que es lo que el recorrido de ese defecto observa.
+$primerTipo = (int) $db->query('SELECT id FROM tiposVencimiento ORDER BY id LIMIT 1')->fetch_assoc()['id'];
+foreach (['factura_entradas', 'factura_listado', 'factura_guardar', 'factura_adjunto', 'factura'] as $clave) {
+    $db->query(
+        'UPDATE clientes SET formasVenci = \'{"vencimiento":"' . $primerTipo . '"}\''
+        . ' WHERE idClientes = ' . (int) $idsCliente[$clave] . ' AND formasVenci IS NULL'
+    );
+}
+echo "Forma de vencimiento asignada a los clientes de factura (tipo {$primerTipo})\n";
+
+// El recorrido de entradas necesita dos facturas guardadas: una limpia, con la que
+// comprobar que 'editar' abre el formulario, y otra con un borrador colgando, con la que
+// comprobar que la pantalla lo detecta y degrada la accion a 'ver'.
+$idClienteEntradas = (int) $idsCliente['factura_entradas'];
+$yaHayFacturas = (int) $db->query('SELECT COUNT(*) as n FROM facclit WHERE idCliente = ' . $idClienteEntradas)
+    ->fetch_assoc()['n'];
+
+if ($yaHayFacturas > 0) {
+    echo "Facturas de entradas ya sembradas (cliente {$idClienteEntradas}): {$yaHayFacturas}\n";
+} else {
+    $albaranLimpio = $siembra->ventaAlbaranCliente($idsArticulo[0], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteEntradas,
+    ]);
+    $facturaLimpia = $siembra->facturarAlbaranCliente($albaranLimpio);
+
+    $albaranConBorrador = $siembra->ventaAlbaranCliente($idsArticulo[1], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteEntradas,
+    ]);
+    $facturaConBorrador = $siembra->facturarAlbaranCliente($albaranConBorrador);
+
+    // El borrador se ata a la factura por su identificador, que es lo que la pantalla
+    // envia y lo que la clase escribe en la columna del numero.
+    $siembra->facturaTemporal(
+        [['idArticulo' => $idsArticulo[1], 'estadoLinea' => 'Activo']],
+        [],
+        ['idCliente' => $idClienteEntradas, 'Numfaccli' => $facturaConBorrador]
+    );
+
+    echo "Facturas de entradas sembradas (cliente {$idClienteEntradas}):"
+        . " limpia id={$facturaLimpia}, con borrador id={$facturaConBorrador}\n";
+}
+
+// El listado necesita una factura con la que aparecer y otra en distinto estado, o filtrar
+// por el unico estado que existe no distingue un filtro que funciona de uno que se ignora.
+$idClienteListadoFac = (int) $idsCliente['factura_listado'];
+$yaHayListado = (int) $db->query('SELECT COUNT(*) as n FROM facclit WHERE idCliente = ' . $idClienteListadoFac)
+    ->fetch_assoc()['n'];
+
+if ($yaHayListado > 0) {
+    echo "Facturas de listado ya sembradas (cliente {$idClienteListadoFac}): {$yaHayListado}\n";
+} else {
+    foreach ([0, 1] as $i) {
+        $albaran = $siembra->ventaAlbaranCliente($idsArticulo[$i], 1.0 + $i, date('Y-m-d'), [
+            'idTienda'  => $siembra->tiendaPorDefecto(),
+            'estado'    => 'Guardado',
+            'idCliente' => $idClienteListadoFac,
+        ]);
+        $idFactura = $siembra->facturarAlbaranCliente($albaran);
+        if ($i === 1) {
+            $db->query("UPDATE facclit SET estado='Procesado' WHERE id={$idFactura}");
+        }
+    }
+    echo "Facturas de listado sembradas (cliente {$idClienteListadoFac}): una Guardado y otra Procesado\n";
+}
+
+// El recorrido completo de guardado parte de un albaran 'Guardado' que el operador
+// incorpora a una factura nueva. Su numero y su identificador se igualan a proposito: sin
+// esa coincidencia el enlace factura-albaran lo rechaza la clave foranea y el recorrido no
+// llegaria a guardar.
+$idClienteGuardarFac = (int) $idsCliente['factura_guardar'];
+$filaAlbaranFactura = $db->query(
+    'SELECT Numalbcli FROM albclit WHERE idCliente = ' . $idClienteGuardarFac . ' AND estado = "Guardado" LIMIT 1'
+)->fetch_assoc();
+
+if ($filaAlbaranFactura !== null) {
+    echo "Albaran de guardado de factura ya sembrado (cliente {$idClienteGuardarFac}):"
+        . " Numalbcli={$filaAlbaranFactura['Numalbcli']}\n";
+} elseif (($fila = $db->query(
+    'SELECT Numalbcli FROM albclit WHERE idCliente = ' . $idClienteGuardarFac . ' LIMIT 1'
+)->fetch_assoc()) !== null) {
+    // Incorporar el albaran a una factura lo deja 'Procesado', y la busqueda de adjuntos
+    // solo encuentra los 'Guardado': sin restituirlo, la segunda ejecucion del recorrido
+    // partiria de un escenario que ya no es el que el caso necesita. La pantalla no ofrece
+    // ninguna accion que lo devuelva, asi que se restituye aqui.
+    $db->query(
+        'UPDATE albclit SET estado = "Guardado" WHERE idCliente = ' . $idClienteGuardarFac
+    );
+    echo "Albaran de guardado de factura restituido (cliente {$idClienteGuardarFac}):"
+        . " Numalbcli={$fila['Numalbcli']}, de vuelta a Guardado\n";
+} else {
+    $idAlbaranParaFacturar = $siembra->ventaAlbaranCliente($idsArticulo[0], 3.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteGuardarFac,
+    ]);
+    $db->query("UPDATE albclit SET Numalbcli={$idAlbaranParaFacturar} WHERE id={$idAlbaranParaFacturar}");
+    echo "Albaran de guardado de factura sembrado (cliente {$idClienteGuardarFac}):"
+        . " id={$idAlbaranParaFacturar}, con numero igualado al identificador\n";
+}
+
+// El recorrido que documenta el fallo al abrir necesita una factura de un cliente cuya
+// ficha no tiene forma de vencimiento, que es el estado en que la tabla deja a todo cliente
+// recien creado: la columna admite nulo y nada obliga a rellenarla.
+$idClienteSinVenci = (int) $idsCliente['factura_sinvenci'];
+$yaHaySinVenci = (int) $db->query('SELECT COUNT(*) as n FROM facclit WHERE idCliente = ' . $idClienteSinVenci)
+    ->fetch_assoc()['n'];
+
+if ($yaHaySinVenci > 0) {
+    echo "Factura sin vencimiento ya sembrada (cliente {$idClienteSinVenci}): {$yaHaySinVenci}\n";
+} else {
+    $albaranSinVenci = $siembra->ventaAlbaranCliente($idsArticulo[0], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteSinVenci,
+    ]);
+    $facturaSinVenci = $siembra->facturarAlbaranCliente($albaranSinVenci);
+    echo "Factura sin vencimiento sembrada (cliente {$idClienteSinVenci}): id={$facturaSinVenci}\n";
+}
+
+// Y se garantiza que su ficha sigue sin forma de vencimiento, por si otra siembra la puso.
+$db->query('UPDATE clientes SET formasVenci = NULL WHERE idClientes = ' . $idClienteSinVenci);
+
+// El recorrido de «crear factura desde albaran» necesita un albaran cuyo numero no sea su
+// identificador: es la condicion sin la cual la accion acierta por casualidad, porque envia
+// el identificador y la busqueda que lo recibe consulta por el numero.
+$idClienteDesdeAlb = (int) $idsCliente['factura_desdealb'];
+$filaDesdeAlb = $db->query(
+    'SELECT id, Numalbcli FROM albclit WHERE idCliente = ' . $idClienteDesdeAlb . ' LIMIT 1'
+)->fetch_assoc();
+
+if ($filaDesdeAlb !== null) {
+    // La accion no llega a incorporar nada, asi que el albaran no cambia de estado; basta
+    // con asegurar que sigue 'Guardado' y con el numero separado del identificador.
+    $db->query(
+        'UPDATE albclit SET estado = "Guardado", Numalbcli = id + 700000'
+        . ' WHERE idCliente = ' . $idClienteDesdeAlb
+    );
+    echo "Albaran para crear factura desde albaran ya sembrado (cliente {$idClienteDesdeAlb}):"
+        . " id={$filaDesdeAlb['id']}\n";
+} else {
+    $idAlbaranDesde = $siembra->ventaAlbaranCliente($idsArticulo[1], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteDesdeAlb,
+    ]);
+    $db->query("UPDATE albclit SET Numalbcli = id + 700000 WHERE id = {$idAlbaranDesde}");
+    echo "Albaran para crear factura desde albaran sembrado (cliente {$idClienteDesdeAlb}):"
+        . " id={$idAlbaranDesde}, con numero separado del identificador\n";
+}
+
+$db->query(
+    'UPDATE clientes SET formasVenci = \'{"vencimiento":"' . $primerTipo . '"}\''
+    . ' WHERE idClientes = ' . $idClienteDesdeAlb . ' AND formasVenci IS NULL'
+);
+
+// El recorrido del borrador sin cliente necesita uno tal como lo deja cambiar la fecha en
+// una factura nueva antes de asignar el cliente (issue TPVFox #116). Se le da un total
+// reconocible porque es lo unico por lo que el listado permite localizarlo: su columna de
+// cliente sale vacia, que es justo el sintoma.
+$borradorSinCliente = $db->query(
+    'SELECT id FROM faccliltemporales WHERE idCliente = 0 AND total = 12345.67 LIMIT 1'
+)->fetch_assoc();
+
+if ($borradorSinCliente !== null) {
+    echo "Borrador de factura sin cliente ya sembrado: id={$borradorSinCliente['id']}\n";
+} else {
+    $idSinCliente = $siembra->facturaTemporal([], [], ['idCliente' => 0, 'total' => 12345.67]);
+    echo "Borrador de factura sin cliente sembrado: id={$idSinCliente}\n";
+}
+
+// Los huecos que las matrices de condiciones de test encontraron necesitan dos escenarios
+// mas. El primero: una factura con dos borradores abiertos, que es el caso para el que la
+// pantalla tiene un aviso propio —«existen varios»— y que ninguna prueba recorria.
+$idClienteDup = (int) $idsCliente['factura_duplicado'];
+$yaHayDup = (int) $db->query('SELECT COUNT(*) as n FROM facclit WHERE idCliente = ' . $idClienteDup)
+    ->fetch_assoc()['n'];
+
+if ($yaHayDup > 0) {
+    echo "Factura con borradores duplicados ya sembrada (cliente {$idClienteDup})\n";
+} else {
+    $albaranDup = $siembra->ventaAlbaranCliente($idsArticulo[0], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteDup,
+    ]);
+    $facturaDup = $siembra->facturarAlbaranCliente($albaranDup);
+    foreach ([0, 1] as $i) {
+        $siembra->facturaTemporal(
+            [['idArticulo' => $idsArticulo[0], 'estadoLinea' => 'Activo']],
+            [],
+            ['idCliente' => $idClienteDup, 'Numfaccli' => $facturaDup]
+        );
+    }
+    echo "Factura con dos borradores sembrada (cliente {$idClienteDup}): id={$facturaDup}\n";
+}
+$db->query(
+    'UPDATE clientes SET formasVenci = \'{"vencimiento":"' . $primerTipo . '"}\''
+    . ' WHERE idClientes = ' . $idClienteDup . ' AND formasVenci IS NULL'
+);
+
+// El segundo: un albaran 'Guardado' del cliente sin forma de vencimiento, para poder pulsar
+// «crear factura desde albaran» sobre el y observar a que pantalla se llega.
+$albaranSinVenci = $db->query(
+    'SELECT id FROM albclit WHERE idCliente = ' . $idClienteSinVenci . ' AND estado = "Guardado" LIMIT 1'
+)->fetch_assoc();
+
+if ($albaranSinVenci !== null) {
+    echo "Albaran Guardado del cliente sin vencimiento ya sembrado: id={$albaranSinVenci['id']}\n";
+} else {
+    $idAlbSinVenci = $siembra->ventaAlbaranCliente($idsArticulo[1], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteSinVenci,
+    ]);
+    echo "Albaran Guardado del cliente sin vencimiento sembrado: id={$idAlbSinVenci}\n";
 }
 
 echo "\nArticulos disponibles para los recorridos: " . implode(', ', $idsArticulo) . "\n";

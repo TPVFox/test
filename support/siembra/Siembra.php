@@ -697,6 +697,7 @@ final class Siembra
                 'idfaccli'    => $idFactura,
                 'Numfaccli'   => $numeroFactura,
                 'idArticulo'  => (int) $linea['idArticulo'],
+                'cdetalle'    => $linea['cdetalle'],
                 'ncant'       => $linea['ncant'],
                 'nunidades'   => $linea['nunidades'],
                 'pvpSiva'     => $linea['pvpSiva'],
@@ -705,6 +706,16 @@ final class Siembra
                 'nfila'       => (int) $linea['nfila'],
                 'estadoLinea' => $linea['estadoLinea'],
                 'NumalbCli'   => (int) $albaran['Numalbcli'],
+            ]);
+        }
+
+        foreach ($this->desgloseDeAlbaranCliente($idAlbaran) as $tipo) {
+            $this->insertar('faccliIva', [
+                'idfaccli'   => $idFactura,
+                'Numfaccli'  => $numeroFactura,
+                'iva'        => (int) $tipo['iva'],
+                'importeIva' => $tipo['importeIva'],
+                'totalbase'  => $tipo['totalbase'],
             ]);
         }
 
@@ -718,6 +729,23 @@ final class Siembra
         $this->actualizar('albclit', 'id', $idAlbaran, ['estado' => 'Procesado']);
 
         return $idFactura;
+    }
+
+    /**
+     * El desglose de impuestos de un albaran de cliente, para copiarlo a la factura que
+     * lo factura. No usa `lineasDe()` porque la tabla de desglose no tiene numero de fila.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function desgloseDeAlbaranCliente(int $idAlbaran): array
+    {
+        $sentencia = $this->db->prepare(
+            'SELECT `iva`, `importeIva`, `totalbase` FROM `albcliIva` WHERE `idalbcli` = ? ORDER BY `iva`'
+        );
+        $sentencia->bind_param('i', $idAlbaran);
+        $sentencia->execute();
+
+        return $sentencia->get_result()->fetch_all(MYSQLI_ASSOC);
     }
 
     /**

@@ -39,9 +39,14 @@ test.describe('Albaranes — flujo del listado', () => {
       page.locator('form[name="formBuscar"] input[type="submit"]').click(),
     ]);
 
+    // Lo que la busqueda tiene que hacer es acotar, no devolver un numero concreto: la
+    // siembra crece con cada componente y un recuento absoluto acaba midiendo la siembra en
+    // vez del buscador. Se comprueba que estan los albaranes de este cliente y que no esta
+    // ninguno de otro cliente que no case con la busqueda.
     const filas = page.locator('table.table-bordered tbody tr');
-    await expect(filas).toHaveCount(2); // los dos albaranes sembrados para este cliente
-    await expect(filas.first()).toContainText(NOMBRE_CLIENTE);
+    await expect(filas.filter({ hasText: NOMBRE_CLIENTE })).toHaveCount(2);
+    await expect(filas.filter({ hasText: '[E2E venta] Cliente albaran guardar' })).toHaveCount(0);
+    await expect(filas.filter({ hasText: '[E2E venta] Cliente albaran entradas' })).toHaveCount(0);
   });
 
   /**
