@@ -110,6 +110,18 @@ $nombresCliente = [
     'factura_sinvenci' => [940, PREFIJO . 'Cliente factura sin vencimiento'],
     'factura_desdealb' => [941, PREFIJO . 'Cliente factura desde albaran'],
     'factura_duplicado' => [942, PREFIJO . 'Cliente factura duplicidad'],
+    'borrador_producto'  => [943, PREFIJO . 'Borrador entra producto'],
+    'borrador_albaran'   => [944, PREFIJO . 'Borrador entra albaran'],
+    'borrador_linea'     => [945, PREFIJO . 'Borrador entra linea'],
+    'borrador_fecha'     => [946, PREFIJO . 'Borrador entra fecha'],
+    'borrador_guardar'   => [947, PREFIJO . 'Borrador sale guardar'],
+    'borrador_cancelar'  => [948, PREFIJO . 'Borrador sale cancelar'],
+    'borrador_abandona'  => [949, PREFIJO . 'Borrador sale abandona'],
+    'borrador_fallo'     => [950, PREFIJO . 'Borrador sale fallo'],
+    'borrador_fechamal'  => [951, PREFIJO . 'Borrador sale fecha'],
+    'borrador_estado'    => [952, PREFIJO . 'Borrador sale estado'],
+    'borrador_otro'      => [953, PREFIJO . 'Borrador otro documento'],
+    'borrador_contraste' => [954, PREFIJO . 'Borrador contraste'],
 ];
 
 $idsCliente = [];
@@ -123,6 +135,19 @@ foreach ($nombresCliente as $clave => [$idFijo, $nombreCliente]) {
     }
     $idsCliente[$clave] = $idCliente;
 }
+
+// --- Lo que dejan tras de si los recorridos de guardado ---------------------------------
+//
+// Los tres recorridos que componen y guardan un documento desde la pantalla dejan uno nuevo
+// en cada pasada, y nada lo retiraba. El listado de albaranes llego asi a pasar de las 40
+// filas de su primera pagina, y los recorridos que buscan ahi su documento dejaron de
+// encontrarlo. Se retira lo acumulado antes de cada pasada: cada recorrido vuelve a componer
+// el suyo, y el albaran del que parte el de factura se siembra de nuevo mas abajo.
+borrarDocumentosDeCliente($db, (int) $idsCliente['albaran_guardar']);
+borrarPedidosDeCliente($db, (int) $idsCliente['pedido_guardar']);
+borrarDocumentosDeCliente($db, (int) $idsCliente['factura_guardar']);
+echo 'Documentos de los recorridos de guardado retirados (clientes '
+    . "{$idsCliente['albaran_guardar']}, {$idsCliente['pedido_guardar']}, {$idsCliente['factura_guardar']})\n";
 
 // Un pedido 'Guardado' para el cliente que prueba adjuntar pedido -> albaran
 // (BuscarAdjunto.php busca por Numpedcli, idCliente y estado="Guardado"). Idempotente por
@@ -576,6 +601,88 @@ if ($albaranSinVenci !== null) {
     echo "Albaran Guardado del cliente sin vencimiento sembrado: id={$idAlbSinVenci}\n";
 }
 
+// Los recorridos de guardado y de «crear factura desde albaran» cambian el numero de su
+// albaran despues de crearlo. Se alinean sus lineas y su desglose en cada siembra, lo que
+// repara tambien los que quedaron desalineados en siembras anteriores.
+alinearNumerosDeAlbaranes($db, (int) $idsCliente['factura_guardar']);
+alinearNumerosDeAlbaranes($db, (int) $idsCliente['factura_desdealb']);
+
+// --- Borrador de una factura emitida: un escenario por entrada y por salida -------------
+//
+// Estos recorridos cambian el estado de su factura —la marcan como no guardada, la
+// reescriben, la dejan a medias o le crean borradores de mas—, de modo que el escenario no
+// se restituye campo a campo: se rehace entero en cada siembra.
+//
+// Cada factura lleva un identificador fijo en un rango que ningun pedido ni albaran ocupa.
+// Editar una factura cambia tambien el estado del pedido y del albaran que compartan su
+// identificador, y con identificadores del rango habitual estos recorridos alterarian
+// documentos de otros recorridos.
+$idArticuloBorrador = $idsArticulo[0];
+$formaVencimiento = '{"vencimiento":"' . $primerTipo . '"}';
+
+$prepararClienteDeBorrador = function (int $idCliente) use ($db, $formaVencimiento): void {
+    borrarDocumentosDeCliente($db, $idCliente);
+    $sentencia = $db->prepare('UPDATE clientes SET formasVenci = ? WHERE idClientes = ?');
+    $sentencia->bind_param('si', $formaVencimiento, $idCliente);
+    $sentencia->execute();
+};
+
+// Un albaran 'Guardado' del cliente. Sin numero indicado lleva como numero su propio
+// identificador, que es la unica condicion en que reguardar una factura que lo incluya
+// supera la clave foranea del enlace con el albaran.
+$albaranDisponible = function (int $idCliente, ?int $numero = null) use ($db, $siembra, $idArticuloBorrador): int {
+    $idAlbaran = $siembra->ventaAlbaranCliente($idArticuloBorrador, 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idCliente,
+    ]);
+    $numero ??= $idAlbaran;
+    $db->query("UPDATE albclit SET Numalbcli = {$numero} WHERE id = {$idAlbaran}");
+    alinearNumerosDeAlbaranes($db, $idCliente);
+
+    return $idAlbaran;
+};
+
+$rehacerFacturaDeBorrador = function (string $clave, int $idFactura, ?int $numeroAlbaran = null) use ($siembra, $idsCliente, $prepararClienteDeBorrador, $albaranDisponible): void {
+    $idCliente = (int) $idsCliente[$clave];
+    $prepararClienteDeBorrador($idCliente);
+    $idAlbaran = $albaranDisponible($idCliente, $numeroAlbaran);
+    $siembra->facturarAlbaranCliente($idAlbaran, null, $idFactura);
+
+    $numero = $numeroAlbaran ?? 'su identificador';
+    echo "Factura de borrador rehecha ({$clave}, cliente {$idCliente}): id={$idFactura}, albaran con numero {$numero}\n";
+};
+
+$rehacerFacturaDeBorrador('borrador_producto', 810001, 830943);
+
+$rehacerFacturaDeBorrador('borrador_albaran', 810002, 830944);
+// Y un segundo albaran del mismo cliente, disponible para incorporarlo desde la edicion.
+$albaranDisponible((int) $idsCliente['borrador_albaran'], 820944);
+
+// Las lineas que proceden de un albaran se muestran bloqueadas en edicion: esta factura
+// conserva su linea como directa, sin albaran, para que se pueda tocar.
+$rehacerFacturaDeBorrador('borrador_linea', 810003, 830945);
+$db->query('UPDATE facclilinea SET NumalbCli = 0 WHERE idfaccli = 810003');
+$db->query('DELETE FROM albclifac WHERE idFactura = 810003');
+
+$rehacerFacturaDeBorrador('borrador_fecha', 810004, 830946);
+$rehacerFacturaDeBorrador('borrador_guardar', 810005);
+$rehacerFacturaDeBorrador('borrador_cancelar', 810006, 830948);
+$rehacerFacturaDeBorrador('borrador_abandona', 810007, 830949);
+// Un numero de albaran que no es el identificador de ningun albaran: al reguardar la
+// factura, el enlace con su albaran choca con la clave foranea.
+$rehacerFacturaDeBorrador('borrador_fallo', 810008, 990950);
+$rehacerFacturaDeBorrador('borrador_fechamal', 810009, 830951);
+$rehacerFacturaDeBorrador('borrador_estado', 810010, 830952);
+$rehacerFacturaDeBorrador('borrador_contraste', 810011, 830954);
+
+// El otro documento del recorrido de cambio de estado: un albaran disponible de otro
+// cliente cuyo numero es el identificador de la factura anterior.
+$idClienteOtroDocumento = (int) $idsCliente['borrador_otro'];
+$prepararClienteDeBorrador($idClienteOtroDocumento);
+$albaranDisponible($idClienteOtroDocumento, 810010);
+echo "Albaran del otro documento rehecho (cliente {$idClienteOtroDocumento}): numero 810010\n";
+
 echo "\nArticulos disponibles para los recorridos: " . implode(', ', $idsArticulo) . "\n";
 foreach ($idsCliente as $clave => $id) {
     echo "Cliente ($clave): $id\n";
@@ -607,4 +714,57 @@ function insertarCliente(mysqli $db, int $idFijo, string $nombre): int
     $sentencia->execute();
 
     return (int) $db->insert_id;
+}
+
+/**
+ * Borra todo lo que un cliente tiene en facturas, borradores de factura y albaranes, para
+ * rehacer su escenario desde cero. Solo para los clientes de los recorridos del borrador de
+ * factura, que no tienen pedidos.
+ */
+function borrarDocumentosDeCliente(mysqli $db, int $idCliente): void
+{
+    $facturas = "SELECT id FROM facclit WHERE idCliente = {$idCliente}";
+    $albaranes = "SELECT id FROM albclit WHERE idCliente = {$idCliente}";
+
+    $db->query("DELETE FROM faccliltemporales WHERE idCliente = {$idCliente} OR Numfaccli IN ({$facturas})");
+    $db->query("DELETE FROM facclilinea WHERE idfaccli IN ({$facturas})");
+    $db->query("DELETE FROM faccliIva WHERE idfaccli IN ({$facturas})");
+    $db->query("DELETE FROM albclifac WHERE idFactura IN ({$facturas}) OR idAlbaran IN ({$albaranes})");
+    $db->query("DELETE FROM pedcliAlb WHERE idAlbaran IN ({$albaranes})");
+    $db->query("DELETE FROM facclit WHERE idCliente = {$idCliente}");
+    $db->query("DELETE FROM albclilinea WHERE idalbcli IN ({$albaranes})");
+    $db->query("DELETE FROM albcliIva WHERE idalbcli IN ({$albaranes})");
+    $db->query("DELETE FROM albclit WHERE idCliente = {$idCliente}");
+}
+
+/**
+ * Pone en las lineas y en el desglose de impuestos de los albaranes de un cliente el numero
+ * que su cabecera lleva ahora. La siembra cambia el numero de algunos albaranes despues de
+ * crearlos; sin esto sus lineas y su desglose se quedan con el numero anterior, y el
+ * siguiente albaran que reciba ese numero suma como suyo un desglose que no lo es.
+ */
+function alinearNumerosDeAlbaranes(mysqli $db, int $idCliente): void
+{
+    foreach (['albclilinea', 'albcliIva'] as $tabla) {
+        $db->query(
+            "UPDATE {$tabla} d JOIN albclit a ON a.id = d.idalbcli"
+            . ' SET d.Numalbcli = a.Numalbcli'
+            . " WHERE a.idCliente = {$idCliente} AND d.Numalbcli <> a.Numalbcli"
+        );
+    }
+}
+
+/**
+ * Borra los pedidos de un cliente con todo lo que cuelga de ellos, incluida su relacion con
+ * albaranes. Para los clientes de los recorridos que componen un pedido en cada pasada.
+ */
+function borrarPedidosDeCliente(mysqli $db, int $idCliente): void
+{
+    $pedidos = "SELECT id FROM pedclit WHERE idCliente = {$idCliente}";
+
+    $db->query("DELETE FROM pedcliltemporales WHERE idCliente = {$idCliente} OR Numpedcli IN ({$pedidos})");
+    $db->query("DELETE FROM pedcliAlb WHERE idPedido IN ({$pedidos})");
+    $db->query("DELETE FROM pedclilinea WHERE idpedcli IN ({$pedidos})");
+    $db->query("DELETE FROM pedcliIva WHERE idpedcli IN ({$pedidos})");
+    $db->query("DELETE FROM pedclit WHERE idCliente = {$idCliente}");
 }

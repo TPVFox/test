@@ -6,14 +6,15 @@
  *
  * Este componente no es el unico que escribe aqui: el despacho compartido decide con
  * asignacion en lugar de comparacion, de modo que toda peticion de cambio de estado
- * ejecuta tambien la escritura sobre la factura que lleve ese identificador
- * (`PCP-TPY-compartida`, FM-04). Lo que se comprueba aqui es el efecto sobre la factura.
+ * ejecuta tambien la escritura sobre la factura que lleve ese identificador, venga del
+ * documento que venga. Lo que se comprueba aqui es el efecto sobre la factura.
  */
 
 declare(strict_types=1);
 
 namespace TPVFox\Test\Integration\ModVenta;
 
+use TPVFox\Test\CargaAislada;
 use TPVFox\Test\CasoIntegracion;
 use TPVFox\Test\Siembra\Siembra;
 
@@ -25,6 +26,8 @@ final class FacturasVentasEstadosIntegracionTest extends CasoIntegracion
     protected function setUp(): void
     {
         parent::setUp();
+        CargaAislada::requerir(RUTA_TPVFOX . '/modulos/mod_venta/funciones.php');
+        $this->incluirTPVFox('/modulos/mod_venta/clases/albaranesVentas.php');
         $this->incluirTPVFox('/modulos/mod_venta/clases/facturasVentas.php');
         $this->facturas = new \FacturasVentas($this->db);
         $this->siembra = new Siembra($this->db);
@@ -100,18 +103,35 @@ final class FacturasVentasEstadosIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * Ninguna escritura de la clase produce el estado «Sin guardar» que la vista compara al
-     * abrir una factura con borrador: el alta escribe siempre lo que la pantalla envia, y
-     * la pantalla envia «Guardado». La comparacion que decide si la factura y su borrador
-     * concuerdan se evalua por tanto siempre como discrepancia.
+     * La clase no origina el estado «Sin guardar»: el alta escribe siempre el que recibe, y es
+     * el navegador quien pide esa marca al crear el borrador de una factura ya emitida. Pedida,
+     * se escribe, de modo que la comprobacion que la vista hace al abrir el borrador se puede
+     * cumplir.
      */
-    public function test_defecto_ningunaFacturaLlevaElEstadoQueLaVistaEsperaDeUnaConBorrador(): void
+    public function test_modificarEstado_escribeLaMarcaDeBorradorQueElNavegadorPide(): void
     {
-        $this->facturaSembrada('Producto de factura sin estado de borrador');
+        $idFactura = $this->facturaSembrada('Producto de factura marcada como borrador');
 
-        self::assertSame(0, $this->cuantasFacturasConEstado('Sin guardar'));
-        self::assertSame(0, $this->cuantasFacturasConEstado('Sin Guardar'));
-        self::assertGreaterThan(0, $this->cuantasFacturasConEstado('Guardado'));
+        $this->facturas->modificarEstado($idFactura, 'Sin guardar');
+
+        self::assertSame('Sin guardar', $this->facturas->getEstado($idFactura));
+    }
+
+    /**
+     * Descartar el borrador de una factura emitida lo borra y no retira la marca que el
+     * navegador pidio al crearlo: la factura queda como «Sin guardar» sin ningun borrador que
+     * lo justifique, y nada la devuelve a su estado.
+     */
+    public function test_defecto_descartarElBorradorDejaLaFacturaMarcadaComoNoGuardada(): void
+    {
+        $idFactura = $this->facturaSembrada('Producto de factura con borrador descartado');
+        $this->facturas->modificarEstado($idFactura, 'Sin guardar');
+        $idTemporal = $this->siembra->facturaTemporal([], [], ['Numfaccli' => $idFactura]);
+
+        \cancelarFactura($idTemporal, $this->db);
+
+        self::assertSame([], $this->facturas->buscarDatosTemporal($idTemporal), 'El borrador se borra...');
+        self::assertSame('Sin guardar', $this->facturas->getEstado($idFactura), '... y la factura sigue marcada.');
     }
 
     /**
@@ -143,11 +163,4 @@ final class FacturasVentasEstadosIntegracionTest extends CasoIntegracion
         return $this->siembra->facturarAlbaranCliente($idAlbaran);
     }
 
-    /** Recuento sensible a mayusculas: la intercalacion de la columna no las distingue. */
-    private function cuantasFacturasConEstado(string $estado): int
-    {
-        return (int) $this->db
-            ->query("SELECT COUNT(*) as n FROM facclit WHERE BINARY estado = '$estado'")
-            ->fetch_assoc()['n'];
-    }
 }

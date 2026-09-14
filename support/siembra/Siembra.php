@@ -673,15 +673,17 @@ final class Siembra
      * Factura un albaran de cliente, que es el unico camino por el que el producto lo
      * deja en 'Procesado'.
      *
+     * @param int|null $idFactura Identificador que debe llevar la factura; sin valor, el que
+     *                            asigne la tabla
      * @return int Identificador de la factura
      */
-    public function facturarAlbaranCliente(int $idAlbaran, ?string $fecha = null): int
+    public function facturarAlbaranCliente(int $idAlbaran, ?string $fecha = null, ?int $idFactura = null): int
     {
         $albaran = $this->filaDe('albclit', 'id', $idAlbaran);
         $numeroFactura = $this->siguienteNumero('facclit', 'Numfaccli');
         $momento = $this->momento($fecha ?? $albaran['Fecha']);
 
-        $idFactura = $this->insertar('facclit', [
+        $cabecera = [
             'Numfaccli'     => $numeroFactura,
             'Fecha'         => $momento,
             'idTienda'      => (int) $albaran['idTienda'],
@@ -690,7 +692,12 @@ final class Siembra
             'estado'        => 'Guardado',
             'total'         => $albaran['total'],
             'fechaCreacion' => $momento,
-        ]);
+        ];
+        if ($idFactura !== null) {
+            $cabecera = ['id' => $idFactura] + $cabecera;
+        }
+
+        $idFactura = $this->insertar('facclit', $cabecera, $idFactura);
 
         foreach ($this->lineasDe('albclilinea', 'idalbcli', $idAlbaran) as $linea) {
             $this->insertar('facclilinea', [
