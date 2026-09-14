@@ -105,7 +105,7 @@ final class FacturaImpresionIntegracionTest extends CasoIntegracion
     /**
      * El caso correcto, que ninguna prueba cubria: dos albaranes que si aportan lineas.
      * Posicion e identidad coinciden y cada bloque sale bajo su cabecera. Sin este caso el
-     * defecto de la prueba anterior no queda acotado. Hueco cerrado desde `MCT-2026-052-TPY`.
+     * defecto de la prueba anterior no queda acotado.
      */
     public function test_factura_conDosAlbaranesConLineasEmiteLasDosCabeceras(): void
     {
@@ -123,7 +123,7 @@ final class FacturaImpresionIntegracionTest extends CasoIntegracion
 
     /**
      * Una factura compuesta solo de lineas directas, sin ningun albaran: el documento sale
-     * sin cabeceras intercaladas y con todas sus lineas. Hueco cerrado desde `MCT-2026-052-TPY`.
+     * sin cabeceras intercaladas y con todas sus lineas.
      */
     public function test_factura_sinAlbaranesEmiteElDocumentoSinCabecerasIntercaladas(): void
     {

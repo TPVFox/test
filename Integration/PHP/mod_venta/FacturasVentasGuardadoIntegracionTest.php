@@ -370,7 +370,6 @@ final class FacturasVentasGuardadoIntegracionTest extends CasoIntegracion
     /**
      * El desglose de una factura real agrupa productos a distintos tipos impositivos. La
      * lectura lo tenia cubierto; la escritura no se habia ejercido con mas de una entrada.
-     * Hueco cerrado desde `MCT-2026-046-TPY`.
      */
     public function test_addFacturaGuardado_escribeUnaFilaDeDesglosePorCadaTipoImpositivo(): void
     {
@@ -392,7 +391,7 @@ final class FacturasVentasGuardadoIntegracionTest extends CasoIntegracion
 
     /**
      * Una factura mensual agrupa los albaranes del periodo: incorporar mas de uno es el caso
-     * normal y ninguna prueba lo ejercia. Hueco cerrado desde `MCT-2026-043-TPY`.
+     * normal y ninguna prueba lo ejercia.
      */
     public function test_addFacturaGuardado_enlazaTodosLosAlbaranesIncorporados(): void
     {
@@ -415,8 +414,8 @@ final class FacturasVentasGuardadoIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * La mitad de `CQA-16` que el caso de la traza no cubria: reescribir con otro usuario.
-     * El creador que consta pasa a ser quien reguarda. Hueco cerrado desde `MCT-2026-049-TPY`.
+     * La mitad de la traza de autoria que el caso anterior no cubria: reescribir con otro usuario.
+     * El creador que consta pasa a ser quien reguarda.
      */
     public function test_defecto_reguardarConOtroUsuarioSustituyeAlCreadorDeLaFactura(): void
     {
@@ -444,7 +443,7 @@ final class FacturasVentasGuardadoIntegracionTest extends CasoIntegracion
      * Nada en el esquema impide dos facturas con el mismo numero: `Numfaccli` no tiene indice
      * unico. La busqueda por numero devuelve una sola fila y no señala que hay mas. Hoy la
      * coincidencia con el identificador garantiza la unicidad por accidente, y la correccion
-     * de la serie la retira. Hueco cerrado desde `MCT-2026-048-TPY`.
+     * de la serie la retira.
      */
     public function test_defecto_dosFacturasPuedenCompartirNumeroYLaBusquedaDevuelveUnaSola(): void
     {

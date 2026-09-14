@@ -1,6 +1,7 @@
 /**
- * Los recorridos que las matrices de condiciones de test (IT-010) pidieron y que la Etapa 1
- * no había escrito. Cada uno cierra un hueco concreto y cita su matriz.
+ * Combinaciones que el resto de recorridos de factura no cubría: una factura con dos
+ * borradores abiertos, crear una factura desde un albarán de un cliente sin forma de
+ * vencimiento, buscar una factura por su número e imprimirla desde el listado.
  */
 
 const { test, expect } = require('@playwright/test');
@@ -10,9 +11,9 @@ const CLIENTE_DUPLICIDAD = '[E2E venta] Cliente factura duplicidad';
 const CLIENTE_SIN_VENCI = '[E2E venta] Cliente factura sin vencimiento';
 const CLIENTE_RELACION = '[E2E venta] Cliente factura relacion';
 
-test.describe('Factura — huecos cerrados desde las matrices de condiciones', () => {
+test.describe('Factura — combinaciones que el resto de recorridos no cubría', () => {
   /**
-   * `MCT-2026-042-TPY`. La pantalla distingue entre «existe un temporal» y «existen varios»,
+   * La pantalla distingue entre «existe un temporal» y «existen varios»,
    * y emite un aviso distinto para cada caso. El segundo es además el estado que
    * `comprobarTemporalesIdFac()` —el método sin llamador— estaba escrito para detectar.
    */
@@ -33,7 +34,7 @@ test.describe('Factura — huecos cerrados desde las matrices de condiciones', (
   });
 
   /**
-   * `MCT-2026-041-TPY`. Las dos condiciones que este componente tiene y ningún otro,
+   * Las dos condiciones que este componente tiene y ningún otro,
    * combinadas: entrar desde el listado de albaranes, sobre un cliente sin forma de
    * vencimiento. La pantalla no llega a montarse, de modo que la acción no lleva a ningún
    * sitio y el operador no recibe explicación.
@@ -62,7 +63,7 @@ test.describe('Factura — huecos cerrados desde las matrices de condiciones', (
   });
 
   /**
-   * `MCT-2026-050-TPY`. La búsqueda tiene dos campos y solo se había ejercido el del nombre
+   * La búsqueda tiene dos campos y solo se había ejercido el del nombre
    * del cliente. El número es el campo por el que el operador busca cuando el cliente
    * reclama un documento fiscal.
    */
@@ -87,7 +88,7 @@ test.describe('Factura — huecos cerrados desde las matrices de condiciones', (
   });
 
   /**
-   * `MCT-2026-051-TPY`. Imprimir es la acción que las cuatro pantallas de venta tienen y que
+   * Imprimir es la acción que las cuatro pantallas de venta tienen y que
    * solo el pedido llegó a ejercer. Aquí importa más: el imprimible de la factura es el único
    * que compone bloques de líneas bajo cabeceras de otro documento.
    */
