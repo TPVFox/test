@@ -50,7 +50,12 @@ async function pulsarGuardar(page) {
 }
 
 test.describe('Factura emitida — cómo termina su borrador', () => {
-  test('T1 guardar devuelve la factura a guardada y borra el borrador', async ({ page }) => {
+  test('T1 guardar devuelve la factura a guardada y borra el borrador', {
+    tag: ['@estado-actual', '@factura', '@borrador', '@guardado'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Guardar el borrador devuelve la factura a «Guardado» y borra el borrador.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
     await crearBorradorAnadiendoProducto(page, FACTURA_GUARDAR);
 
@@ -68,7 +73,15 @@ test.describe('Factura emitida — cómo termina su borrador', () => {
    * factura queda como no guardada sin ningún borrador que lo justifique, y nada en la
    * pantalla la devuelve a su estado.
    */
-  test('T2 cancelar borra el borrador y deja la factura marcada como no guardada', async ({ page }) => {
+  test('T2 cancelar borra el borrador y deja la factura marcada como no guardada', {
+    tag: ['@estado-actual', '@defecto', '@factura', '@borrador', '@estados', '@alto'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Cancelar borra el borrador pero deja la factura marcada como «Sin guardar», sin ningún borrador que lo justifique, y nada en la pantalla la devuelve a su estado.' },
+      { type: 'Qué debería ocurrir', description: 'Que al cancelar la factura vuelva al estado que tenía antes de abrir el borrador.' },
+      { type: 'Por qué ocurre', description: 'El navegador pone la marca al crear el borrador, y el descarte no la retira.' },
+      { type: 'Cómo debería funcionar', description: 'Que el descarte del borrador devuelva la factura a su estado anterior.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
     await crearBorradorAnadiendoProducto(page, FACTURA_CANCELAR);
 
@@ -82,7 +95,12 @@ test.describe('Factura emitida — cómo termina su borrador', () => {
     expect(await estadoDeLaFactura(page, FACTURA_CANCELAR)).toBe('Sin guardar');
   });
 
-  test('T3 abandonar la pantalla deja el borrador vivo y se retoma sin aviso', async ({ page }) => {
+  test('T3 abandonar la pantalla deja el borrador vivo y se retoma sin aviso', {
+    tag: ['@estado-actual', '@factura', '@borrador'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Abandonar la pantalla deja el borrador vivo y la factura marcada; el borrador se retoma sin aviso y, mientras exista, la factura no se deja editar directamente: remite a él.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
     const idTemporal = await crearBorradorAnadiendoProducto(page, FACTURA_ABANDONA);
 
@@ -101,7 +119,15 @@ test.describe('Factura emitida — cómo termina su borrador', () => {
    * lo rechaza: la escritura lanza, nadie la captura y la página responde 500. Para entonces
    * la factura ya se ha vuelto a escribir en «Guardado», y el borrador sigue atado a ella.
    */
-  test('T4 si la reescritura falla, el borrador queda atado a una factura sin marca y no se puede cerrar', async ({ page }) => {
+  test('T4 si la reescritura falla, el borrador queda atado a una factura sin marca y no se puede cerrar', {
+    tag: ['@estado-actual', '@defecto', '@factura', '@borrador', '@guardado', '@critico'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Si la reescritura de la factura falla, la página responde con error de servidor; para entonces la factura ya se ha reescrito en «Guardado», sin su albarán, y el borrador sigue atado a ella sin poder cerrarse.' },
+      { type: 'Qué debería ocurrir', description: 'Que un fallo al guardar deje la factura anterior intacta y el borrador disponible para corregir y reintentar.' },
+      { type: 'Por qué ocurre', description: 'Reguardar es borrar la factura entera y volver a escribirla sin transacción; aquí el enlace con el albarán lleva un número que no es identificador de ningún albarán y la base lo rechaza a mitad de camino.' },
+      { type: 'Cómo debería funcionar', description: 'Toda la reescritura en una sola transacción que se deshaga al primer fallo, y el enlace escrito con el identificador del albarán.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
     const idTemporal = await crearBorradorAnadiendoProducto(page, FACTURA_FALLO);
 
@@ -124,7 +150,15 @@ test.describe('Factura emitida — cómo termina su borrador', () => {
    * ya apunta al borrador de recuperación, muestra su fecha en otro formato y muere al pintar
    * las líneas, antes del pie del documento, aunque el servidor responda 200.
    */
-  test('T5 una fecha imposible no guarda: crea un segundo borrador y la pantalla muere a medio pintar', async ({ page }) => {
+  test('T5 una fecha imposible no guarda: crea un segundo borrador y la pantalla muere a medio pintar', {
+    tag: ['@estado-actual', '@defecto', '@factura', '@borrador', '@validacion', '@alto'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Una fecha que no existe en el calendario pasa el campo, no se guarda nada y el servidor crea un segundo borrador sin los albaranes y con la fecha desbordada al mes siguiente; la pantalla que responde ya es la del borrador nuevo y se corta a medio pintar.' },
+      { type: 'Qué debería ocurrir', description: 'Que la fecha imposible se rechace con un aviso claro y la pantalla siga siendo la del borrador que se estaba editando.' },
+      { type: 'Por qué ocurre', description: 'El campo solo comprueba el formato; la rama de recuperación del servidor incluye dentro de la propia vista el guion que crea borradores, y ese guion reescribe las variables con las que la vista se estaba pintando.' },
+      { type: 'Cómo debería funcionar', description: 'Validar la fecha como fecha real al enviarla y al recibirla, y que la recuperación sea una función con sus propias variables y no un guion incluido en la vista.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
     const idTemporal = await crearBorradorAnadiendoProducto(page, FACTURA_FECHA_IMPOSIBLE);
     await expect(page.locator('#tablaAdjunto tbody tr')).not.toHaveCount(0);
@@ -163,7 +197,15 @@ test.describe('Factura emitida — cómo termina su borrador', () => {
    * cuyo número es el identificador de esta factura: el cambio de estado que pide ese
    * albarán alcanza a la factura, que pierde la marca con el borrador todavía vivo.
    */
-  test('T6 si otro documento cambia el estado de la factura, su borrador ya no se puede cerrar', async ({ page }) => {
+  test('T6 si otro documento cambia el estado de la factura, su borrador ya no se puede cerrar', {
+    tag: ['@estado-actual', '@defecto', '@factura', '@borrador', '@estados', '@critico'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Si otro documento, de otro cliente, incorpora un albarán cuyo número coincide con el identificador de esta factura, la factura pasa a «Procesado» y su borrador ya no se puede cerrar.' },
+      { type: 'Qué debería ocurrir', description: 'Que la factura no cambie: no participa en esa operación.' },
+      { type: 'Por qué ocurre', description: 'El despacho de cambio de estado distingue el tipo de documento con asignación en vez de comparación, así que aplica el cambio a pedido, albarán y factura con ese identificador a la vez.' },
+      { type: 'Cómo debería funcionar', description: 'Comparar en vez de asignar en las tres condiciones del despacho.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
     const idTemporal = await crearBorradorAnadiendoProducto(page, FACTURA_ESTADO);
 

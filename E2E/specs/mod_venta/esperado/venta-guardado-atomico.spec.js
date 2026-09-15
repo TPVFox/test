@@ -1,5 +1,5 @@
 /**
- * Criterio de aceptación: el guardado se completa entero o no deja rastro.
+ * Comportamiento esperado: el guardado se completa entero o no deja rastro.
  *
  * Síntoma: se compone un documento con un artículo cuyo nombre lleva una comilla doble y se
  * guarda. La cabecera se escribe; la línea no. Queda un documento con su número y su importe,
@@ -27,27 +27,30 @@ const { test, expect } = require('@playwright/test');
 const { iniciarSesion } = require('../../../fixtures/autenticacion');
 const { seleccionarCliente } = require('../../../fixtures/seleccionarCliente');
 
-const ID_ARTICULO_CON_COMILLA = 14681; // '[E2E venta] CC Pera 5" premium'
+const ID_ARTICULO_CON_COMILLA = 14681; // '[E2E venta] Pera 5" premium'
 
 const ESCENARIOS = [
   {
     documento: 'pedido',
+    etiqueta: '@pedido',
     idCliente: 963,
-    nombre: '[E2E venta] CC guardado atomico pedido',
+    nombre: '[E2E venta] Esperado guardado atomico pedido',
     pantalla: 'pedido.php',
     listado: 'pedidosListado.php',
   },
   {
     documento: 'albarán',
+    etiqueta: '@albaran',
     idCliente: 964,
-    nombre: '[E2E venta] CC guardado atomico albaran',
+    nombre: '[E2E venta] Esperado guardado atomico albaran',
     pantalla: 'albaran.php',
     listado: 'albaranesListado.php',
   },
   {
     documento: 'factura',
+    etiqueta: '@factura',
     idCliente: 965,
-    nombre: '[E2E venta] CC guardado atomico factura',
+    nombre: '[E2E venta] Esperado guardado atomico factura',
     pantalla: 'factura.php',
     listado: 'facturasListado.php',
   },
@@ -71,13 +74,21 @@ async function documentosDelCliente(page, escenario) {
 }
 
 for (const escenario of ESCENARIOS) {
-  test.describe(`Venta — el guardado del ${escenario.documento} es atómico`, { tag: '@criterio' }, () => {
+  test.describe(`Venta — el guardado del ${escenario.documento} es atómico`, () => {
     // Tres navegaciones de listado y un guardado: con la suite entera en marcha no caben en los
     // 30 s por defecto. Un recorrido declarado con test.fail() que agota el tiempo no cuenta
     // como fallo esperado, sino como error, de modo que el margen es parte del criterio.
     test.setTimeout(90000);
 
-    test.fail(`T1 si la línea no se puede escribir, no queda ${escenario.documento} a medias`, async ({ page }) => {
+    test.fail(`T1 si la línea no se puede escribir, no queda ${escenario.documento} a medias`, {
+      tag: ['@esperado', escenario.etiqueta, '@guardado', '@directo', '@critico'],
+      annotation: [
+        { type: 'Qué ocurre hoy', description: 'Guardar un documento con un artículo cuyo nombre lleva una comilla doble deja escrita la cabecera, con su número y su importe, y ninguna línea.' },
+        { type: 'Qué debería ocurrir', description: 'Que el guardado se complete entero o no deje rastro.' },
+        { type: 'Por qué ocurre', description: 'La descripción de la línea se escribe concatenada entre comillas sin escapar, así que la comilla rompe esa escritura después de que la cabecera ya se haya confirmado: no hay transacción.' },
+        { type: 'Cómo debería funcionar', description: 'Toda la secuencia de escrituras en una transacción que se deshaga al primer fallo, y consultas preparadas.' },
+      ],
+    }, async ({ page }) => {
       const antes = await documentosDelCliente(page, escenario);
 
       await iniciarSesion(page, `modulos/mod_venta/${escenario.pantalla}`);

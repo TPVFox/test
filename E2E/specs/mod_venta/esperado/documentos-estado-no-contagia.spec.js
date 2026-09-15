@@ -1,5 +1,5 @@
 /**
- * Criterio de aceptación: cambiar el estado de un documento no toca a los de otro tipo.
+ * Comportamiento esperado: cambiar el estado de un documento no toca a los de otro tipo.
  *
  * Síntoma: incorporar un albarán a otro documento marca ese albarán como procesado —correcto—
  * y, de paso, aplica el mismo cambio al pedido y a la factura cuyo identificador coincida por
@@ -13,8 +13,7 @@
  * Corrección esperada: comparar en vez de asignar, en las tres. Y revisar el resto del
  * despacho por si el patrón se repite.
  *
- * Es el cambio de mayor valor del plan de corrección: tres caracteres cierran una desviación
- * crítica que alcanza a los tres documentos de venta.
+ * Tres caracteres bastan para corregirlo, y el defecto alcanza a los tres documentos de venta.
  *
  * Declarado con `test.fail()`. El «antes» queda documentado, sin tocar, en
  * `factura-borrador-salidas.spec.js` T6, que afirma el estado corrompido tal como es hoy.
@@ -28,10 +27,18 @@ const { esperarTarea, estadoDeLaFactura } = require('../../../fixtures/borradorF
 // Sembrados en support/sembrar-e2e-venta.php: la factura lleva este identificador y el
 // albarán del mismo cliente lleva ese mismo valor como número visible.
 const FACTURA_AJENA = 810012;
-const ID_CLIENTE = 962; // '[E2E venta] CC estado cruzado'
+const ID_CLIENTE = 962; // '[E2E venta] Esperado estado cruzado'
 
-test.describe('Venta — el cambio de estado no se contagia entre tipos de documento', { tag: '@criterio' }, () => {
-  test.fail('T1 incorporar un albarán no cambia el estado de la factura con ese identificador', async ({ page }) => {
+test.describe('Venta — el cambio de estado no se contagia entre tipos de documento', () => {
+  test.fail('T1 incorporar un albarán no cambia el estado de la factura con ese identificador', {
+    tag: ['@esperado', '@factura', '@albaran', '@estados', '@directo', '@critico'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Incorporar a una factura nueva un albarán cuyo número coincide con el identificador de otra factura deja esa otra factura en «Procesado».' },
+      { type: 'Qué debería ocurrir', description: 'Que la otra factura siga «Guardado»: no participa en la operación.' },
+      { type: 'Por qué ocurre', description: 'El despacho de cambio de estado distingue el tipo de documento con asignación en vez de comparación, así que aplica el cambio a pedido, albarán y factura con ese identificador a la vez.' },
+      { type: 'Cómo debería funcionar', description: 'Comparar en vez de asignar en las tres condiciones del despacho.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
 
     const estadoInicial = await estadoDeLaFactura(page, FACTURA_AJENA);

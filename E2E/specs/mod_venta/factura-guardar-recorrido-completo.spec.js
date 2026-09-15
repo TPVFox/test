@@ -19,7 +19,12 @@ const ID_CLIENTE = 939; // '[E2E venta] Cliente factura guardar'
 const NOMBRE_CLIENTE = '[E2E venta] Cliente factura guardar';
 
 test.describe('Factura — recorrido completo de emisión', () => {
-  test('T1 incorporar un albarán y guardar deja la factura en el listado', async ({ page }) => {
+  test('T1 incorporar un albarán y guardar deja la factura en el listado', {
+    tag: ['@estado-actual', '@factura', '@albaran', '@guardado', '@adjuntos'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Incorporar un albarán guardado a una factura nueva y guardarla la deja en el listado como «Guardado».' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/factura.php');
 
     await seleccionarCliente(page, ID_CLIENTE);
@@ -66,7 +71,15 @@ test.describe('Factura — recorrido completo de emisión', () => {
    * visible: conviven números de dos órdenes de magnitud distintos, y el más alto no es el
    * más reciente por serie sino por posición en la tabla.
    */
-  test('T2 el número de la factura emitida es su identificador, no el siguiente de la serie', async ({ page }) => {
+  test('T2 el número de la factura emitida es su identificador, no el siguiente de la serie', {
+    tag: ['@estado-actual', '@defecto', '@factura', '@guardado', '@numeracion', '@critico'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'La factura recién emitida se numera con el identificador que la tabla acaba de asignar, no con el siguiente número de la serie.' },
+      { type: 'Qué debería ocurrir', description: 'Que cada factura emitida lleve el número siguiente de su serie.' },
+      { type: 'Por qué ocurre', description: 'El guardado copia el identificador de la fila en el número de la factura: no hay serie propia.' },
+      { type: 'Cómo debería funcionar', description: 'Llevar una serie de numeración propia, independiente del identificador, y migrar lo ya emitido.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
 
     const fila = page.locator('table.table-bordered tbody tr').filter({ hasText: NOMBRE_CLIENTE }).first();

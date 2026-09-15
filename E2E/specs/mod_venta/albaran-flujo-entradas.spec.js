@@ -23,7 +23,12 @@ function filaDelAlbaran(page) {
 }
 
 test.describe('Albarán — estados de entrada de la pantalla', () => {
-  test('T1 sin parámetros: albarán nuevo, sin fila de entrada ni botones, con el cliente por elegir', async ({ page }) => {
+  test('T1 sin parámetros: albarán nuevo, sin fila de entrada ni botones, con el cliente por elegir', {
+    tag: ['@estado-actual', '@albaran', '@entrada'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Abierta sin parámetros, la pantalla ofrece un albarán nuevo: sin fila de entrada ni botones, y con el cliente por elegir.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaran.php');
 
     await expect(page.locator('h2.text-center')).toContainText('Sin Guardar');
@@ -34,7 +39,12 @@ test.describe('Albarán — estados de entrada de la pantalla', () => {
     await expect(page.locator('#id_cliente')).toBeEditable();
   });
 
-  test('T2 abierto desde el enlace de ver: acción «ver», todo en solo lectura', async ({ page }) => {
+  test('T2 abierto desde el enlace de ver: acción «ver», todo en solo lectura', {
+    tag: ['@estado-actual', '@albaran', '@entrada'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Desde el enlace de ver del listado, el albarán se abre en solo lectura: sin fila de entrada, sin Guardar y con el cliente bloqueado.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php');
 
     await filaDelAlbaran(page).locator('a[title="Ver albarán"]').click();
@@ -53,7 +63,12 @@ test.describe('Albarán — estados de entrada de la pantalla', () => {
    * enlace funciona por coincidencia entre lo que envía y lo que la pantalla decide por su
    * cuenta. T2 comprueba el resultado; este caso fija que el parámetro viaja y se ignora.
    */
-  test('T3 el enlace de ver envía un parámetro que la pantalla no lee', async ({ page }) => {
+  test('T3 el enlace de ver envía un parámetro que la pantalla no lee', {
+    tag: ['@estado-actual', '@albaran', '@entrada'],
+    annotation: [
+      { type: 'Comportamiento', description: 'El enlace de ver envía un parámetro que la pantalla no lee: el albarán acaba en modo ver porque ese es el modo por defecto, no por el parámetro.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php');
 
     const enlace = filaDelAlbaran(page).locator('a[title="Ver albarán"]');
@@ -62,7 +77,12 @@ test.describe('Albarán — estados de entrada de la pantalla', () => {
     await expect(enlace).not.toHaveAttribute('href', /accion=/);
   });
 
-  test('T4 abierto desde el enlace de editar: acción «editar», con fila de entrada pero sin poder guardar', async ({ page }) => {
+  test('T4 abierto desde el enlace de editar: acción «editar», con fila de entrada pero sin poder guardar', {
+    tag: ['@estado-actual', '@albaran', '@entrada'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Desde el enlace de editar se abre la fila de entrada, pero Guardar y Cancelar no aparecen hasta que la primera modificación crea el documento en curso.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php');
 
     await filaDelAlbaran(page).locator('a[title="Editar albarán"]').click();

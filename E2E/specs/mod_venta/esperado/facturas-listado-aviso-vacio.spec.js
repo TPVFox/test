@@ -1,5 +1,5 @@
 /**
- * Criterio de aceptación: el aviso de listado vacío de facturas debe hablar de facturas.
+ * Comportamiento esperado: el aviso de listado vacío de facturas debe hablar de facturas.
  *
  * Síntoma: al buscar algo que no existe, el listado de facturas avisa «No tienes albaranes
  * guardados!». Causa raíz: `facturasListado.php` se escribió copiando `albaranesListado.php`
@@ -19,8 +19,16 @@ const { iniciarSesion } = require('../../../fixtures/autenticacion');
 /** Un término que no casa con ningún cliente ni número: deja el listado sin resultados. */
 const BUSQUEDA_SIN_RESULTADOS = 'zzz-no-existe-zzz';
 
-test.describe('Facturas — aviso de listado vacío', { tag: '@criterio' }, () => {
-  test.fail('T1 el aviso de listado vacío nombra facturas, no albaranes', async ({ page }) => {
+test.describe('Facturas — aviso de listado vacío', () => {
+  test.fail('T1 el aviso de listado vacío nombra facturas, no albaranes', {
+    tag: ['@esperado', '@factura', '@listado', '@directo', '@bajo'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Buscando algo que no existe, el aviso de listado vacío de facturas dice «No tienes albaranes guardados!».' },
+      { type: 'Qué debería ocurrir', description: 'Que el aviso hable de facturas.' },
+      { type: 'Por qué ocurre', description: 'La pantalla se escribió copiando la del albarán y ese texto no se adaptó.' },
+      { type: 'Cómo debería funcionar', description: 'Cambiar la palabra del aviso.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
 
     await page.fill('form[name="formBuscar"] input[name="buscar"]', BUSQUEDA_SIN_RESULTADOS);

@@ -1,5 +1,5 @@
 /**
- * Criterio de aceptación: el servidor no escribe lo que le mandan sin contrastarlo.
+ * Comportamiento esperado: el servidor no escribe lo que le mandan sin contrastarlo.
  *
  * Síntoma: el precio de las líneas y el importe de la cabecera se escriben tal como llegan del
  * navegador, cada uno por su lado. Un documento puede quedar guardado con una cabecera que dice
@@ -16,7 +16,7 @@
  * pantalla calcula bien. Lo que se comprueba es que el servidor no se fíe de lo que le llega, y
  * para eso hay que hacer que le llegue algo que no cuadre. Playwright reescribe el precio de la
  * línea en el POST que crea el documento en curso —es la única intervención— y el resto es
- * navegación normal. Por eso su evidencia está clasificada como forzada, no directa.
+ * navegación normal. Es el único recorrido de este grupo que interviene la petición.
  *
  * Medido al escribirlo: la línea queda guardada a 0,01 y la cabecera a 1,82. Las dos vistas del
  * documento enseñan cosas distintas: el listado pinta el total guardado en la cabecera, y la
@@ -31,8 +31,8 @@ const { test, expect } = require('@playwright/test');
 const { iniciarSesion } = require('../../../fixtures/autenticacion');
 const { seleccionarCliente } = require('../../../fixtures/seleccionarCliente');
 
-const ID_CLIENTE = 955; // '[E2E venta] CC inyeccion en busqueda', sin documentos propios
-const NOMBRE_CLIENTE = '[E2E venta] CC inyeccion en busqueda';
+const ID_CLIENTE = 955; // '[E2E venta] Esperado inyeccion en busqueda', sin documentos propios
+const NOMBRE_CLIENTE = '[E2E venta] Esperado inyeccion en busqueda';
 const ID_ARTICULO = 14678; // '[E2E venta] Manzana Golden'
 const PRECIO_FALSEADO = 0.01;
 
@@ -73,8 +73,16 @@ async function falsearElPrecioUnaVez(page) {
   });
 }
 
-test.describe('Venta — el servidor contrasta el importe con sus líneas', { tag: '@criterio' }, () => {
-  test.fail('T1 la cabecera guardada suma lo mismo que sus líneas', async ({ page }) => {
+test.describe('Venta — el servidor contrasta el importe con sus líneas', () => {
+  test.fail('T1 la cabecera guardada suma lo mismo que sus líneas', {
+    tag: ['@esperado', '@albaran', '@importes', '@guardado', '@forzado', '@alto'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Si el precio de la línea llega manipulado en la petición, el albarán se guarda con la línea a 0,01 y la cabecera a 1,82: el listado y el propio documento muestran importes distintos.' },
+      { type: 'Qué debería ocurrir', description: 'Que el importe guardado salga de las líneas que el propio guardado escribe.' },
+      { type: 'Por qué ocurre', description: 'El servidor escribe las líneas y, por separado, el total que recibe del navegador, sin compararlos.' },
+      { type: 'Cómo debería funcionar', description: 'Calcular el importe y el desglose en el servidor a partir de las líneas guardadas.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaran.php');
     await seleccionarCliente(page, ID_CLIENTE);
     await expect(page.locator('#idArticulo')).toBeVisible({ timeout: 10000 });

@@ -20,7 +20,12 @@ const NOMBRE_CLIENTE = '[E2E venta] Cliente pedido guardar';
 const ID_ARTICULO = 14678;
 
 test.describe('Pedido — recorrido completo de guardado', () => {
-  test('T1 componer y guardar deja el pedido en el listado', async ({ page }) => {
+  test('T1 componer y guardar deja el pedido en el listado', {
+    tag: ['@estado-actual', '@pedido', '@guardado'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Componer un pedido y guardarlo lo deja en el listado como «Guardado». El recorrido registra además el error de JavaScript que salta al elegir cliente, que no impide guardar.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedido.php');
 
     const erroresDePagina = [];

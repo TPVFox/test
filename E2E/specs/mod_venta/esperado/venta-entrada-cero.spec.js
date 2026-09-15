@@ -1,5 +1,5 @@
 /**
- * Criterio de aceptación: el cero es un valor legítimo en cantidad y en precio.
+ * Comportamiento esperado: el cero es un valor legítimo en cantidad y en precio.
  *
  * Síntoma: teclear `0` en la cantidad de una línea abre un aviso del navegador —«No es correcto
  * el numero»— y el campo vuelve solo a `1`. En el precio ocurre lo mismo y el campo vuelve al
@@ -35,9 +35,17 @@ async function pedidoConUnaLinea(page) {
   await expect(page.locator('#Unidad_Fila_1')).toBeVisible({ timeout: 10000 });
 }
 
-test.describe('Venta — el cero como valor de entrada', { tag: '@criterio' }, () => {
+test.describe('Venta — el cero como valor de entrada', () => {
 
-  test.fail('T1 teclear cantidad 0 deja el cero, sin aviso ni reposición', async ({ page }) => {
+  test.fail('T1 teclear cantidad 0 deja el cero, sin aviso ni reposición', {
+    tag: ['@esperado', '@pedido', '@entrada', '@validacion', '@directo', '@alto'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Teclear 0 en la cantidad de una línea y pulsar Intro abre el aviso «No es correcto el numero» y el campo vuelve a 1.' },
+      { type: 'Qué debería ocurrir', description: 'Que el cero se acepte: es legítimo para una línea de obsequio o una corrección.' },
+      { type: 'Por qué ocurre', description: 'La validación numérica del navegador rechaza toda cadena que empiece por 0 salvo que le siga un punto decimal: 0 no pasa y 0.0 sí.' },
+      { type: 'Cómo debería funcionar', description: 'Que el cero pase la validación, como ya pasa 0.0.' },
+    ],
+  }, async ({ page }) => {
     await pedidoConUnaLinea(page);
 
     // Si la validación rechaza el cero, el navegador abre un alert. Se recogen en vez de
@@ -57,7 +65,15 @@ test.describe('Venta — el cero como valor de entrada', { tag: '@criterio' }, (
     await expect(page.locator('#Unidad_Fila_1')).toHaveValue('0', { timeout: 2000 });
   });
 
-  test.fail('T2 teclear precio 0 deja el cero, sin aviso ni reposición', async ({ page }) => {
+  test.fail('T2 teclear precio 0 deja el cero, sin aviso ni reposición', {
+    tag: ['@esperado', '@pedido', '@entrada', '@validacion', '@directo', '@alto'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Teclear 0 en el precio de una línea y pulsar Intro abre el mismo aviso y el campo vuelve al precio anterior.' },
+      { type: 'Qué debería ocurrir', description: 'Que el precio cero se acepte.' },
+      { type: 'Por qué ocurre', description: 'La validación numérica del navegador rechaza toda cadena que empiece por 0 salvo que le siga un punto decimal: 0 no pasa y 0.0 sí.' },
+      { type: 'Cómo debería funcionar', description: 'Que el cero pase la validación, como ya pasa 0.0.' },
+    ],
+  }, async ({ page }) => {
     await pedidoConUnaLinea(page);
 
     const avisos = [];

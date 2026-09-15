@@ -12,7 +12,12 @@ const ID_CLIENTE = 928; // '[E2E venta] Cliente factura teclado'
 const ID_ARTICULO = 14678;
 
 test.describe('Factura — añadir producto por teclado', () => {
-  test('T1 escribir el id exacto y pulsar Intro añade la línea, sin errores de página', async ({ page }) => {
+  test('T1 escribir el id exacto y pulsar Intro añade la línea, sin errores de página', {
+    tag: ['@estado-actual', '@factura', '@teclado', '@entrada'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Tecleando el identificador exacto de un artículo y pulsando Intro se añade la línea, sin ningún error de página.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/factura.php');
 
     const erroresDePagina = [];

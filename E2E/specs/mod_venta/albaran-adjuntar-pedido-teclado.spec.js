@@ -17,7 +17,12 @@ const ID_CLIENTE = 927; // '[E2E venta] Cliente albaran adjunto pedido'
 const NUM_PEDIDO_GUARDADO = 1; // support/sembrar-e2e-venta.php
 
 test.describe('Albarán — adjuntar pedido guardado por teclado', () => {
-  test('T1 teclear el número del pedido y pulsar Intro trae sus líneas al albarán', async ({ page }) => {
+  test('T1 teclear el número del pedido y pulsar Intro trae sus líneas al albarán', {
+    tag: ['@estado-actual', '@albaran', '@pedido', '@teclado', '@adjuntos'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Tecleando el número de un pedido guardado en la caja de adjuntos, sus líneas pasan al albarán y el pedido queda como adjunto con su icono de retirar.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaran.php');
 
     await seleccionarCliente(page, ID_CLIENTE);

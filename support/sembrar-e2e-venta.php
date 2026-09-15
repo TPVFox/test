@@ -1,6 +1,6 @@
 <?php
 /**
- * Siembra persistente para los recorridos E2E de mod_venta (PCP-TPY, componente 1).
+ * Siembra persistente para los recorridos E2E de mod_venta.
  *
  * A diferencia de la siembra que usan los casos de Integration/PHP —dentro de una
  * transaccion que se deshace al terminar—, un recorrido de navegador corre contra el
@@ -10,8 +10,8 @@
  *
  * Los articulos y el cliente llevan el prefijo `[E2E venta]` en el nombre, precisamente
  * para que se distingan a simple vista de cualquier dato real y de los fixtures de otros
- * PCP (los tres articulos de PCP-TPX ya presentes en esta base no sirven aqui: sus nombres
- * son de comprobacion de stock entre ejercicios, no de venta).
+ * modulos (los tres articulos de la comprobacion de stock entre ejercicios ya presentes en
+ * esta base no sirven aqui: sus nombres son de esa comprobacion, no de venta).
  *
  * Uso: php support/sembrar-e2e-venta.php
  *
@@ -123,27 +123,36 @@ $nombresCliente = [
     'borrador_otro'      => [953, PREFIJO . 'Borrador otro documento'],
     'borrador_contraste' => [954, PREFIJO . 'Borrador contraste'],
 
-    // Criterios de aceptacion: un cliente por recorrido, con su propia limpieza mas abajo.
+    // Comportamiento esperado: un cliente por recorrido, con su propia limpieza mas abajo.
     // Los recorridos de esta tanda afirman el comportamiento correcto y hoy fallan, pero
     // llegan a componer documentos igual, de modo que necesitan quedar limpios cada pasada.
-    'cc_inyeccion'       => [955, PREFIJO . 'CC inyeccion en busqueda'],
-    'cc_sinlineas_ped'   => [956, PREFIJO . 'CC sin lineas pedido'],
-    'cc_sinlineas_alb'   => [957, PREFIJO . 'CC sin lineas albaran'],
-    'cc_sinlineas_fac'   => [958, PREFIJO . 'CC sin lineas factura'],
-    'cc_huerfano'        => [959, PREFIJO . 'CC borrador huerfano'],
-    'cc_albfacturado'    => [960, PREFIJO . 'CC albaran facturado'],
-    'cc_existencias'     => [961, PREFIJO . 'CC suelo existencias'],
-    'cc_estadocruzado'   => [962, PREFIJO . 'CC estado cruzado'],
+    'esperado_inyeccion'       => [955, PREFIJO . 'Esperado inyeccion en busqueda'],
+    'esperado_sinlineas_ped'   => [956, PREFIJO . 'Esperado sin lineas pedido'],
+    'esperado_sinlineas_alb'   => [957, PREFIJO . 'Esperado sin lineas albaran'],
+    'esperado_sinlineas_fac'   => [958, PREFIJO . 'Esperado sin lineas factura'],
+    'esperado_huerfano'        => [959, PREFIJO . 'Esperado borrador huerfano'],
+    'esperado_albfacturado'    => [960, PREFIJO . 'Esperado albaran dos facturas'],
+    'esperado_existencias'     => [961, PREFIJO . 'Esperado suelo existencias'],
+    'esperado_estadocruzado'   => [962, PREFIJO . 'Esperado estado cruzado'],
     // Guardado atomico: clientes propios, no los de «sin lineas». Los dos recorridos corren en
     // paralelo y, compartiendo cliente, uno encontraba el borrador del otro y se quedaba parado.
-    'cc_atomico_ped'     => [963, PREFIJO . 'CC guardado atomico pedido'],
-    'cc_atomico_alb'     => [964, PREFIJO . 'CC guardado atomico albaran'],
-    'cc_atomico_fac'     => [965, PREFIJO . 'CC guardado atomico factura'],
+    'esperado_atomico_ped'     => [963, PREFIJO . 'Esperado guardado atomico pedido'],
+    'esperado_atomico_alb'     => [964, PREFIJO . 'Esperado guardado atomico albaran'],
+    'esperado_atomico_fac'     => [965, PREFIJO . 'Esperado guardado atomico factura'],
 ];
 
 $idsCliente = [];
 foreach ($nombresCliente as $clave => [$idFijo, $nombreCliente]) {
     $idCliente = existente($db, 'clientes', 'Nombre', $nombreCliente);
+    // Si el nombre cambio entre versiones de la siembra, el identificador fijo ya existe: se
+    // renombra en vez de insertar, que chocaria con la clave primaria.
+    if ($idCliente === null && $db->query("SELECT 1 FROM clientes WHERE idClientes = {$idFijo}")->num_rows > 0) {
+        $renombrar = $db->prepare('UPDATE clientes SET Nombre = ? WHERE idClientes = ?');
+        $renombrar->bind_param('si', $nombreCliente, $idFijo);
+        $renombrar->execute();
+        $idCliente = $idFijo;
+        echo "Cliente renombrado: {$nombreCliente} (id {$idCliente})\n";
+    }
     if ($idCliente === null) {
         $idCliente = insertarCliente($db, $idFijo, $nombreCliente);
         echo "Cliente sembrado: {$nombreCliente} (id {$idCliente})\n";
@@ -166,30 +175,30 @@ borrarDocumentosDeCliente($db, (int) $idsCliente['factura_guardar']);
 echo 'Documentos de los recorridos de guardado retirados (clientes '
     . "{$idsCliente['albaran_guardar']}, {$idsCliente['pedido_guardar']}, {$idsCliente['factura_guardar']})\n";
 
-// --- Lo mismo para los recorridos de criterio de aceptacion -----------------------------
+// --- Lo mismo para los recorridos de comportamiento esperado -----------------------------
 //
 // Son los que afirman el comportamiento correcto y hoy fallan. Fallar no les impide dejar
 // rastro: componen su documento, crean su borrador y algunos intentan un guardado que la
 // base rechaza a medias. Sin esta limpieza la segunda pasada parte de lo que dejo la
 // primera y el recorrido deja de medir lo que dice medir.
-$clientesDeCriterio = [
-    'cc_inyeccion',
-    'cc_sinlineas_ped',
-    'cc_sinlineas_alb',
-    'cc_sinlineas_fac',
-    'cc_huerfano',
-    'cc_albfacturado',
-    'cc_existencias',
-    'cc_estadocruzado',
-    'cc_atomico_ped',
-    'cc_atomico_alb',
-    'cc_atomico_fac',
+$clientesEsperado = [
+    'esperado_inyeccion',
+    'esperado_sinlineas_ped',
+    'esperado_sinlineas_alb',
+    'esperado_sinlineas_fac',
+    'esperado_huerfano',
+    'esperado_albfacturado',
+    'esperado_existencias',
+    'esperado_estadocruzado',
+    'esperado_atomico_ped',
+    'esperado_atomico_alb',
+    'esperado_atomico_fac',
 ];
-foreach ($clientesDeCriterio as $clave) {
+foreach ($clientesEsperado as $clave) {
     borrarDocumentosDeCliente($db, (int) $idsCliente[$clave]);
     borrarPedidosDeCliente($db, (int) $idsCliente[$clave]);
 }
-echo 'Documentos de los recorridos de criterio retirados (clientes 955-965)' . "\n";
+echo 'Documentos de los recorridos de comportamiento esperado retirados (clientes 955-965)' . "\n";
 
 // Un pedido 'Guardado' para el cliente que prueba adjuntar pedido -> albaran
 // (BuscarAdjunto.php busca por Numpedcli, idCliente y estado="Guardado"). Idempotente por
@@ -725,7 +734,7 @@ $prepararClienteDeBorrador($idClienteOtroDocumento);
 $albaranDisponible($idClienteOtroDocumento, 810010);
 echo "Albaran del otro documento rehecho (cliente {$idClienteOtroDocumento}): numero 810010\n";
 
-// --- Criterio de aceptacion: el estado no se contagia entre tipos de documento ----------
+// --- Comportamiento esperado: el estado no se contagia entre tipos de documento ----------
 //
 // El despacho de cambio de estado distingue el tipo con asignacion en vez de comparacion, de
 // modo que las tres ramas se ejecutan siempre y un cambio alcanza al pedido, al albaran y a
@@ -737,12 +746,12 @@ echo "Albaran del otro documento rehecho (cliente {$idClienteOtroDocumento}): nu
 //
 // Escenario propio, separado del de 'borrador_estado' (factura 810010), porque aquel lo
 // consume su recorrido y los dos correrian en paralelo sobre la misma fila.
-$idClienteEstadoCruzado = (int) $idsCliente['cc_estadocruzado'];
-$rehacerFacturaDeBorrador('cc_estadocruzado', 810012, 830962);
+$idClienteEstadoCruzado = (int) $idsCliente['esperado_estadocruzado'];
+$rehacerFacturaDeBorrador('esperado_estadocruzado', 810012, 830962);
 $albaranDisponible($idClienteEstadoCruzado, 810012);
 echo "Estado cruzado sembrado (cliente {$idClienteEstadoCruzado}): factura id=810012 y albaran con numero 810012\n";
 
-// --- Criterio de aceptacion: un albaran no se incorpora a dos facturas ------------------
+// --- Comportamiento esperado: un albaran no se incorpora a dos facturas ------------------
 //
 // Al incorporar un albaran a una factura, el navegador lo marca como procesado para que ninguna
 // otra lo encuentre: la busqueda por numero solo ofrece albaranes en «Guardado». Pero la marca
@@ -754,16 +763,15 @@ echo "Estado cruzado sembrado (cliente {$idClienteEstadoCruzado}): factura id=81
 // - el 830960, cuyo numero no es el identificador de ningun documento: la marca no le llega;
 // - otro con numero igual a su identificador: la marca si le llega. Es el control positivo.
 //
-// El cliente conserva su nombre de siembra ('CC albaran facturado'), que viene de un escenario
-// anterior; cambiarlo crearia otro cliente, porque la siembra de clientes es idempotente por
-// nombre. Su limpieza en cada pasada ya la hace el bloque de clientes de criterio.
-$idClienteDobleFactura = (int) $idsCliente['cc_albfacturado'];
+// El cliente se renombra por identificador si su nombre cambia entre versiones de la siembra.
+// Su limpieza en cada pasada ya la hace el bloque de clientes de comportamiento esperado.
+$idClienteDobleFactura = (int) $idsCliente['esperado_albfacturado'];
 $albaranDisponible($idClienteDobleFactura, 830960);
 $idAlbaranAlineado = $albaranDisponible($idClienteDobleFactura);
 echo "Albaranes para facturar dos veces (cliente {$idClienteDobleFactura}): numero 830960 desalineado, "
     . "y el {$idAlbaranAlineado} con numero igual a su identificador\n";
 
-// --- Criterio de aceptacion: no se vende por debajo de cero -----------------------------
+// --- Comportamiento esperado: no se vende por debajo de cero -----------------------------
 //
 // El movimiento de existencias no tiene suelo: con dos disponibles se venden cinco y el saldo
 // queda en -3, sin aviso. Hace falta un articulo propio, porque el recorrido deja su ficha en
@@ -780,7 +788,7 @@ echo "Albaranes para facturar dos veces (cliente {$idClienteDobleFactura}): nume
 $ID_ARTICULO_ESCASO = 14680;
 // Los nombres no empiezan por «Manzana»: los recorridos de busqueda por descripcion teclean
 // «[E2E venta] Manzana» y cuentan exactamente dos coincidencias, Golden y Reineta.
-$nombreEscaso = PREFIJO . 'CC Pera escasa';
+$nombreEscaso = PREFIJO . 'Pera escasa';
 // Cada pieza comprueba su propia tabla: si una pasada anterior quedo a medias, la siguiente
 // completa lo que falte en vez de darlo por hecho porque el articulo ya exista.
 // Se comprueba por identificador, no por nombre: el nombre ha cambiado entre versiones de la
@@ -812,7 +820,7 @@ $db->query("DELETE FROM articulosStocks WHERE idArticulo = {$ID_ARTICULO_ESCASO}
 $siembra->existenciaRegistrada($ID_ARTICULO_ESCASO, 2.0);
 echo "Existencias del articulo escaso repuestas: {$ID_ARTICULO_ESCASO} con 2 unidades\n";
 
-// --- Criterio de aceptacion: el guardado se completa entero o no deja rastro ------------
+// --- Comportamiento esperado: el guardado se completa entero o no deja rastro ------------
 //
 // Las tres clases de venta escriben la descripcion de la linea concatenandola entre comillas
 // dobles, sin escapar. Un articulo cuyo nombre lleve una comilla doble rompe la sentencia de
@@ -824,7 +832,7 @@ echo "Existencias del articulo escaso repuestas: {$ID_ARTICULO_ESCASO} con 2 uni
 // facturado, o un pedido ya servido— los bloquea la propia pantalla, que abre esos documentos
 // en solo lectura.
 $ID_ARTICULO_COMILLA = 14681;
-$nombreComilla = PREFIJO . 'CC Pera 5" premium';
+$nombreComilla = PREFIJO . 'Pera 5" premium';
 if ($db->query("SELECT 1 FROM articulos WHERE idArticulo = {$ID_ARTICULO_COMILLA}")->num_rows === 0) {
     $siembra->articulo($nombreComilla, [
         'id'          => $ID_ARTICULO_COMILLA,

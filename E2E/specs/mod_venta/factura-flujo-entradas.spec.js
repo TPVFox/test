@@ -32,7 +32,12 @@ async function idDeLaFacturaConBorrador(page) {
 }
 
 test.describe('Factura — estados de entrada de la pantalla', () => {
-  test('T1 sin parámetros: factura nueva, sin fila de entrada ni botones, con el cliente por elegir', async ({ page }) => {
+  test('T1 sin parámetros: factura nueva, sin fila de entrada ni botones, con el cliente por elegir', {
+    tag: ['@estado-actual', '@factura', '@entrada'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Abierta sin parámetros, la pantalla ofrece una factura nueva: sin fila de entrada ni botones, y con el cliente por elegir.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/factura.php');
 
     await expect(page.locator('#estado')).toHaveValue('Nuevo');
@@ -42,7 +47,12 @@ test.describe('Factura — estados de entrada de la pantalla', () => {
     await expect(page.locator('#id_cliente')).toBeEditable();
   });
 
-  test('T2 abierta desde el enlace de ver: todo en solo lectura', async ({ page }) => {
+  test('T2 abierta desde el enlace de ver: todo en solo lectura', {
+    tag: ['@estado-actual', '@factura', '@entrada'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Desde el enlace de ver del listado, la factura se abre en solo lectura: sin fila de entrada, sin Guardar y con el cliente bloqueado.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
     const idConBorrador = await idDeLaFacturaConBorrador(page);
 
@@ -69,7 +79,12 @@ test.describe('Factura — estados de entrada de la pantalla', () => {
    * botones de Guardar y Cancelar: `factura.php` los oculta mientras no exista temporal, y
    * el temporal no nace hasta que se añade la primera línea o el primer albarán.
    */
-  test('T3 abierta para editar: se puede escribir, pero no hay todavía con qué guardar', async ({ page }) => {
+  test('T3 abierta para editar: se puede escribir, pero no hay todavía con qué guardar', {
+    tag: ['@estado-actual', '@factura', '@entrada'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Desde el enlace de editar se abre la fila de entrada, pero Guardar y Cancelar no aparecen hasta que la primera línea o el primer albarán crean el documento en curso.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
     const idConBorrador = await idDeLaFacturaConBorrador(page);
 
@@ -91,7 +106,12 @@ test.describe('Factura — estados de entrada de la pantalla', () => {
    * degrada la acción a 'ver' y ofrece el enlace al borrador. Es el mismo control que el
    * pedido tiene para el documento ya servido, aplicado a otra condición.
    */
-  test('T4 una factura con borrador abierto se abre en solo lectura y enlaza al borrador', async ({ page }) => {
+  test('T4 una factura con borrador abierto se abre en solo lectura y enlaza al borrador', {
+    tag: ['@estado-actual', '@factura', '@entrada', '@borrador'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Una factura con un borrador abierto no se deja editar: se abre en solo lectura, avisa y ofrece el enlace al borrador.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
     const idConBorrador = await idDeLaFacturaConBorrador(page);
 
@@ -108,7 +128,15 @@ test.describe('Factura — estados de entrada de la pantalla', () => {
    * su número de serie y la vista del documento con el identificador de su fila. Mientras
    * ambos coincidan nadie lo nota; no coinciden.
    */
-  test('T5 el listado y la vista de la factura la nombran con dos números distintos', async ({ page }) => {
+  test('T5 el listado y la vista de la factura la nombran con dos números distintos', {
+    tag: ['@estado-actual', '@defecto', '@factura', '@entrada', '@numeracion', '@alto'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'La misma factura se nombra con dos números distintos: el listado la titula con su número de serie y su pantalla con el identificador de su fila.' },
+      { type: 'Qué debería ocurrir', description: 'Que las dos pantallas nombren la factura con el mismo número.' },
+      { type: 'Por qué ocurre', description: 'El número de la factura y el identificador de la fila son campos distintos, y cada pantalla usa uno.' },
+      { type: 'Cómo debería funcionar', description: 'Que toda pantalla muestre el número de serie y el identificador quede como dato interno.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
     const idConBorrador = await idDeLaFacturaConBorrador(page);
 

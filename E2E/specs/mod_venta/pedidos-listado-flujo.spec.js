@@ -19,7 +19,12 @@ const ID_CLIENTE = 934; // '[E2E venta] Cliente pedido listado'
 const NOMBRE_CLIENTE = '[E2E venta] Cliente pedido listado';
 
 test.describe('Pedidos — flujo del listado', () => {
-  test('T1 el listado muestra los pedidos guardados con su cliente y su estado', async ({ page }) => {
+  test('T1 el listado muestra los pedidos guardados con su cliente y su estado', {
+    tag: ['@estado-actual', '@pedido', '@listado'],
+    annotation: [
+      { type: 'Comportamiento', description: 'El listado muestra los pedidos guardados de cada cliente con su estado.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedidosListado.php');
 
     const filasDelCliente = page.locator('table.table-bordered tbody tr').filter({ hasText: NOMBRE_CLIENTE });
@@ -28,7 +33,12 @@ test.describe('Pedidos — flujo del listado', () => {
     await expect(filasDelCliente.filter({ hasText: 'Procesado' })).toHaveCount(1);
   });
 
-  test('T2 buscar por el nombre del cliente acota el listado a sus pedidos', async ({ page }) => {
+  test('T2 buscar por el nombre del cliente acota el listado a sus pedidos', {
+    tag: ['@estado-actual', '@pedido', '@listado', '@busqueda'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Buscar por el nombre del cliente acota el listado a sus pedidos.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedidosListado.php');
 
     await page.fill('form[name="formBuscar"] input[name="buscar"]', 'pedido listado');
@@ -48,7 +58,12 @@ test.describe('Pedidos — flujo del listado', () => {
    * `posiblesEstados()`, que es el catálogo escrito en la clase. Son dos fuentes distintas
    * para la misma idea: el desplegable ofrece lo que hay, no lo que está previsto.
    */
-  test('T3 el filtro por estado ofrece los estados que hay en la tabla', async ({ page }) => {
+  test('T3 el filtro por estado ofrece los estados que hay en la tabla', {
+    tag: ['@estado-actual', '@pedido', '@listado', '@estados'],
+    annotation: [
+      { type: 'Comportamiento', description: 'El filtro por estado ofrece los estados que existen en la tabla, no los de un catálogo fijo.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedidosListado.php');
 
     const opciones = page.locator('form[name="formFiltrar"] select[name="filtro"] option');
@@ -57,7 +72,12 @@ test.describe('Pedidos — flujo del listado', () => {
     await expect(opciones.filter({ hasText: 'Procesado' })).toHaveCount(1);
   });
 
-  test('T4 filtrar por un estado deja solo los pedidos que lo tienen', async ({ page }) => {
+  test('T4 filtrar por un estado deja solo los pedidos que lo tienen', {
+    tag: ['@estado-actual', '@pedido', '@listado', '@estados'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Filtrar por un estado deja solo los pedidos que lo tienen.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedidosListado.php');
 
     await page.selectOption('form[name="formFiltrar"] select[name="filtro"]', 'Procesado');
@@ -73,7 +93,12 @@ test.describe('Pedidos — flujo del listado', () => {
    * paginación decide. Combinarlos es la condición que ninguno de los dos casos anteriores
    * recorre por separado.
    */
-  test('T6 buscar y filtrar a la vez acota por las dos condiciones', async ({ page }) => {
+  test('T6 buscar y filtrar a la vez acota por las dos condiciones', {
+    tag: ['@estado-actual', '@pedido', '@listado', '@busqueda', '@estados'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Buscar y filtrar a la vez acota por las dos condiciones.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedidosListado.php');
 
     await page.fill('form[name="formBuscar"] input[name="buscar"]', 'pedido listado');
@@ -96,7 +121,12 @@ test.describe('Pedidos — flujo del listado', () => {
    * con Cancelar. Que el borrador aparezca aquí es lo que hace que el pedido del que
    * procede quede bloqueado mientras exista.
    */
-  test('T5 un borrador aparece en el listado de abiertos y se retira al cancelarlo', async ({ page }) => {
+  test('T5 un borrador aparece en el listado de abiertos y se retira al cancelarlo', {
+    tag: ['@estado-actual', '@pedido', '@listado', '@borrador'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Un documento en curso aparece en la lista de pedidos abiertos con su enlace, y desaparece al cancelarlo desde su pantalla.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedido.php');
     await seleccionarCliente(page, ID_CLIENTE);
 

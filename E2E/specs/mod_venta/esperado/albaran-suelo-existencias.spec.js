@@ -1,5 +1,5 @@
 /**
- * Criterio de aceptación: vender más de lo disponible no deja el inventario en negativo sin
+ * Comportamiento esperado: vender más de lo disponible no deja el inventario en negativo sin
  * decirlo.
  *
  * Síntoma: un artículo con dos unidades registradas se vende de cinco en un albarán, y el
@@ -26,13 +26,21 @@ const { test, expect } = require('@playwright/test');
 const { iniciarSesion } = require('../../../fixtures/autenticacion');
 const { seleccionarCliente } = require('../../../fixtures/seleccionarCliente');
 
-const ID_CLIENTE = 961; // '[E2E venta] CC suelo existencias'
-const ID_ARTICULO_ESCASO = 14680; // '[E2E venta] CC Pera escasa', sembrado con 2 unidades
+const ID_CLIENTE = 961; // '[E2E venta] Esperado suelo existencias'
+const ID_ARTICULO_ESCASO = 14680; // '[E2E venta] Pera escasa', sembrado con 2 unidades
 const UNIDADES_DISPONIBLES = 2;
 const UNIDADES_QUE_SE_VENDEN = 5;
 
-test.describe('Albarán — suelo de existencias', { tag: '@criterio' }, () => {
-  test.fail('T1 vender más de lo disponible avisa al operador', async ({ page }) => {
+test.describe('Albarán — suelo de existencias', () => {
+  test.fail('T1 vender más de lo disponible avisa al operador', {
+    tag: ['@esperado', '@albaran', '@existencias', '@directo', '@alto'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Con 2 unidades registradas se venden 5 en un albarán, sin ningún aviso, y el saldo queda en -3.' },
+      { type: 'Qué debería ocurrir', description: 'Que el operador reciba un aviso antes de dejar el inventario en negativo.' },
+      { type: 'Por qué ocurre', description: 'El movimiento de existencias resta lo que se le pida sin comprobarlo contra el saldo disponible.' },
+      { type: 'Cómo debería funcionar', description: 'Advertir al vender por encima de lo disponible; si además se impide es una decisión de negocio pendiente.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaran.php');
     await seleccionarCliente(page, ID_CLIENTE);
     await expect(page.locator('#idArticulo')).toBeVisible({ timeout: 10000 });

@@ -21,7 +21,12 @@ const NOMBRE_CLIENTE = '[E2E venta] Cliente albaran guardar';
 const ID_ARTICULO = 14678;
 
 test.describe('Albarán — recorrido completo de guardado', () => {
-  test('T1 componer y guardar deja el albarán en el listado', async ({ page }) => {
+  test('T1 componer y guardar deja el albarán en el listado', {
+    tag: ['@estado-actual', '@albaran', '@guardado'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Componer un albarán y guardarlo lo deja en el listado como «Guardado», sin errores de página.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaran.php');
 
     const erroresDePagina = [];

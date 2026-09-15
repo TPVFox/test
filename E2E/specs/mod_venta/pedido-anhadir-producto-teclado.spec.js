@@ -13,7 +13,12 @@ const ID_CLIENTE = 921; // '[E2E venta] Cliente teclado', support/sembrar-e2e-ve
 const ID_ARTICULO = 14678; // '[E2E venta] Manzana Golden'
 
 test.describe('Pedido — añadir producto por teclado', () => {
-  test('T1 escribir el id exacto y pulsar Intro añade la línea', async ({ page }) => {
+  test('T1 escribir el id exacto y pulsar Intro añade la línea', {
+    tag: ['@estado-actual', '@pedido', '@teclado', '@entrada'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Tecleando el identificador exacto de un artículo y pulsando Intro, la línea se añade directamente, sin listado, y el foco vuelve a la caja del artículo para seguir tecleando.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedido.php');
 
     await seleccionarCliente(page, ID_CLIENTE);

@@ -14,7 +14,15 @@ const { iniciarSesion } = require('../../fixtures/autenticacion');
 const TOTAL_RECONOCIBLE = '12,345.67'; // support/sembrar-e2e-venta.php
 
 test.describe('Factura — borrador sin cliente', () => {
-  test('T1 el borrador está en el listado sin cliente y la pantalla ofrece guardarlo igual', async ({ page }) => {
+  test('T1 el borrador está en el listado sin cliente y la pantalla ofrece guardarlo igual', {
+    tag: ['@estado-actual', '@defecto', '@factura', '@borrador', '@validacion', '@alto'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Un borrador de factura sin cliente aparece en el listado con la columna de cliente vacía, se abre con normalidad y ofrece Guardar, aunque la base va a rechazar la factura.' },
+      { type: 'Qué debería ocurrir', description: 'Que no pueda existir un borrador sin cliente, o que la pantalla no ofrezca emitirlo.' },
+      { type: 'Por qué ocurre', description: 'El servidor escribe el borrador con el cliente que reciba sin comprobar que sea alguno; el único control está en el navegador.' },
+      { type: 'Cómo debería funcionar', description: 'Comprobar el cliente en el servidor antes de escribir el borrador y antes de ofrecer la emisión.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
 
     const fila = page

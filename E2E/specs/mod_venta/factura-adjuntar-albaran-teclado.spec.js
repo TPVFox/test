@@ -13,7 +13,12 @@ const ID_CLIENTE = 929; // '[E2E venta] Cliente factura adjunto albaran'
 const NUM_ALBARAN_GUARDADO = 1; // support/sembrar-e2e-venta.php
 
 test.describe('Factura — adjuntar albarán guardado por teclado', () => {
-  test('T1 teclear el número del albarán y pulsar Intro trae sus líneas a la factura', async ({ page }) => {
+  test('T1 teclear el número del albarán y pulsar Intro trae sus líneas a la factura', {
+    tag: ['@estado-actual', '@factura', '@albaran', '@teclado', '@adjuntos'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Tecleando el número de un albarán guardado en la caja de adjuntos, sus líneas pasan a la factura y el albarán queda como adjunto con su icono de retirar.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/factura.php');
 
     await seleccionarCliente(page, ID_CLIENTE);

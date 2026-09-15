@@ -1,5 +1,5 @@
 /**
- * Criterio de aceptación: la factura de un cliente sin forma de vencimiento debe abrirse.
+ * Comportamiento esperado: la factura de un cliente sin forma de vencimiento debe abrirse.
  *
  * Síntoma: la pantalla responde 500 para cualquier cliente cuya ficha no tenga forma de
  * vencimiento. El documento fiscal existe, está en el listado, y es inalcanzable desde el
@@ -14,7 +14,7 @@
  * líneas más arriba para el caso de factura nueva. Es la Crítica más barata del componente.
  *
  * Declarado con `test.fail()`. El «antes» queda documentado, sin tocar, en
- * `factura-defecto-abrir-sin-vencimiento.spec.js` y en `factura-huecos-mct.spec.js` T2.
+ * `factura-defecto-abrir-sin-vencimiento.spec.js` y en `factura-combinaciones-no-cubiertas.spec.js` T2.
  */
 
 const { test, expect } = require('@playwright/test');
@@ -36,8 +36,16 @@ async function idDeSuFactura(page) {
   return new URL(enlace, 'http://x/').searchParams.get('id');
 }
 
-test.describe('Factura — cliente sin forma de vencimiento', { tag: '@criterio' }, () => {
-  test.fail('T1 su factura se abre desde el listado en vez de responder 500', async ({ page }) => {
+test.describe('Factura — cliente sin forma de vencimiento', () => {
+  test.fail('T1 su factura se abre desde el listado en vez de responder 500', {
+    tag: ['@esperado', '@factura', '@entrada', '@vencimiento', '@directo', '@critico'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'La factura de un cliente sin forma de vencimiento responde con error de servidor al abrirla.' },
+      { type: 'Qué debería ocurrir', description: 'Que la factura se abra.' },
+      { type: 'Por qué ocurre', description: 'La pantalla lee la forma de vencimiento de la ficha del cliente sin comprobar que exista, y la columna admite nulo.' },
+      { type: 'Cómo debería funcionar', description: 'Aplicar el vencimiento por defecto que la propia pantalla ya usa para una factura nueva.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
 
     const idFactura = await idDeSuFactura(page);
@@ -47,7 +55,15 @@ test.describe('Factura — cliente sin forma de vencimiento', { tag: '@criterio'
     await expect(page.locator('#estado')).toBeVisible({ timeout: 3000 });
   });
 
-  test.fail('T2 esa factura muestra una fecha de vencimiento, la que sea por defecto', async ({ page }) => {
+  test.fail('T2 esa factura muestra una fecha de vencimiento, la que sea por defecto', {
+    tag: ['@esperado', '@factura', '@entrada', '@vencimiento', '@directo', '@critico'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'La pantalla no llega a montarse, así que no muestra ninguna fecha de vencimiento.' },
+      { type: 'Qué debería ocurrir', description: 'Que muestre una fecha de vencimiento, la que resulte del valor por defecto.' },
+      { type: 'Por qué ocurre', description: 'La pantalla lee la forma de vencimiento de la ficha del cliente sin comprobar que exista, y la columna admite nulo.' },
+      { type: 'Cómo debería funcionar', description: 'Aplicar el vencimiento por defecto que la propia pantalla ya usa para una factura nueva.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
 
     const idFactura = await idDeSuFactura(page);

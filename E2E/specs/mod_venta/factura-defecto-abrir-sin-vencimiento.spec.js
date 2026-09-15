@@ -18,7 +18,15 @@ const { iniciarSesion } = require('../../fixtures/autenticacion');
 const NOMBRE_CLIENTE = '[E2E venta] Cliente factura sin vencimiento';
 
 test.describe('Factura — abrir una factura de cliente sin forma de vencimiento', () => {
-  test('T1 la factura está en el listado y su propia pantalla responde 500', async ({ page }) => {
+  test('T1 la factura está en el listado y su propia pantalla responde 500', {
+    tag: ['@estado-actual', '@defecto', '@factura', '@entrada', '@vencimiento', '@critico'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'La factura de un cliente cuya ficha no tiene forma de vencimiento está en el listado, pero su pantalla responde con error de servidor.' },
+      { type: 'Qué debería ocurrir', description: 'Que la factura se abra con un vencimiento por defecto.' },
+      { type: 'Por qué ocurre', description: 'La pantalla lee la forma de vencimiento de la ficha del cliente sin comprobar que exista, y la columna admite nulo.' },
+      { type: 'Cómo debería funcionar', description: 'Aplicar el vencimiento por defecto que la propia pantalla ya usa para una factura nueva.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
 
     const fila = page

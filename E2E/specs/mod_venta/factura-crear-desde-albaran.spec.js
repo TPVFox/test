@@ -14,7 +14,15 @@ const { iniciarSesion } = require('../../fixtures/autenticacion');
 const NOMBRE_CLIENTE = '[E2E venta] Cliente factura desde albaran';
 
 test.describe('Factura — crear desde albarán', () => {
-  test('T1 la acción abre la factura del cliente pero sin el albarán que se pidió facturar', async ({ page }) => {
+  test('T1 la acción abre la factura del cliente pero sin el albarán que se pidió facturar', {
+    tag: ['@estado-actual', '@defecto', '@factura', '@albaran', '@adjuntos', '@numeracion', '@alto'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: '«Crear factura desde albarán» abre la factura con el cliente puesto pero sin el albarán que se pidió facturar, y sin ningún aviso.' },
+      { type: 'Qué debería ocurrir', description: 'Que la factura se abra con ese albarán ya incorporado.' },
+      { type: 'Por qué ocurre', description: 'La acción envía el identificador del albarán y la búsqueda que lo recibe consulta por su número; cuando los dos no coinciden, no lo encuentra.' },
+      { type: 'Cómo debería funcionar', description: 'Que la acción y la búsqueda usen el mismo dato: el identificador del albarán.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php');
 
     const fila = page

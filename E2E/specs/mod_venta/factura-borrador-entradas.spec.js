@@ -34,7 +34,12 @@ const FACTURA_LINEA = 810003;
 const FACTURA_FECHA = 810004;
 
 test.describe('Factura emitida — cómo nace su borrador', () => {
-  test('T1 añadir un producto crea el borrador y marca la factura', async ({ page }) => {
+  test('T1 añadir un producto crea el borrador y marca la factura', {
+    tag: ['@estado-actual', '@factura', '@borrador'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Añadir un producto a una factura emitida crea su borrador y la marca como «Sin guardar»; el borrador se abre sin aviso y con Guardar y Cancelar.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
 
     const idTemporal = await crearBorradorAnadiendoProducto(page, FACTURA_PRODUCTO);
@@ -43,7 +48,12 @@ test.describe('Factura emitida — cómo nace su borrador', () => {
     expect(await estadoDeLaFactura(page, FACTURA_PRODUCTO)).toBe('Sin guardar');
   });
 
-  test('T2 incorporar un albarán crea el borrador y marca la factura', async ({ page }) => {
+  test('T2 incorporar un albarán crea el borrador y marca la factura', {
+    tag: ['@estado-actual', '@factura', '@borrador', '@adjuntos'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Incorporar un albarán a una factura emitida crea su borrador y la marca como «Sin guardar»; el borrador se abre sin aviso.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
     await abrirFacturaParaEditar(page, FACTURA_ALBARAN);
 
@@ -58,7 +68,12 @@ test.describe('Factura emitida — cómo nace su borrador', () => {
    * Las líneas que proceden de un albarán se muestran bloqueadas en edición; esta factura se
    * siembra con su línea como directa para que se pueda tocar.
    */
-  test('T3 retirar una línea existente crea el borrador y marca la factura', async ({ page }) => {
+  test('T3 retirar una línea existente crea el borrador y marca la factura', {
+    tag: ['@estado-actual', '@factura', '@borrador'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Retirar una línea directa de una factura emitida crea su borrador y la marca como «Sin guardar»; el borrador se abre sin aviso.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
     await abrirFacturaParaEditar(page, FACTURA_LINEA);
 
@@ -73,7 +88,12 @@ test.describe('Factura emitida — cómo nace su borrador', () => {
    * Cambiar la fecha tiene su propia guarda en el navegador: solo pide el borrador si la
    * pantalla está en edición y la factura tiene cliente.
    */
-  test('T4 cambiar la fecha crea el borrador y marca la factura', async ({ page }) => {
+  test('T4 cambiar la fecha crea el borrador y marca la factura', {
+    tag: ['@estado-actual', '@factura', '@borrador'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Cambiar la fecha de una factura emitida crea su borrador y la marca como «Sin guardar»; el borrador se abre sin aviso.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
     await abrirFacturaParaEditar(page, FACTURA_FECHA);
 

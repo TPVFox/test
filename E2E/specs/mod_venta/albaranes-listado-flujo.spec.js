@@ -20,7 +20,12 @@ const NOMBRE_CLIENTE = '[E2E venta] Cliente albaran listado';
 const ID_ARTICULO = 14678;
 
 test.describe('Albaranes — flujo del listado', () => {
-  test('T1 el listado muestra los albaranes guardados con su cliente y su estado', async ({ page }) => {
+  test('T1 el listado muestra los albaranes guardados con su cliente y su estado', {
+    tag: ['@estado-actual', '@albaran', '@listado'],
+    annotation: [
+      { type: 'Comportamiento', description: 'El listado muestra los albaranes guardados de cada cliente con su estado.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php');
 
     const filasDelCliente = page.locator('table.table-bordered tbody tr').filter({ hasText: NOMBRE_CLIENTE });
@@ -30,7 +35,12 @@ test.describe('Albaranes — flujo del listado', () => {
     await expect(filasDelCliente.filter({ hasText: 'Procesado' })).toHaveCount(1);
   });
 
-  test('T2 buscar por el nombre del cliente acota el listado a sus albaranes', async ({ page }) => {
+  test('T2 buscar por el nombre del cliente acota el listado a sus albaranes', {
+    tag: ['@estado-actual', '@albaran', '@listado', '@busqueda'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Buscar por el nombre del cliente acota el listado a sus albaranes y deja fuera los de otros clientes.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php');
 
     await page.fill('form[name="formBuscar"] input[name="buscar"]', 'listado');
@@ -55,7 +65,12 @@ test.describe('Albaranes — flujo del listado', () => {
    * `posiblesEstados()`, que es el catálogo escrito en la clase. Son dos fuentes distintas
    * para la misma idea: el desplegable ofrece lo que hay, no lo que está previsto.
    */
-  test('T3 el filtro por estado ofrece los estados que hay en la tabla', async ({ page }) => {
+  test('T3 el filtro por estado ofrece los estados que hay en la tabla', {
+    tag: ['@estado-actual', '@albaran', '@listado', '@estados'],
+    annotation: [
+      { type: 'Comportamiento', description: 'El filtro por estado ofrece los estados que existen en la tabla, no los de un catálogo fijo.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php');
 
     const opciones = page.locator('form[name="formFiltrar"] select[name="filtro"] option');
@@ -65,7 +80,12 @@ test.describe('Albaranes — flujo del listado', () => {
     await expect(opciones.filter({ hasText: 'Procesado' })).toHaveCount(1);
   });
 
-  test('T4 filtrar por un estado deja solo los albaranes que lo tienen', async ({ page }) => {
+  test('T4 filtrar por un estado deja solo los albaranes que lo tienen', {
+    tag: ['@estado-actual', '@albaran', '@listado', '@estados'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Filtrar por un estado deja solo los albaranes que lo tienen.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php');
 
     await Promise.all([
@@ -81,7 +101,12 @@ test.describe('Albaranes — flujo del listado', () => {
     }
   });
 
-  test('T5 un temporal aparece en «Albaranes Abiertos» y se cancela desde su propia pantalla', async ({ page }) => {
+  test('T5 un temporal aparece en «Albaranes Abiertos» y se cancela desde su propia pantalla', {
+    tag: ['@estado-actual', '@albaran', '@listado', '@borrador'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Un documento en curso aparece en «Albaranes Abiertos» con su enlace, y desaparece al cancelarlo desde su pantalla.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaran.php');
 
     await seleccionarCliente(page, ID_CLIENTE);

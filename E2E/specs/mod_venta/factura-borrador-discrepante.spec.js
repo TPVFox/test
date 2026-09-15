@@ -41,7 +41,15 @@ async function idDelBorradorSembrado(page) {
 }
 
 test.describe('Factura — borrador que no concuerda con su factura', () => {
-  test('T1 abrir el borrador avisa de estado discrepante y deja la pantalla sin botones', async ({ page }) => {
+  test('T1 abrir el borrador avisa de estado discrepante y deja la pantalla sin botones', {
+    tag: ['@estado-actual', '@defecto', '@factura', '@borrador', '@estados', '@alto'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Al abrir el borrador de una factura que ya no está marcada como «Sin guardar», la pantalla muestra un aviso grave y oculta Guardar y Cancelar: el borrador no se puede confirmar ni descartar desde ella.' },
+      { type: 'Qué debería ocurrir', description: 'Que el borrador siempre pueda confirmarse o descartarse, aunque la pantalla avise de la discrepancia.' },
+      { type: 'Por qué ocurre', description: 'Cualquier aviso grave oculta los dos botones, sea cual sea su motivo; y la factura pierde la marca cuando falla la reescritura o cuando otro documento con su mismo identificador le cambia el estado.' },
+      { type: 'Cómo debería funcionar', description: 'Que el aviso no suprima la salida del borrador, y que la marca no dependa de que nadie más toque la factura.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
 
     await comprobarBorradorSinSalida(page, await idDelBorradorSembrado(page));
@@ -51,7 +59,12 @@ test.describe('Factura — borrador que no concuerda con su factura', () => {
    * El aviso no depende de que el borrador tenga factura, sino del estado en que esté: sin la
    * marca del navegador aparece, y con ella no.
    */
-  test('T2 el aviso depende del estado de la factura: con la marca del navegador no aparece', async ({ page }) => {
+  test('T2 el aviso depende del estado de la factura: con la marca del navegador no aparece', {
+    tag: ['@estado-actual', '@factura', '@borrador', '@estados'],
+    annotation: [
+      { type: 'Comportamiento', description: 'El aviso depende del estado de la factura: con la marca que pone el navegador al crear el borrador no aparece, y sin ella sí.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
 
     await comprobarBorradorSinSalida(page, await idDelBorradorSembrado(page));

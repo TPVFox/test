@@ -49,7 +49,15 @@ test.describe('Pedido — estados discrepantes', () => {
    * pedido cuyo número coincide con el identificador de otro; al adjuntar el primero por su
    * número, el segundo es el que queda marcado como servido.
    */
-  test('T1 servir un pedido marca el que tiene ese número como identificador, no el servido', async ({ page }) => {
+  test('T1 servir un pedido marca el que tiene ese número como identificador, no el servido', {
+    tag: ['@estado-actual', '@defecto', '@pedido', '@albaran', '@estados', '@numeracion', '@critico'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Al incorporar un pedido a un albarán queda marcado como servido otro pedido —el que tiene por identificador el número del incorporado—, y el que de verdad se sirvió sigue disponible.' },
+      { type: 'Qué debería ocurrir', description: 'Que quede marcado como servido el pedido que se incorporó, y solo ese.' },
+      { type: 'Por qué ocurre', description: 'El navegador pide el cambio de estado con el número del pedido y el servidor lo aplica buscando por identificador. Mientras número e identificador coinciden, acierta por casualidad.' },
+      { type: 'Cómo debería funcionar', description: 'Que el cambio de estado viaje y se aplique con el identificador del documento incorporado.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedidosListado.php');
 
     const antes = await pedidosDelCliente(page);
@@ -92,7 +100,12 @@ test.describe('Pedido — estados discrepantes', () => {
    * Un pedido `Procesado` sin ninguna relación con un albarán: la pantalla lo detecta y lo
    * dice, pero el pedido queda inutilizable — no se puede editar ni volver a ofrecer.
    */
-  test('T2 un pedido procesado sin albarán avisa y queda en solo lectura', async ({ page }) => {
+  test('T2 un pedido procesado sin albarán avisa y queda en solo lectura', {
+    tag: ['@estado-actual', '@pedido', '@estados'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Un pedido «Procesado» sin ningún albarán relacionado se abre en solo lectura y la pantalla avisa de que no existe la relación. El pedido queda sin poder editarse ni volver a servirse.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedidosListado.php');
 
     const pedidos = await pedidosDelCliente(page);
@@ -120,7 +133,15 @@ test.describe('Pedido — estados discrepantes', () => {
    * `Guardado` y con su relación escrita, de modo que servir un pedido puede dejarlo
    * inaccesible.
    */
-  test('T3 un pedido guardado con albarán no avisa: la pantalla responde 500', async ({ page }) => {
+  test('T3 un pedido guardado con albarán no avisa: la pantalla responde 500', {
+    tag: ['@estado-actual', '@defecto', '@pedido', '@estados', '@critico'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Un pedido «Guardado» que ya tiene albarán no se puede abrir: la pantalla responde con error de servidor y el cuerpo vacío, ni para ver ni para editar.' },
+      { type: 'Qué debería ocurrir', description: 'Que se abra y avise de que su estado no concuerda con tener albarán.' },
+      { type: 'Por qué ocurre', description: 'La pantalla compone ese aviso llamando a un método sobre una variable que no está definida en ningún sitio del fichero.' },
+      { type: 'Cómo debería funcionar', description: 'Componer el aviso con el objeto del pedido, como ya hace el aviso del caso contrario.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedidosListado.php');
 
     const pedidos = await pedidosDelCliente(page);

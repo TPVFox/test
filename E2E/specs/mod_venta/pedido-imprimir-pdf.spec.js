@@ -19,7 +19,12 @@ const { test, expect } = require('@playwright/test');
 const { iniciarSesion } = require('../../fixtures/autenticacion');
 
 test.describe('Pedido — imprimir PDF', () => {
-  test('T1 el icono de imprimir abre una pestaña nueva con un PDF real', async ({ page }) => {
+  test('T1 el icono de imprimir abre una pestaña nueva con un PDF real', {
+    tag: ['@estado-actual', '@pedido', '@listado', '@impreso'],
+    annotation: [
+      { type: 'Comportamiento', description: 'El icono de imprimir del listado abre una pestaña nueva, y la ruta que devuelve el servidor sirve un PDF real.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedidosListado.php');
 
     const icono = page.locator('a.glyphicon-print').first();

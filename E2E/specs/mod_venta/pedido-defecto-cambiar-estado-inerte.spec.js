@@ -20,7 +20,15 @@ const { test, expect } = require('@playwright/test');
 const { iniciarSesion } = require('../../fixtures/autenticacion');
 
 test.describe('Pedido — defecto: el botón «Cambiar estado» no hace nada', () => {
-  test('T1 marcar una fila y pulsar el botón debería ofrecer elegir el nuevo estado', async ({ page }) => {
+  test.fail('T1 marcar una fila y pulsar el botón debería ofrecer elegir el nuevo estado', {
+    tag: ['@esperado', '@pedido', '@listado', '@estados', '@directo', '@critico'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Con una fila marcada, pulsar «Cambiar estado» no hace nada visible: no se abre ninguna ventana, no se envía ninguna petición y el operador no recibe ningún aviso.' },
+      { type: 'Qué debería ocurrir', description: 'Que se abra una ventana para elegir el nuevo estado de los documentos marcados.' },
+      { type: 'Por qué ocurre', description: 'La función que atiende el botón recoge los documentos marcados y solo los escribe en la consola del navegador: la ventana que su propio comentario describe nunca se llegó a escribir.' },
+      { type: 'Cómo debería funcionar', description: 'Completar esa ventana y el cambio de estado de los documentos marcados, o retirar el botón si la función no hace falta.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedidosListado.php');
 
     const checkbox = page.locator('input.Check').first();
@@ -30,8 +38,8 @@ test.describe('Pedido — defecto: el botón «Cambiar estado» no hace nada', (
     await page.getByRole('button', { name: 'Cambiar estado' }).click();
 
     // Se espera un modal para elegir el estado nuevo. Hoy no aparece ninguno — la
-    // función solo hace console.log(ids) — así que esta espera agota el timeout y el
-    // test queda en rojo: es el criterio de aceptación de la CC que complete la función.
+    // función solo hace console.log(ids) — así que esta espera agota su tiempo. El caso
+    // está declarado como fallo esperado hasta que la función se complete.
     await expect(page.locator('.modal.in, .modal.show')).toBeVisible({ timeout: 5000 });
   });
 });

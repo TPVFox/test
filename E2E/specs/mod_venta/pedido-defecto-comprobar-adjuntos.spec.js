@@ -31,7 +31,15 @@ const { iniciarSesion } = require('../../fixtures/autenticacion');
 const ID_CLIENTE = 923; // '[E2E venta] Cliente defecto comprobar adjuntos'
 
 test.describe('Pedido — defecto: comprobar adjuntos tras seleccionar cliente', () => {
-  test('T1 seleccionar cliente lanza un TypeError sin capturar', async ({ page }) => {
+  test('T1 seleccionar cliente lanza un TypeError sin capturar', {
+    tag: ['@estado-actual', '@defecto', '@pedido', '@entrada', '@alto'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Al elegir el cliente de un pedido nuevo, el navegador lanza un error de JavaScript sin capturar al leer la respuesta del servidor.' },
+      { type: 'Qué debería ocurrir', description: 'Elegir cliente no debería producir ningún error de página.' },
+      { type: 'Por qué ocurre', description: 'La pantalla pregunta si hay documentos que adjuntar; el servidor solo sabe responder para albarán y factura, no para pedido, y devuelve un valor nulo sobre el que el navegador lee un campo.' },
+      { type: 'Cómo debería funcionar', description: 'Que el servidor responda también para el pedido, o que la pantalla de pedido deje de hacer esa pregunta si no le aplica.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedido.php');
 
     const erroresDePagina = [];

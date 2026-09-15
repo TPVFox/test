@@ -21,7 +21,12 @@ const ID_ARTICULO_1 = 14678;
 const ID_ARTICULO_2 = 14679;
 
 test.describe('Pedido — navegar filas por teclado', () => {
-  test('T1 la flecha abajo baja a la fila anterior y la flecha arriba vuelve a subir', async ({ page }) => {
+  test('T1 la flecha abajo baja a la fila anterior y la flecha arriba vuelve a subir', {
+    tag: ['@estado-actual', '@pedido', '@teclado'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Con dos líneas, la flecha abajo lleva el foco a la línea de abajo y la flecha arriba lo devuelve. Las acciones de teclado tienen los nombres invertidos respecto a la tecla, pero el resultado que ve el operador es el correcto.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedido.php');
 
     await seleccionarCliente(page, ID_CLIENTE);

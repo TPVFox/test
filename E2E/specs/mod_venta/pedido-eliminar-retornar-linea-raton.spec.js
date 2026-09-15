@@ -12,7 +12,12 @@ const ID_CLIENTE = 925; // '[E2E venta] Cliente eliminar raton'
 const ID_ARTICULO = 14678;
 
 test.describe('Pedido — eliminar y retornar línea por ratón', () => {
-  test('T1 el icono tacha la línea y el segundo clic la devuelve a activa', async ({ page }) => {
+  test('T1 el icono tacha la línea y el segundo clic la devuelve a activa', {
+    tag: ['@estado-actual', '@pedido', '@raton', '@entrada'],
+    annotation: [
+      { type: 'Comportamiento', description: 'El icono de eliminar tacha la línea y la marca como retirada; un segundo clic la devuelve a activa. Esta acción solo se alcanza con el ratón: no tiene tecla asignada.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedido.php');
 
     await seleccionarCliente(page, ID_CLIENTE);

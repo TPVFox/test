@@ -12,7 +12,12 @@ const { seleccionarCliente } = require('../../fixtures/seleccionarCliente');
 const ID_CLIENTE = 922; // '[E2E venta] Cliente raton', support/sembrar-e2e-venta.php
 
 test.describe('Pedido — añadir producto por ratón', () => {
-  test('T1 una búsqueda con varias coincidencias abre listado; clic en una fila añade la línea', async ({ page }) => {
+  test('T1 una búsqueda con varias coincidencias abre listado; clic en una fila añade la línea', {
+    tag: ['@estado-actual', '@pedido', '@raton', '@busqueda'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Una búsqueda por descripción con varias coincidencias abre un listado; al pulsar una fila, el artículo se añade como línea del pedido y el listado se cierra.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedido.php');
 
     await seleccionarCliente(page, ID_CLIENTE);

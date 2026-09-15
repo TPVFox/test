@@ -1,5 +1,5 @@
 /**
- * Criterio de aceptación: un pedido con albarán y estado «Guardado» debe avisar, no reventar.
+ * Comportamiento esperado: un pedido con albarán y estado «Guardado» debe avisar, no reventar.
  *
  * Síntoma: abrir ese pedido responde 500 con el cuerpo vacío. El documento deja de ser
  * alcanzable por completo —ni para ver ni para editar—, y es un estado que el propio sistema
@@ -41,8 +41,16 @@ async function pedidosDelCliente(page) {
   return leidos;
 }
 
-test.describe('Pedido — aviso de estado discrepante', { tag: '@criterio' }, () => {
-  test.fail('T1 un pedido guardado con albarán avisa de la discrepancia en vez de reventar', async ({ page }) => {
+test.describe('Pedido — aviso de estado discrepante', () => {
+  test.fail('T1 un pedido guardado con albarán avisa de la discrepancia en vez de reventar', {
+    tag: ['@esperado', '@pedido', '@estados', '@directo', '@critico'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Un pedido «Guardado» que ya tiene albarán responde con error de servidor al abrirlo.' },
+      { type: 'Qué debería ocurrir', description: 'Que ningún pedido guardado reviente al abrirse.' },
+      { type: 'Por qué ocurre', description: 'La pantalla compone el aviso de discrepancia llamando a un método sobre una variable que no está definida en ningún sitio del fichero.' },
+      { type: 'Cómo debería funcionar', description: 'Componer el aviso con el objeto del pedido, como ya hace el aviso del caso contrario.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedidosListado.php');
 
     const guardados = (await pedidosDelCliente(page)).filter((p) => p.estado.includes('Guardado'));
@@ -60,7 +68,15 @@ test.describe('Pedido — aviso de estado discrepante', { tag: '@criterio' }, ()
     expect(rotas, `Ningún pedido guardado debería reventar: ${JSON.stringify(respuestas)}`).toHaveLength(0);
   });
 
-  test.fail('T2 la pantalla de ese pedido explica por qué su estado no concuerda', async ({ page }) => {
+  test.fail('T2 la pantalla de ese pedido explica por qué su estado no concuerda', {
+    tag: ['@esperado', '@pedido', '@estados', '@directo', '@critico'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Como la pantalla revienta, el operador no llega a ver ningún aviso que explique la discrepancia.' },
+      { type: 'Qué debería ocurrir', description: 'Que la pantalla explique que el pedido tiene albarán y que su estado no lo refleja.' },
+      { type: 'Por qué ocurre', description: 'La pantalla compone el aviso de discrepancia llamando a un método sobre una variable que no está definida en ningún sitio del fichero.' },
+      { type: 'Cómo debería funcionar', description: 'Componer el aviso con el objeto del pedido, como ya hace el aviso del caso contrario.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedidosListado.php');
 
     const guardados = (await pedidosDelCliente(page)).filter((p) => p.estado.includes('Guardado'));

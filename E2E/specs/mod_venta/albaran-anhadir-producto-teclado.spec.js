@@ -13,7 +13,12 @@ const ID_CLIENTE = 926; // '[E2E venta] Cliente albaran teclado'
 const ID_ARTICULO = 14678;
 
 test.describe('Albarán — añadir producto por teclado', () => {
-  test('T1 escribir el id exacto y pulsar Intro añade la línea, sin errores de página', async ({ page }) => {
+  test('T1 escribir el id exacto y pulsar Intro añade la línea, sin errores de página', {
+    tag: ['@estado-actual', '@albaran', '@teclado', '@entrada'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Tecleando el identificador exacto de un artículo y pulsando Intro se añade la línea, sin ningún error de página.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaran.php');
 
     const erroresDePagina = [];

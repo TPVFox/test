@@ -1,5 +1,5 @@
 /**
- * Criterio de aceptación: un documento que tiene una versión en curso lo advierte siempre.
+ * Comportamiento esperado: un documento que tiene una versión en curso lo advierte siempre.
  *
  * Síntoma: se abre un pedido en modo ver y la pantalla no dice nada, aunque ese pedido tenga
  * un documento en curso abierto con contenido distinto. El operador consulta un documento
@@ -25,11 +25,19 @@
 const { test, expect } = require('@playwright/test');
 const { iniciarSesion } = require('../../../fixtures/autenticacion');
 
-const NOMBRE_CLIENTE = '[E2E venta] CC borrador huerfano';
+const NOMBRE_CLIENTE = '[E2E venta] Esperado borrador huerfano';
 const ID_ARTICULO = 14678;
 
-test.describe('Documento con versión en curso — la consulta también lo advierte', { tag: '@criterio' }, () => {
-  test.fail('T1 ver un pedido que tiene un documento en curso lo señala', async ({ page }) => {
+test.describe('Documento con versión en curso — la consulta también lo advierte', () => {
+  test.fail('T1 ver un pedido que tiene un documento en curso lo señala', {
+    tag: ['@esperado', '@pedido', '@borrador', '@directo', '@medio'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'Consultar un pedido que tiene un documento en curso no lo advierte: la pantalla no dice nada.' },
+      { type: 'Qué debería ocurrir', description: 'Que la consulta avise de que existe una versión en curso.' },
+      { type: 'Por qué ocurre', description: 'La comprobación de documentos en curso solo corre al entrar a editar, no al entrar a ver.' },
+      { type: 'Cómo debería funcionar', description: 'Que la comprobación dependa del documento, no de la acción con que se abre.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedido.php');
 
     // Se compone y guarda un pedido propio, para no depender de los que sirven a otros

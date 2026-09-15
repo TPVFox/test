@@ -17,7 +17,12 @@ test.describe('Factura — combinaciones que el resto de recorridos no cubría',
    * y emite un aviso distinto para cada caso. El segundo es además el estado que
    * `comprobarTemporalesIdFac()` —el método sin llamador— estaba escrito para detectar.
    */
-  test('T1 una factura con dos borradores abiertos avisa de que existen varios', async ({ page }) => {
+  test('T1 una factura con dos borradores abiertos avisa de que existen varios', {
+    tag: ['@estado-actual', '@factura', '@borrador'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Una factura con dos borradores abiertos se abre en solo lectura y avisa de que existen varios, con un aviso distinto del de un solo borrador.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
 
     const filaBorrador = page
@@ -39,7 +44,15 @@ test.describe('Factura — combinaciones que el resto de recorridos no cubría',
    * vencimiento. La pantalla no llega a montarse, de modo que la acción no lleva a ningún
    * sitio y el operador no recibe explicación.
    */
-  test('T2 crear factura desde albarán de un cliente sin vencimiento no llega a la pantalla', async ({ page }) => {
+  test('T2 crear factura desde albarán de un cliente sin vencimiento no llega a la pantalla', {
+    tag: ['@estado-actual', '@defecto', '@factura', '@albaran', '@vencimiento', '@critico'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: '«Crear factura desde albarán» sobre un cliente sin forma de vencimiento no llega a ninguna pantalla: responde con error de servidor.' },
+      { type: 'Qué debería ocurrir', description: 'Que la factura se abra con el albarán y un vencimiento por defecto.' },
+      { type: 'Por qué ocurre', description: 'Al poner el cliente, la pantalla lee su forma de vencimiento sin comprobar que exista, igual que al abrir una factura ya emitida.' },
+      { type: 'Cómo debería funcionar', description: 'Aplicar el vencimiento por defecto que la propia pantalla ya usa para una factura nueva.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php');
 
     const fila = page
@@ -67,7 +80,12 @@ test.describe('Factura — combinaciones que el resto de recorridos no cubría',
    * del cliente. El número es el campo por el que el operador busca cuando el cliente
    * reclama un documento fiscal.
    */
-  test('T3 buscar por el número de la factura la encuentra', async ({ page }) => {
+  test('T3 buscar por el número de la factura la encuentra', {
+    tag: ['@estado-actual', '@factura', '@listado', '@busqueda'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Buscar por el número de la factura la encuentra en el listado.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
 
     const fila = page
@@ -92,7 +110,12 @@ test.describe('Factura — combinaciones que el resto de recorridos no cubría',
    * solo el pedido llegó a ejercer. Aquí importa más: el imprimible de la factura es el único
    * que compone bloques de líneas bajo cabeceras de otro documento.
    */
-  test('T4 el icono de imprimir de una factura abre un PDF real', async ({ page }) => {
+  test('T4 el icono de imprimir de una factura abre un PDF real', {
+    tag: ['@estado-actual', '@factura', '@listado', '@impreso'],
+    annotation: [
+      { type: 'Comportamiento', description: 'El icono de imprimir de una factura abre una pestaña nueva, y la ruta que devuelve el servidor sirve un PDF real.' },
+    ],
+  }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
 
     const icono = page

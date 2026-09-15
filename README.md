@@ -234,6 +234,44 @@ npm run test:js:int                     # integración JS
 npm run entorno:up && npm run test:e2e  # E2E
 ```
 
+### Etiquetas y anotaciones de los recorridos E2E
+
+Cada caso E2E lleva etiquetas y anotaciones, y el informe HTML de Playwright las muestra en la
+ficha del caso. Las etiquetas se filtran escribiéndolas en el buscador del informe o con `--grep`;
+las anotaciones explican el caso en lenguaje llano.
+
+| Grupo | Etiqueta | Qué significa |
+| --- | --- | --- |
+| Tipo | `@estado-actual` | Documenta lo que el producto hace hoy, y pasa |
+| | `@defecto` | Acompaña a `@estado-actual` cuando lo documentado es un defecto: el caso congela el comportamiento incorrecto tal como es |
+| | `@esperado` | Afirma lo que el producto debería hacer y hoy no hace. Va declarado con `test.fail()`: mientras el defecto exista, falla y la suite sigue en verde; el día que se corrija, Playwright avisa con «Expected to fail, but passed» y hay que retirar la marca |
+| | `@control` | Acompaña a un caso `@esperado`: comprueba lo que ya funciona y tiene que seguir funcionando después de la corrección |
+| Documento | `@pedido`, `@albaran`, `@factura` | Los documentos que recorre el caso |
+| Área | `@entrada`, `@teclado`, `@raton`, `@listado`, `@busqueda`, `@borrador`, `@adjuntos`, `@guardado`, `@estados`, `@numeracion`, `@existencias`, `@importes`, `@impreso`, `@vencimiento`, `@validacion` | La parte del flujo que ejercita |
+| Gravedad | `@critico`, `@alto`, `@medio`, `@bajo` | Solo en `@defecto` y `@esperado`: cuánto daño hace el defecto |
+| Camino | `@directo` | Solo en `@esperado`: el defecto se alcanza navegando con normalidad |
+| | `@forzado` | Solo en `@esperado`: el recorrido tiene que intervenir la petición para provocarlo |
+
+Un caso con defecto lleva cuatro anotaciones: **Qué ocurre hoy**, **Qué debería ocurrir**, **Por qué
+ocurre** y **Cómo debería funcionar**. Un caso de comportamiento correcto lleva **Comportamiento**, y
+un control añade **Para qué sirve**. Los casos `@esperado` viven además en su propia carpeta,
+`E2E/specs/mod_venta/esperado/`.
+
+```bash
+npx playwright test E2E/specs/mod_venta --grep @esperado --reporter=line             # lo que debería funcionar y no funciona
+npx playwright test E2E/specs/mod_venta --grep "@defecto|@esperado" --reporter=line  # todos los defectos
+npx playwright test E2E/specs/mod_venta --grep-invert @esperado --reporter=line      # solo el estado actual
+```
+
+**El informe HTML, en una carpeta propia.** El reporter HTML vacía su carpeta de salida antes de
+escribir, y lo hace con cualquier orden de Playwright que no fije otro reporter, incluida `--list`.
+Para conservar un informe, genéralo fuera de `E2E/informe`:
+
+```bash
+PLAYWRIGHT_HTML_OUTPUT_DIR=$HOME/informes-e2e/$(date +%F) npx playwright test E2E/specs/mod_venta --reporter=line,html
+npx playwright show-report $HOME/informes-e2e/$(date +%F)
+```
+
 ## Versiones fijadas
 
 - **Playwright 1.61.1** sobre **Node 18.19.x**, **Jest 29.7**, **PHPUnit 9.6**.

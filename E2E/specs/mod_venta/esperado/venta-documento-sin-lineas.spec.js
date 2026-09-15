@@ -1,5 +1,5 @@
 /**
- * Criterio de aceptación: un documento sin ninguna línea activa no se emite.
+ * Comportamiento esperado: un documento sin ninguna línea activa no se emite.
  *
  * Síntoma: se compone un documento, se retiran todas sus líneas y se pulsa Guardar. El
  * documento se emite igual: queda una cabecera con su número —en la factura, con su número
@@ -27,22 +27,25 @@ const ID_ARTICULO = 14678;
 const ESCENARIOS = [
   {
     documento: 'pedido',
+    etiqueta: '@pedido',
     idCliente: 956,
-    nombre: '[E2E venta] CC sin lineas pedido',
+    nombre: '[E2E venta] Esperado sin lineas pedido',
     pantalla: 'pedido.php',
     listado: 'pedidosListado.php',
   },
   {
     documento: 'albarán',
+    etiqueta: '@albaran',
     idCliente: 957,
-    nombre: '[E2E venta] CC sin lineas albaran',
+    nombre: '[E2E venta] Esperado sin lineas albaran',
     pantalla: 'albaran.php',
     listado: 'albaranesListado.php',
   },
   {
     documento: 'factura',
+    etiqueta: '@factura',
     idCliente: 958,
-    nombre: '[E2E venta] CC sin lineas factura',
+    nombre: '[E2E venta] Esperado sin lineas factura',
     pantalla: 'factura.php',
     listado: 'facturasListado.php',
   },
@@ -57,8 +60,16 @@ async function documentosDelCliente(page, listado, nombre) {
 }
 
 for (const escenario of ESCENARIOS) {
-  test.describe(`Venta — ${escenario.documento} sin ninguna línea`, { tag: '@criterio' }, () => {
-    test.fail(`T1 retirar la única línea y guardar no emite el ${escenario.documento}`, async ({ page }) => {
+  test.describe(`Venta — ${escenario.documento} sin ninguna línea`, () => {
+    test.fail(`T1 retirar la única línea y guardar no emite el ${escenario.documento}`, {
+      tag: ['@esperado', escenario.etiqueta, '@guardado', '@validacion', '@directo', '@medio'],
+      annotation: [
+        { type: 'Qué ocurre hoy', description: 'Se compone un documento, se retira su única línea y se guarda: el documento se emite igual y aparece en el listado sin nada que justifique su importe.' },
+        { type: 'Qué debería ocurrir', description: 'Que no se emita en silencio: o se impide, o se advierte.' },
+        { type: 'Por qué ocurre', description: 'El guardado escribe la cabecera primero y las líneas después, y no comprueba en ningún punto que quede alguna.' },
+        { type: 'Cómo debería funcionar', description: 'Comprobar antes de guardar que el documento tiene líneas activas; impedirlo o advertirlo es una decisión de negocio pendiente.' },
+      ],
+    }, async ({ page }) => {
       const antes = await documentosDelCliente(page, escenario.listado, escenario.nombre);
 
       await iniciarSesion(page, `modulos/mod_venta/${escenario.pantalla}`);
