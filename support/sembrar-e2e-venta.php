@@ -122,6 +122,23 @@ $nombresCliente = [
     'borrador_estado'    => [952, PREFIJO . 'Borrador sale estado'],
     'borrador_otro'      => [953, PREFIJO . 'Borrador otro documento'],
     'borrador_contraste' => [954, PREFIJO . 'Borrador contraste'],
+
+    // Criterios de aceptacion: un cliente por recorrido, con su propia limpieza mas abajo.
+    // Los recorridos de esta tanda afirman el comportamiento correcto y hoy fallan, pero
+    // llegan a componer documentos igual, de modo que necesitan quedar limpios cada pasada.
+    'cc_inyeccion'       => [955, PREFIJO . 'CC inyeccion en busqueda'],
+    'cc_sinlineas_ped'   => [956, PREFIJO . 'CC sin lineas pedido'],
+    'cc_sinlineas_alb'   => [957, PREFIJO . 'CC sin lineas albaran'],
+    'cc_sinlineas_fac'   => [958, PREFIJO . 'CC sin lineas factura'],
+    'cc_huerfano'        => [959, PREFIJO . 'CC borrador huerfano'],
+    'cc_albfacturado'    => [960, PREFIJO . 'CC albaran facturado'],
+    'cc_existencias'     => [961, PREFIJO . 'CC suelo existencias'],
+    'cc_estadocruzado'   => [962, PREFIJO . 'CC estado cruzado'],
+    // Guardado atomico: clientes propios, no los de «sin lineas». Los dos recorridos corren en
+    // paralelo y, compartiendo cliente, uno encontraba el borrador del otro y se quedaba parado.
+    'cc_atomico_ped'     => [963, PREFIJO . 'CC guardado atomico pedido'],
+    'cc_atomico_alb'     => [964, PREFIJO . 'CC guardado atomico albaran'],
+    'cc_atomico_fac'     => [965, PREFIJO . 'CC guardado atomico factura'],
 ];
 
 $idsCliente = [];
@@ -148,6 +165,31 @@ borrarPedidosDeCliente($db, (int) $idsCliente['pedido_guardar']);
 borrarDocumentosDeCliente($db, (int) $idsCliente['factura_guardar']);
 echo 'Documentos de los recorridos de guardado retirados (clientes '
     . "{$idsCliente['albaran_guardar']}, {$idsCliente['pedido_guardar']}, {$idsCliente['factura_guardar']})\n";
+
+// --- Lo mismo para los recorridos de criterio de aceptacion -----------------------------
+//
+// Son los que afirman el comportamiento correcto y hoy fallan. Fallar no les impide dejar
+// rastro: componen su documento, crean su borrador y algunos intentan un guardado que la
+// base rechaza a medias. Sin esta limpieza la segunda pasada parte de lo que dejo la
+// primera y el recorrido deja de medir lo que dice medir.
+$clientesDeCriterio = [
+    'cc_inyeccion',
+    'cc_sinlineas_ped',
+    'cc_sinlineas_alb',
+    'cc_sinlineas_fac',
+    'cc_huerfano',
+    'cc_albfacturado',
+    'cc_existencias',
+    'cc_estadocruzado',
+    'cc_atomico_ped',
+    'cc_atomico_alb',
+    'cc_atomico_fac',
+];
+foreach ($clientesDeCriterio as $clave) {
+    borrarDocumentosDeCliente($db, (int) $idsCliente[$clave]);
+    borrarPedidosDeCliente($db, (int) $idsCliente[$clave]);
+}
+echo 'Documentos de los recorridos de criterio retirados (clientes 955-965)' . "\n";
 
 // Un pedido 'Guardado' para el cliente que prueba adjuntar pedido -> albaran
 // (BuscarAdjunto.php busca por Numpedcli, idCliente y estado="Guardado"). Idempotente por
@@ -682,6 +724,129 @@ $idClienteOtroDocumento = (int) $idsCliente['borrador_otro'];
 $prepararClienteDeBorrador($idClienteOtroDocumento);
 $albaranDisponible($idClienteOtroDocumento, 810010);
 echo "Albaran del otro documento rehecho (cliente {$idClienteOtroDocumento}): numero 810010\n";
+
+// --- Criterio de aceptacion: el estado no se contagia entre tipos de documento ----------
+//
+// El despacho de cambio de estado distingue el tipo con asignacion en vez de comparacion, de
+// modo que las tres ramas se ejecutan siempre y un cambio alcanza al pedido, al albaran y a
+// la factura que compartan ese identificador.
+//
+// Para observarlo hace falta que el numero de un albaran coincida con el identificador de una
+// factura ajena: al incorporar ese albaran a otro documento, la peticion viaja con el numero y
+// el despacho la aplica tambien por identificador sobre la factura.
+//
+// Escenario propio, separado del de 'borrador_estado' (factura 810010), porque aquel lo
+// consume su recorrido y los dos correrian en paralelo sobre la misma fila.
+$idClienteEstadoCruzado = (int) $idsCliente['cc_estadocruzado'];
+$rehacerFacturaDeBorrador('cc_estadocruzado', 810012, 830962);
+$albaranDisponible($idClienteEstadoCruzado, 810012);
+echo "Estado cruzado sembrado (cliente {$idClienteEstadoCruzado}): factura id=810012 y albaran con numero 810012\n";
+
+// --- Criterio de aceptacion: un albaran no se incorpora a dos facturas ------------------
+//
+// Al incorporar un albaran a una factura, el navegador lo marca como procesado para que ninguna
+// otra lo encuentre: la busqueda por numero solo ofrece albaranes en «Guardado». Pero la marca
+// viaja con el NUMERO del albaran y el servidor la aplica por IDENTIFICADOR. Cuando los dos no
+// coinciden, la marca no alcanza al albaran incorporado, que sigue en «Guardado» y vuelve a
+// aparecer para la siguiente factura: la misma mercancia facturada dos veces.
+//
+// Dos albaranes del mismo cliente, en «Guardado» y sin facturar:
+// - el 830960, cuyo numero no es el identificador de ningun documento: la marca no le llega;
+// - otro con numero igual a su identificador: la marca si le llega. Es el control positivo.
+//
+// El cliente conserva su nombre de siembra ('CC albaran facturado'), que viene de un escenario
+// anterior; cambiarlo crearia otro cliente, porque la siembra de clientes es idempotente por
+// nombre. Su limpieza en cada pasada ya la hace el bloque de clientes de criterio.
+$idClienteDobleFactura = (int) $idsCliente['cc_albfacturado'];
+$albaranDisponible($idClienteDobleFactura, 830960);
+$idAlbaranAlineado = $albaranDisponible($idClienteDobleFactura);
+echo "Albaranes para facturar dos veces (cliente {$idClienteDobleFactura}): numero 830960 desalineado, "
+    . "y el {$idAlbaranAlineado} con numero igual a su identificador\n";
+
+// --- Criterio de aceptacion: no se vende por debajo de cero -----------------------------
+//
+// El movimiento de existencias no tiene suelo: con dos disponibles se venden cinco y el saldo
+// queda en -3, sin aviso. Hace falta un articulo propio, porque el recorrido deja su ficha en
+// negativo y hay que reponerla en cada pasada; sin eso, la segunda pasada partiria de un saldo
+// ya negativo y dejaria de medir lo que dice medir.
+//
+// Se siembra aparte del bucle de articulos porque necesita dos cosas que aquel no hace: la
+// reposicion de existencias, y la fila de precio de la tienda 1 escrita a mano. La tienda 1 no
+// existe en `tiendas` y `articulosTiendas` tiene clave ajena contra ella, de modo que
+// `precioYTienda()` no puede usarse con ese identificador: escribe las dos tablas y la segunda
+// la rechaza la base. Los articulos 14678 y 14679 tienen exactamente esta forma —fila de
+// precio en la tienda por defecto y en la 1, fila de `articulosTiendas` solo en la primera—,
+// asi que se replica.
+$ID_ARTICULO_ESCASO = 14680;
+// Los nombres no empiezan por «Manzana»: los recorridos de busqueda por descripcion teclean
+// «[E2E venta] Manzana» y cuentan exactamente dos coincidencias, Golden y Reineta.
+$nombreEscaso = PREFIJO . 'CC Pera escasa';
+// Cada pieza comprueba su propia tabla: si una pasada anterior quedo a medias, la siguiente
+// completa lo que falte en vez de darlo por hecho porque el articulo ya exista.
+// Se comprueba por identificador, no por nombre: el nombre ha cambiado entre versiones de la
+// siembra y buscarlo por nombre intentaria insertar de nuevo un id que ya existe.
+if ($db->query("SELECT 1 FROM articulos WHERE idArticulo = {$ID_ARTICULO_ESCASO}")->num_rows === 0) {
+    $siembra->articulo($nombreEscaso, [
+        'id'          => $ID_ARTICULO_ESCASO,
+        'ultimoCoste' => 1.0,
+        'beneficio'   => 50,
+        'iva'         => 21,
+    ]);
+    echo "Articulo escaso sembrado: {$nombreEscaso} (id {$ID_ARTICULO_ESCASO})\n";
+}
+$db->query("UPDATE articulos SET articulo_name = '" . $db->real_escape_string($nombreEscaso) . "' WHERE idArticulo = {$ID_ARTICULO_ESCASO}");
+
+$preciosEscaso = (int) $db
+    ->query("SELECT COUNT(*) AS n FROM articulosPrecios WHERE idArticulo = {$ID_ARTICULO_ESCASO}")
+    ->fetch_assoc()['n'];
+if ($preciosEscaso === 0) {
+    $siembra->precioYTienda($ID_ARTICULO_ESCASO, 1.82, 1.50);
+    $db->query(
+        'INSERT INTO articulosPrecios (idArticulo, pvpCiva, pvpSiva, idTienda) '
+        . "VALUES ({$ID_ARTICULO_ESCASO}, 1.82, 1.50, 1)"
+    );
+    echo "Precio del articulo escaso sembrado en la tienda por defecto y en la 1\n";
+}
+
+$db->query("DELETE FROM articulosStocks WHERE idArticulo = {$ID_ARTICULO_ESCASO}");
+$siembra->existenciaRegistrada($ID_ARTICULO_ESCASO, 2.0);
+echo "Existencias del articulo escaso repuestas: {$ID_ARTICULO_ESCASO} con 2 unidades\n";
+
+// --- Criterio de aceptacion: el guardado se completa entero o no deja rastro ------------
+//
+// Las tres clases de venta escriben la descripcion de la linea concatenandola entre comillas
+// dobles, sin escapar. Un articulo cuyo nombre lleve una comilla doble rompe la sentencia de
+// la linea, y lo hace DESPUES de que la cabecera ya se haya escrito: queda un documento con
+// su numero y su importe, y sin ninguna linea.
+//
+// Es la unica via que llega a ese estado desde la pantalla: se teclea el identificador del
+// articulo como cualquier otro. El resto de vectores conocidos —reguardar un albaran ya
+// facturado, o un pedido ya servido— los bloquea la propia pantalla, que abre esos documentos
+// en solo lectura.
+$ID_ARTICULO_COMILLA = 14681;
+$nombreComilla = PREFIJO . 'CC Pera 5" premium';
+if ($db->query("SELECT 1 FROM articulos WHERE idArticulo = {$ID_ARTICULO_COMILLA}")->num_rows === 0) {
+    $siembra->articulo($nombreComilla, [
+        'id'          => $ID_ARTICULO_COMILLA,
+        'ultimoCoste' => 1.0,
+        'beneficio'   => 50,
+        'iva'         => 21,
+    ]);
+    echo "Articulo con comilla sembrado: {$nombreComilla} (id {$ID_ARTICULO_COMILLA})\n";
+}
+$db->query("UPDATE articulos SET articulo_name = '" . $db->real_escape_string($nombreComilla) . "' WHERE idArticulo = {$ID_ARTICULO_COMILLA}");
+
+$preciosComilla = (int) $db
+    ->query("SELECT COUNT(*) AS n FROM articulosPrecios WHERE idArticulo = {$ID_ARTICULO_COMILLA}")
+    ->fetch_assoc()['n'];
+if ($preciosComilla === 0) {
+    $siembra->precioYTienda($ID_ARTICULO_COMILLA, 1.82, 1.50);
+    $db->query(
+        'INSERT INTO articulosPrecios (idArticulo, pvpCiva, pvpSiva, idTienda) '
+        . "VALUES ({$ID_ARTICULO_COMILLA}, 1.82, 1.50, 1)"
+    );
+    echo "Precio del articulo con comilla sembrado\n";
+}
 
 echo "\nArticulos disponibles para los recorridos: " . implode(', ', $idsArticulo) . "\n";
 foreach ($idsCliente as $clave => $id) {
