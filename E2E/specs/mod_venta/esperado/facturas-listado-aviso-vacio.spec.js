@@ -6,9 +6,9 @@
  * y ese literal no se adaptó —el de pedidos sí dice «pedidos», de modo que la factura es la
  * única de las tres pantallas con el texto de otro documento—. Corrección: una palabra.
  *
- * Este recorrido afirma el comportamiento correcto y por eso hoy falla: está declarado con
- * `test.fail()`. El día que el cambio se aplique, Playwright avisará de que pasa cuando no
- * debería, y ahí se retira la marca y queda como guardia de regresión.
+ * Este recorrido afirma el comportamiento correcto y por eso **se conserva en rojo**: el motivo
+ * del fallo es su propia aserción. El día que el cambio se aplique pasará a verde y quedará como
+ * guardia de regresión.
  *
  * El «antes» sigue documentado, sin tocar, en `facturas-listado-flujo.spec.js` T5.
  */
@@ -20,7 +20,7 @@ const { iniciarSesion } = require('../../../fixtures/autenticacion');
 const BUSQUEDA_SIN_RESULTADOS = 'zzz-no-existe-zzz';
 
 test.describe('Facturas — aviso de listado vacío', () => {
-  test.fail('T1 el aviso de listado vacío nombra facturas, no albaranes', {
+  test('T1 el aviso de listado vacío nombra facturas, no albaranes', {
     tag: ['@esperado', '@factura', '@listado', '@directo', '@bajo'],
     annotation: [
       { type: 'Qué ocurre hoy', description: 'Buscando algo que no existe, el aviso de listado vacío de facturas dice «No tienes albaranes guardados!».' },

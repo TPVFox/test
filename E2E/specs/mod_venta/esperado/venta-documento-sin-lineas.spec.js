@@ -12,7 +12,7 @@
  * caben las dos: rechazar el guardado, o admitirlo con aviso explícito. Este recorrido afirma
  * lo mínimo común a las dos salidas — que no se emita en silencio — sin fijar cuál se elige.
  *
- * Declarado con `test.fail()`. No hay «antes» en la suite E2E: el defecto solo estaba cubierto
+ * **Se conserva en rojo**, con su propia aserción por motivo. No hay «antes» en la suite E2E: el defecto solo estaba cubierto
  * por pruebas de integración, que lo alcanzan por la clase y no desde la pantalla.
  */
 
@@ -61,7 +61,7 @@ async function documentosDelCliente(page, listado, nombre) {
 
 for (const escenario of ESCENARIOS) {
   test.describe(`Venta — ${escenario.documento} sin ninguna línea`, () => {
-    test.fail(`T1 retirar la única línea y guardar no emite el ${escenario.documento}`, {
+    test(`T1 retirar la única línea y guardar no emite el ${escenario.documento}`, {
       tag: ['@esperado', escenario.etiqueta, '@guardado', '@validacion', '@directo', '@medio'],
       annotation: [
         { type: 'Qué ocurre hoy', description: 'Se compone un documento, se retira su única línea y se guarda: el documento se emite igual y aparece en el listado sin nada que justifique su importe.' },

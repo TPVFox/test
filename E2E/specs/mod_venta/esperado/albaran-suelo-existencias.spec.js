@@ -18,7 +18,7 @@
  * el recorrido la deja en negativo, y sin reponerla la segunda pasada partiría de un saldo ya
  * negativo.
  *
- * Declarado con `test.fail()`. No hay «antes» en la suite E2E: el defecto solo estaba cubierto
+ * **Se conserva en rojo**, con su propia aserción por motivo. No hay «antes» en la suite E2E: el defecto solo estaba cubierto
  * por pruebas de integración.
  */
 
@@ -32,7 +32,7 @@ const UNIDADES_DISPONIBLES = 2;
 const UNIDADES_QUE_SE_VENDEN = 5;
 
 test.describe('Albarán — suelo de existencias', () => {
-  test.fail('T1 vender más de lo disponible avisa al operador', {
+  test('T1 vender más de lo disponible avisa al operador', {
     tag: ['@esperado', '@albaran', '@existencias', '@directo', '@alto'],
     annotation: [
       { type: 'Qué ocurre hoy', description: 'Con 2 unidades registradas se venden 5 en un albarán, sin ningún aviso, y el saldo queda en -3.' },

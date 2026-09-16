@@ -20,7 +20,7 @@ const { test, expect } = require('@playwright/test');
 const { iniciarSesion } = require('../../fixtures/autenticacion');
 
 test.describe('Pedido — defecto: el botón «Cambiar estado» no hace nada', () => {
-  test.fail('T1 marcar una fila y pulsar el botón debería ofrecer elegir el nuevo estado', {
+  test('T1 marcar una fila y pulsar el botón debería ofrecer elegir el nuevo estado', {
     tag: ['@esperado', '@pedido', '@listado', '@estados', '@directo', '@critico'],
     annotation: [
       { type: 'Qué ocurre hoy', description: 'Con una fila marcada, pulsar «Cambiar estado» no hace nada visible: no se abre ninguna ventana, no se envía ninguna petición y el operador no recibe ningún aviso.' },

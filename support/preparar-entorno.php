@@ -40,6 +40,11 @@ lanzar(__DIR__ . '/preparar-bases.php', $rehacer ? ['--rehacer'] : []);
 $usuario = Entorno::valor('TPVFOX_E2E_USUARIO');
 $clave = Entorno::valor('TPVFOX_E2E_CLAVE');
 
+// Segundo usuario, opcional: lo necesitan los recorridos que comprueban que un listado se
+// acota a quien lo mira. Sin el, esos recorridos se saltan solos y el resto no se entera.
+$usuario2 = Entorno::valor('TPVFOX_E2E_USUARIO2');
+$clave2 = Entorno::valor('TPVFOX_E2E_CLAVE2');
+
 if ($usuario === '' || $clave === '') {
     fwrite(STDERR,
         "Faltan TPVFOX_E2E_USUARIO y TPVFOX_E2E_CLAVE en test/.env o en el entorno.\n" .
@@ -56,6 +61,14 @@ foreach (['vigente', 'anterior'] as $papel) {
     $idTienda = tiendaPrincipal($db, ejercicioDe($base));
     $idUsuario = usuarioDeRecorrido($db, $usuario, $clave);
     indiceDelUsuario($db, $idTienda, $idUsuario);
+
+    // El borrado de `indices` esta acotado por usuario, de modo que dar de alta un segundo
+    // no le quita la suya al primero.
+    if ($usuario2 !== '' && $clave2 !== '') {
+        $idUsuario2 = usuarioDeRecorrido($db, $usuario2, $clave2);
+        indiceDelUsuario($db, $idTienda, $idUsuario2);
+        echo "  $papel ($base): segundo usuario $idUsuario2 con su indice.\n";
+    }
 
     echo "  $papel ($base): tienda $idTienda, usuario $idUsuario con su indice.\n";
     $db->close();

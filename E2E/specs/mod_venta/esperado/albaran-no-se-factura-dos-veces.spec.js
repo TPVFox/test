@@ -24,7 +24,7 @@
  * T2 es el control positivo: con número e identificador iguales, la protección funciona hoy y
  * tiene que seguir funcionando después de la corrección.
  *
- * T1 está declarado con `test.fail()`. No hay «antes» en la suite E2E: el defecto solo estaba
+ * T1 **se conserva en rojo**, con su propia aserción por motivo. No hay «antes» en la suite E2E: el defecto solo estaba
  * cubierto por pruebas de integración, que lo alcanzan por la clase y no por este camino.
  */
 
@@ -82,7 +82,7 @@ test.describe('Albarán — no se incorpora a dos facturas', () => {
     page.on('dialog', (dialogo) => dialogo.accept());
   });
 
-  test.fail('T1 un albarán con número distinto de su identificador no reaparece para otra factura', {
+  test('T1 un albarán con número distinto de su identificador no reaparece para otra factura', {
     tag: ['@esperado', '@albaran', '@factura', '@adjuntos', '@numeracion', '@directo', '@alto'],
     annotation: [
       { type: 'Qué ocurre hoy', description: 'Un albarán incorporado a una factura vuelve a ofrecerse y a incorporarse en una segunda factura cuando su número no coincide con su identificador.' },

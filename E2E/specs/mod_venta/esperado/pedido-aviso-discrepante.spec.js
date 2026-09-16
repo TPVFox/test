@@ -12,7 +12,7 @@
  *
  * Corrección esperada: componer el aviso con el objeto del pedido, como hace la rama gemela.
  *
- * Declarado con `test.fail()`: hoy falla, y el día que el cambio se aplique Playwright avisará
+ * **Se conserva en rojo**, con su propia aserción por motivo. El día que el cambio se aplique avisará
  * de que pasa cuando no debería. El «antes» queda documentado, sin tocar, en
  * `pedido-estados-discrepantes.spec.js` T3.
  */
@@ -42,7 +42,7 @@ async function pedidosDelCliente(page) {
 }
 
 test.describe('Pedido — aviso de estado discrepante', () => {
-  test.fail('T1 un pedido guardado con albarán avisa de la discrepancia en vez de reventar', {
+  test('T1 un pedido guardado con albarán avisa de la discrepancia en vez de reventar', {
     tag: ['@esperado', '@pedido', '@estados', '@directo', '@critico'],
     annotation: [
       { type: 'Qué ocurre hoy', description: 'Un pedido «Guardado» que ya tiene albarán responde con error de servidor al abrirlo.' },
@@ -68,7 +68,7 @@ test.describe('Pedido — aviso de estado discrepante', () => {
     expect(rotas, `Ningún pedido guardado debería reventar: ${JSON.stringify(respuestas)}`).toHaveLength(0);
   });
 
-  test.fail('T2 la pantalla de ese pedido explica por qué su estado no concuerda', {
+  test('T2 la pantalla de ese pedido explica por qué su estado no concuerda', {
     tag: ['@esperado', '@pedido', '@estados', '@directo', '@critico'],
     annotation: [
       { type: 'Qué ocurre hoy', description: 'Como la pantalla revienta, el operador no llega a ver ningún aviso que explique la discrepancia.' },

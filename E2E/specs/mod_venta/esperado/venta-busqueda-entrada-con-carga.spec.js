@@ -13,7 +13,7 @@
  * Corrección esperada: consulta preparada, con el término viajando como parámetro. La
  * convención del proyecto ya lo exige para toda lectura nueva.
  *
- * Declarado con `test.fail()`. No hay «antes» en la suite E2E: el defecto solo estaba cubierto
+ * **Se conserva en rojo**, con su propia aserción por motivo. No hay «antes» en la suite E2E: el defecto solo estaba cubierto
  * por pruebas de integración, que lo alcanzan por la clase y no por la pantalla.
  */
 
@@ -46,7 +46,7 @@ async function pedidoConFilaDeEntrada(page) {
 }
 
 test.describe('Venta — una entrada con carga no amplía la búsqueda', () => {
-  test.fail('T1 un término que cierra la comilla no devuelve el catálogo entero', {
+  test('T1 un término que cierra la comilla no devuelve el catálogo entero', {
     tag: ['@esperado', '@pedido', '@busqueda', '@directo', '@alto'],
     annotation: [
       { type: 'Qué ocurre hoy', description: 'Un término de búsqueda que cierra la comilla de la consulta devuelve el catálogo entero en lugar de nada.' },

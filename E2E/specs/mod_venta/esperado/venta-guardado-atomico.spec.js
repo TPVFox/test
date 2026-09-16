@@ -19,7 +19,7 @@
  * conocidos —reguardar un albarán ya facturado, o un pedido ya servido— los bloquea la propia
  * pantalla, que abre esos documentos en solo lectura y sin botón de guardar.
  *
- * Declarado con `test.fail()`. No hay «antes» en la suite E2E: el defecto solo estaba cubierto
+ * **Se conserva en rojo**, con su propia aserción por motivo. No hay «antes» en la suite E2E: el defecto solo estaba cubierto
  * por pruebas de integración.
  */
 
@@ -76,11 +76,11 @@ async function documentosDelCliente(page, escenario) {
 for (const escenario of ESCENARIOS) {
   test.describe(`Venta — el guardado del ${escenario.documento} es atómico`, () => {
     // Tres navegaciones de listado y un guardado: con la suite entera en marcha no caben en los
-    // 30 s por defecto. Un recorrido declarado con test.fail() que agota el tiempo no cuenta
+    // 30 s por defecto. Un recorrido en rojo que agota el tiempo no cuenta
     // como fallo esperado, sino como error, de modo que el margen es parte del criterio.
     test.setTimeout(90000);
 
-    test.fail(`T1 si la línea no se puede escribir, no queda ${escenario.documento} a medias`, {
+    test(`T1 si la línea no se puede escribir, no queda ${escenario.documento} a medias`, {
       tag: ['@esperado', escenario.etiqueta, '@guardado', '@directo', '@critico'],
       annotation: [
         { type: 'Qué ocurre hoy', description: 'Guardar un documento con un artículo cuyo nombre lleva una comilla doble deja escrita la cabecera, con su número y su importe, y ninguna línea.' },

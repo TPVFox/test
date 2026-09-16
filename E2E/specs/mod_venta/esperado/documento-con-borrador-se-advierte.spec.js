@@ -18,7 +18,7 @@
  * borrado de tablas solo se invoca dentro del propio guardado, que reescribe el documento en
  * el sitio. Queda cubierta por las pruebas de integración, y así consta en su ficha.
  *
- * Declarado con `test.fail()`. El «antes» queda documentado, sin tocar, en
+ * **Se conserva en rojo**, con su propia aserción por motivo. El «antes» queda documentado, sin tocar, en
  * `pedido-flujo-entradas.spec.js` T6, que afirma la ausencia del aviso tal como es hoy.
  */
 
@@ -29,7 +29,7 @@ const NOMBRE_CLIENTE = '[E2E venta] Esperado borrador huerfano';
 const ID_ARTICULO = 14678;
 
 test.describe('Documento con versión en curso — la consulta también lo advierte', () => {
-  test.fail('T1 ver un pedido que tiene un documento en curso lo señala', {
+  test('T1 ver un pedido que tiene un documento en curso lo señala', {
     tag: ['@esperado', '@pedido', '@borrador', '@directo', '@medio'],
     annotation: [
       { type: 'Qué ocurre hoy', description: 'Consultar un pedido que tiene un documento en curso no lo advierte: la pantalla no dice nada.' },

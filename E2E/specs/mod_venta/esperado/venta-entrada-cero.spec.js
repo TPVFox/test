@@ -12,7 +12,7 @@
  *
  * Corrección esperada: que el cero pase la validación, como ya pasa `0.0`.
  *
- * Declarado con `test.fail()`. No hay «antes» en la suite E2E: el defecto solo estaba cubierto
+ * **Se conserva en rojo**, con su propia aserción por motivo. No hay «antes» en la suite E2E: el defecto solo estaba cubierto
  * por pruebas unitarias de JavaScript.
  */
 
@@ -37,7 +37,7 @@ async function pedidoConUnaLinea(page) {
 
 test.describe('Venta — el cero como valor de entrada', () => {
 
-  test.fail('T1 teclear cantidad 0 deja el cero, sin aviso ni reposición', {
+  test('T1 teclear cantidad 0 deja el cero, sin aviso ni reposición', {
     tag: ['@esperado', '@pedido', '@entrada', '@validacion', '@directo', '@alto'],
     annotation: [
       { type: 'Qué ocurre hoy', description: 'Teclear 0 en la cantidad de una línea y pulsar Intro abre el aviso «No es correcto el numero» y el campo vuelve a 1.' },
@@ -65,7 +65,7 @@ test.describe('Venta — el cero como valor de entrada', () => {
     await expect(page.locator('#Unidad_Fila_1')).toHaveValue('0', { timeout: 2000 });
   });
 
-  test.fail('T2 teclear precio 0 deja el cero, sin aviso ni reposición', {
+  test('T2 teclear precio 0 deja el cero, sin aviso ni reposición', {
     tag: ['@esperado', '@pedido', '@entrada', '@validacion', '@directo', '@alto'],
     annotation: [
       { type: 'Qué ocurre hoy', description: 'Teclear 0 en el precio de una línea y pulsar Intro abre el mismo aviso y el campo vuelve al precio anterior.' },

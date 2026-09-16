@@ -72,8 +72,8 @@ foreach ($articulos as $datos) {
     $precioCiva = round($datos['coste'] * (1 + $datos['beneficio'] / 100) * 1.21, 2);
     $precioSiva = round($datos['coste'] * (1 + $datos['beneficio'] / 100), 2);
     // El precio se escribe en la tienda 1, no en la principal del entorno: la busqueda de
-    // producto de la capa compartida fija `idTienda = 1` en la consulta (DS-TPY-COM-018,
-    // funciones.php:49-50), de modo que un precio en otra tienda no lo encontraria. La tienda
+    // producto de la capa compartida fija `idTienda = 1` en la consulta
+    // (funciones.php:49-50), de modo que un precio en otra tienda no lo encontraria. La tienda
     // 1 no tiene por que existir en `tiendas` —la consulta no la une—, basta la fila de precio.
     $siembra->precioYTienda($id, $precioCiva, $precioSiva, 1);
     echo "Articulo sembrado: {$datos['nombre']} (id {$id}), pvpCiva={$precioCiva} en tienda 1\n";
@@ -139,6 +139,11 @@ $nombresCliente = [
     'esperado_atomico_ped'     => [963, PREFIJO . 'Esperado guardado atomico pedido'],
     'esperado_atomico_alb'     => [964, PREFIJO . 'Esperado guardado atomico albaran'],
     'esperado_atomico_fac'     => [965, PREFIJO . 'Esperado guardado atomico factura'],
+    // Numeracion: el recorrido emite una factura en cada pasada, de modo que necesita su
+    // propio cliente y su propio albaran, no los del recorrido de guardado.
+    'esperado_numeracion'      => [966, PREFIJO . 'Esperado numeracion factura'],
+    // Impreso: una factura con dos albaranes, uno con lineas y otro sin ninguna.
+    'esperado_impreso'         => [967, PREFIJO . 'Esperado impreso cabeceras'],
 ];
 
 $idsCliente = [];
@@ -188,6 +193,7 @@ $clientesEsperado = [
     'esperado_sinlineas_fac',
     'esperado_huerfano',
     'esperado_albfacturado',
+    'esperado_numeracion',
     'esperado_existencias',
     'esperado_estadocruzado',
     'esperado_atomico_ped',
@@ -856,6 +862,73 @@ if ($preciosComilla === 0) {
     echo "Precio del articulo con comilla sembrado\n";
 }
 
+// --- Numeracion: un albaran Guardado que el recorrido incorporara y emitira -------------
+//
+// Su numero se iguala al identificador porque la clave foranea del enlace factura-albaran
+// lo exige; lo que el recorrido observa despues es el numero que el producto pone a la
+// factura que el mismo emite, no el de este albaran.
+$idClienteNumeracion = (int) $idsCliente['esperado_numeracion'];
+$yaHayAlbaranNum = $db->query(
+    'SELECT id FROM albclit WHERE idCliente = ' . $idClienteNumeracion . ' AND estado = "Guardado" LIMIT 1'
+)->fetch_assoc();
+
+if ($yaHayAlbaranNum !== null) {
+    echo "Albaran de numeracion ya sembrado (cliente {$idClienteNumeracion}): id={$yaHayAlbaranNum['id']}\n";
+} else {
+    $db->query('UPDATE albclit SET estado = "Guardado" WHERE idCliente = ' . $idClienteNumeracion);
+    $idAlbaranNum = $siembra->ventaAlbaranCliente($idsArticulo[0], 2.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteNumeracion,
+    ]);
+    $db->query("UPDATE albclit SET Numalbcli={$idAlbaranNum} WHERE id={$idAlbaranNum}");
+    alinearNumerosDeAlbaranes($db, $idClienteNumeracion);
+    echo "Albaran de numeracion sembrado (cliente {$idClienteNumeracion}): id={$idAlbaranNum}\n";
+}
+
+// --- Impreso: una factura con dos albaranes, uno con lineas y otro sin ninguna ----------
+//
+// El imprimible de la factura agrupa las lineas en bloques bajo una cabecera por albaran.
+// Con un albaran vacio de por medio, cabeceras y bloques dejan de ir en el mismo orden, que
+// es lo que el recorrido del impreso observa. No hay ningun albaran sin lineas en la base,
+// asi que se construye aqui: se siembra con su linea y se le retira despues.
+$idClienteImpreso = (int) $idsCliente['esperado_impreso'];
+$yaHayImpreso = (int) $db->query(
+    'SELECT COUNT(*) n FROM facclit WHERE idCliente = ' . $idClienteImpreso
+)->fetch_assoc()['n'];
+
+if ($yaHayImpreso > 0) {
+    echo "Factura de impreso ya sembrada (cliente {$idClienteImpreso})\n";
+} else {
+    $albaranConLineas = $siembra->ventaAlbaranCliente($idsArticulo[0], 3.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteImpreso,
+    ]);
+    $albaranVacio = $siembra->ventaAlbaranCliente($idsArticulo[1], 1.0, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idClienteImpreso,
+    ]);
+    $db->query("DELETE FROM albclilinea WHERE idalbcli = {$albaranVacio}");
+    $db->query("DELETE FROM albcliIva WHERE idalbcli = {$albaranVacio}");
+
+    $idFacturaImpreso = $siembra->facturarAlbaranCliente($albaranConLineas);
+
+    // El segundo albaran se enlaza a mano: `facturarAlbaranCliente` crea una factura por
+    // albaran, y aqui hacen falta dos albaranes en la misma.
+    $filaVacio = $db->query("SELECT Numalbcli FROM albclit WHERE id = {$albaranVacio}")->fetch_assoc();
+    $filaFactura = $db->query("SELECT Numfaccli FROM facclit WHERE id = {$idFacturaImpreso}")->fetch_assoc();
+    $db->query(
+        'INSERT INTO albclifac (idFactura, numFactura, idAlbaran, numAlbaran) VALUES ('
+        . "{$idFacturaImpreso}, {$filaFactura['Numfaccli']}, {$albaranVacio}, {$filaVacio['Numalbcli']})"
+    );
+    $db->query("UPDATE albclit SET estado = 'Procesado' WHERE id = {$albaranVacio}");
+
+    echo "Factura de impreso sembrada (cliente {$idClienteImpreso}): factura id={$idFacturaImpreso}"
+        . " con albaran con lineas id={$albaranConLineas} y albaran vacio id={$albaranVacio}\n";
+}
+
 echo "\nArticulos disponibles para los recorridos: " . implode(', ', $idsArticulo) . "\n";
 foreach ($idsCliente as $clave => $id) {
     echo "Cliente ($clave): $id\n";
@@ -864,6 +937,8 @@ foreach ($idsCliente as $clave => $id) {
 $db->close();
 
 // --- Apoyos -----------------------------------------------------------------
+
+
 
 function existente(mysqli $db, string $tabla, string $campo, string $valor): ?int
 {

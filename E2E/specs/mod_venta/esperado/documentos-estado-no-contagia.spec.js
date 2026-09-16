@@ -15,7 +15,7 @@
  *
  * Tres caracteres bastan para corregirlo, y el defecto alcanza a los tres documentos de venta.
  *
- * Declarado con `test.fail()`. El «antes» queda documentado, sin tocar, en
+ * **Se conserva en rojo**, con su propia aserción por motivo. El «antes» queda documentado, sin tocar, en
  * `factura-borrador-salidas.spec.js` T6, que afirma el estado corrompido tal como es hoy.
  */
 
@@ -30,7 +30,7 @@ const FACTURA_AJENA = 810012;
 const ID_CLIENTE = 962; // '[E2E venta] Esperado estado cruzado'
 
 test.describe('Venta — el cambio de estado no se contagia entre tipos de documento', () => {
-  test.fail('T1 incorporar un albarán no cambia el estado de la factura con ese identificador', {
+  test('T1 incorporar un albarán no cambia el estado de la factura con ese identificador', {
     tag: ['@esperado', '@factura', '@albaran', '@estados', '@directo', '@critico'],
     annotation: [
       { type: 'Qué ocurre hoy', description: 'Incorporar a una factura nueva un albarán cuyo número coincide con el identificador de otra factura deja esa otra factura en «Procesado».' },

@@ -23,7 +23,7 @@
  * pantalla del albarán recalcula el total sumando sus líneas al pintarse, de modo que dentro
  * del documento siempre cuadra. La discrepancia solo es visible comparando listado y documento.
  *
- * Declarado con `test.fail()`. No hay «antes» en la suite E2E: el defecto solo estaba cubierto
+ * **Se conserva en rojo**, con su propia aserción por motivo. No hay «antes» en la suite E2E: el defecto solo estaba cubierto
  * por pruebas de integración.
  */
 
@@ -74,7 +74,7 @@ async function falsearElPrecioUnaVez(page) {
 }
 
 test.describe('Venta — el servidor contrasta el importe con sus líneas', () => {
-  test.fail('T1 la cabecera guardada suma lo mismo que sus líneas', {
+  test('T1 la cabecera guardada suma lo mismo que sus líneas', {
     tag: ['@esperado', '@albaran', '@importes', '@guardado', '@forzado', '@alto'],
     annotation: [
       { type: 'Qué ocurre hoy', description: 'Si el precio de la línea llega manipulado en la petición, el albarán se guarda con la línea a 0,01 y la cabecera a 1,82: el listado y el propio documento muestran importes distintos.' },
