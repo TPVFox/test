@@ -8,6 +8,14 @@
             <directory suffix="Test.php">Integration/PHP</directory>
         </testsuite>
     </testsuites>
+
+    <!--
+        Instrumentacion para el informe de pruebas. Sin la variable de entorno que la activa,
+        todos sus metodos retornan en el acto: la ejecucion normal de la suite no paga nada.
+    -->
+    <extensions>
+        <extension class="TPVFox\Test\Instrumentacion\RegistroDeFlujo"/>
+    </extensions>
     <!--
         Ambito de medida: el codigo propio del producto, no solo los modulos. Las clases
         base de `clases/` son las que el codigo nuevo hereda y consume, de modo que

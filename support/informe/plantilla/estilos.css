@@ -1,0 +1,198 @@
+/* Informe de pruebas: dos columnas, lista a la izquierda y ficha a la derecha. */
+
+:root {
+  --fondo: #fff;
+  --panel: #fafafa;
+  --texto: #1a1a1a;
+  --tenue: #666;
+  --borde: #e3e3e3;
+  --verde: #2e7d32;
+  --rojo: #c62828;
+  --aviso: #e65100;
+  --marca: #fff8e1;
+  --ejecutada: rgba(46, 125, 50, .12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fondo: #17191c;
+    --panel: #1d2024;
+    --texto: #e8e8e8;
+    --tenue: #9aa0a6;
+    --borde: #2c3035;
+    --marca: #2a2416;
+    --ejecutada: rgba(46, 125, 50, .22);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 20px 48px;
+  background: var(--fondo);
+  color: var(--texto);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+header { padding: 26px 0 12px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+.tenue { color: var(--tenue); font-size: 13px; margin: 0; }
+
+.tarjetas { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 16px; }
+.tarjeta { flex: 1 1 110px; border: 1px solid var(--borde); border-radius: 8px; padding: 10px 12px; }
+.tarjeta .valor { display: block; font-size: 22px; font-weight: 600; }
+.tarjeta .titulo { display: block; font-size: 12px; color: var(--tenue); }
+.tarjeta.rojo .valor { color: var(--rojo); }
+.tarjeta.aviso .valor { color: var(--aviso); }
+
+.filtros { margin-bottom: 14px; }
+#buscador {
+  width: 100%; padding: 9px 12px; font-size: 14px;
+  border: 1px solid var(--borde); border-radius: 8px;
+  background: var(--panel); color: var(--texto);
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 6px; }
+.chip {
+  border: 1px solid var(--borde); border-radius: 999px; padding: 3px 10px;
+  font-size: 12px; cursor: pointer; background: transparent; color: var(--tenue);
+}
+.chip:hover { border-color: var(--tenue); }
+.chip.activa { background: var(--texto); color: var(--fondo); border-color: var(--texto); }
+
+main { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 18px; align-items: start; }
+@media (max-width: 880px) { main { grid-template-columns: 1fr; } }
+
+.lista { max-height: 72vh; overflow-y: auto; border: 1px solid var(--borde); border-radius: 8px; }
+.fila {
+  display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--borde);
+  padding: 9px 12px; background: transparent; color: inherit; cursor: pointer; font: inherit;
+  border-left: 3px solid transparent;
+}
+.fila:hover { background: var(--panel); }
+.fila.abierta { background: var(--panel); border-left-color: var(--texto); }
+.fila.verde { border-left-color: var(--verde); }
+.fila.rojo { border-left-color: var(--rojo); }
+.fila .clase { display: block; font-size: 11px; color: var(--tenue); text-transform: uppercase; letter-spacing: .04em; }
+.fila .frase { display: block; font-size: 13.5px; }
+.fila .meta { display: block; font-size: 11px; color: var(--tenue); margin-top: 2px; }
+
+.ficha { border: 1px solid var(--borde); border-radius: 8px; padding: 16px 18px; min-height: 200px; }
+.ficha .vacio { padding: 40px 0; text-align: center; }
+.ficha h2 { font-size: 17px; margin: 0 0 2px; }
+.ficha h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--tenue); margin: 20px 0 8px; }
+.ficha .metodo { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--tenue); }
+
+.estado { font-size: 11px; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; }
+.estado.verde { background: rgba(46,125,50,.15); color: var(--verde); }
+.estado.rojo { background: rgba(198,40,40,.15); color: var(--rojo); }
+
+.aviso-caja { background: var(--marca); border-left: 3px solid var(--aviso); padding: 8px 12px; margin: 12px 0; font-size: 13px; }
+pre.mensaje { background: rgba(198,40,40,.08); border-radius: 6px; padding: 10px; overflow: auto; font-size: 12px; }
+
+.paso { border-left: 2px solid var(--borde); padding: 6px 0 6px 12px; margin-left: 4px; }
+.paso code { font-size: 12.5px; word-break: break-word; }
+.paso .quien { display: block; font-size: 11.5px; color: var(--tenue); margin-top: 2px; }
+.paso .veces { font-size: 11px; color: var(--aviso); font-weight: 600; }
+.fase-preparacion { border-left-color: var(--tenue); }
+.fase-ejercicio { border-left-color: var(--verde); }
+.fase-comprobacion { border-left-color: var(--aviso); }
+
+code, .fuente { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+table.fuente { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 6px; }
+table.fuente td { padding: 1px 8px; vertical-align: top; white-space: pre-wrap; }
+table.fuente td.n { text-align: right; color: var(--tenue); user-select: none; width: 46px; }
+table.fuente tr.ejecutada { background: var(--ejecutada); }
+
+details { margin-top: 10px; font-size: 13px; }
+summary { cursor: pointer; color: var(--tenue); }
+ul.llana { padding-left: 18px; margin: 6px 0; font-size: 13px; }
+.etiqueta { display: inline-block; font-size: 11px; color: var(--tenue); border: 1px solid var(--borde); border-radius: 999px; padding: 1px 8px; margin: 0 4px 4px 0; }
+
+dl.anotaciones { margin: 8px 0; }
+dl.anotaciones dt {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--tenue); margin-top: 10px;
+}
+dl.anotaciones dd { margin: 2px 0 0; }
+
+/* Filtros por resultado, separados de los de etiqueta. */
+.chips.resultados { margin-bottom: 2px; padding-bottom: 8px; border-bottom: 1px solid var(--borde); }
+
+/* La fila, con el titulo a la izquierda y el contexto a la derecha. */
+.fila .meta { display: flex; justify-content: space-between; gap: 10px; }
+.fila .marcas { display: block; font-size: 11px; color: var(--aviso); margin-top: 2px; }
+
+/* El camino por ficheros. */
+ol.camino { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; padding: 0; margin: 6px 0 0; }
+ol.camino .tramo {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--borde); border-radius: 6px; padding: 3px 9px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+}
+ol.camino .tramo + .tramo::before { content: '→'; color: var(--tenue); margin-right: 2px; font-family: inherit; }
+ol.camino .tramo.fase-ejercicio { border-left: 3px solid var(--verde); }
+ol.camino .tramo.fase-preparacion { border-left: 3px solid var(--tenue); color: var(--tenue); }
+ol.camino .tramo.fase-comprobacion { border-left: 3px solid var(--aviso); color: var(--tenue); }
+ol.camino .cuantas { font-size: 10.5px; color: var(--tenue); }
+
+/* El arbol de llamadas. */
+details.arbol ul { list-style: none; padding: 0; margin: 8px 0 0; }
+details.arbol li {
+  padding: 1px 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+  border-left: 1px solid var(--borde); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+details.arbol .args { color: var(--tenue); }
+details.arbol .retorno { color: var(--verde); }
+
+/* Pestanas: casos, codigo y datos. */
+.pestanas { display: flex; gap: 2px; border-bottom: 1px solid var(--borde); margin-bottom: 16px; }
+.pestana {
+  border: 0; background: transparent; color: var(--tenue); cursor: pointer;
+  font: inherit; font-size: 14px; padding: 8px 16px; border-bottom: 2px solid transparent;
+}
+.pestana:hover { color: var(--texto); }
+.pestana.activa { color: var(--texto); border-bottom-color: var(--texto); font-weight: 600; }
+.oculto { display: none; }
+
+/* Grupos de la vista por codigo y por datos. */
+.grupo { border: 1px solid var(--borde); border-radius: 8px; margin-bottom: 10px; }
+.grupo > summary { padding: 10px 14px; font-size: 14px; }
+.grupo > summary code { font-size: 13px; font-weight: 600; }
+.grupo .cuerpo { padding: 0 14px 14px; }
+
+/* Barra de proporcion: cuantos casos ejercitan algo, comparable de un vistazo. */
+.barra { display: grid; grid-template-columns: 1fr 52px; align-items: center; gap: 10px; margin: 5px 0; }
+.barra .relleno { height: 16px; background: var(--borde); border-radius: 3px; position: relative; overflow: hidden; }
+.barra .relleno span { position: absolute; inset: 0 auto 0 0; background: var(--verde); opacity: .35; }
+.barra .texto { position: relative; padding: 0 7px; font-size: 12px; line-height: 16px; white-space: nowrap; }
+.barra .cuenta { font-size: 11.5px; color: var(--tenue); text-align: right; }
+.barra.pulsable { cursor: pointer; }
+.barra.pulsable:hover .relleno { outline: 1px solid var(--tenue); }
+
+/* Etiquetas de tabla, con su tipo de acceso. */
+.tabla-chip { display: inline-block; font-size: 10.5px; border: 1px solid var(--borde); border-radius: 4px; padding: 0 5px; margin: 2px 3px 0 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tabla-chip.w { border-color: var(--aviso); color: var(--aviso); }
+.tabla-chip.rw { border-color: var(--rojo); color: var(--rojo); }
+
+/* Matriz funcion x tabla. */
+table.matriz { border-collapse: collapse; font-size: 11px; margin-top: 10px; }
+table.matriz th { font-weight: 400; color: var(--tenue); text-align: left; padding: 2px 5px; }
+table.matriz th.vertical { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+table.matriz td { text-align: center; padding: 2px 5px; border: 1px solid var(--borde); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+table.matriz td.r { background: rgba(46,125,50,.12); color: var(--verde); }
+table.matriz td.w { background: rgba(230,81,0,.14); color: var(--aviso); }
+table.matriz td.rw { background: rgba(198,40,40,.14); color: var(--rojo); }
+table.matriz th.fila { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--texto); white-space: nowrap; }
+
+/* El codigo recorrido, presentado como pasos de un recorrido y no como lista suelta. */
+details.paso-codigo > summary { display: flex; align-items: center; gap: 8px; }
+details.paso-codigo .orden {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; border-radius: 50%; font-size: 11px;
+  border: 1px solid var(--borde); color: var(--tenue);
+}
+details.paso-codigo + details.paso-codigo { border-top: 1px dashed var(--borde); padding-top: 4px; }
+
+/* Modulo y tipo de fichero, para que la ubicacion no se adivine. */
+.ubicacion { font-size: 10.5px; color: var(--tenue); border: 1px solid var(--borde); border-radius: 4px; padding: 0 5px; margin-left: 6px; }

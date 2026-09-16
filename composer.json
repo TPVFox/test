@@ -8,8 +8,11 @@
     "autoload-dev": {
         "psr-4": {
             "TPVFox\\Test\\": "support/php/",
+            "TPVFox\\Test\\Informe\\": "support/informe/",
             "TPVFox\\Test\\Siembra\\": "support/siembra/"
         }
     },
-    "config": { "sort-packages": true }
+    "config": {
+        "sort-packages": true
+    }
 }

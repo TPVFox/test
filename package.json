@@ -7,6 +7,8 @@
         "test:php": "vendor/bin/phpunit --testsuite unit-php",
         "test:php:int": "vendor/bin/phpunit --testsuite integration-php",
         "cobertura": "php support/cobertura.php",
+        "informe:pruebas": "php support/informe-pruebas.php",
+        "informe:ver": "php -S 127.0.0.1:8081 -t informe-pruebas",
         "test:js": "jest --selectProjects unit-js",
         "test:js:int": "jest --selectProjects integration-js",
         "test:e2e": "playwright test",

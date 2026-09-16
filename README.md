@@ -224,6 +224,22 @@ php support/generar-fixture-e2e.php <ano-vigente> <idTienda>
 despliegue del ejercicio inmediatamente anterior a ese, con su propio usuario y su propia tienda
 sembrados igual.
 
+
+### Segundo usuario, opcional
+
+Un recorrido comprueba que el listado de documentos en curso se acota a quien lo mira, y para
+eso hacen falta dos sesiones distintas. Se declaran igual que las del primero:
+
+```
+TPVFOX_E2E_USUARIO2=<otro usuario>
+TPVFOX_E2E_CLAVE2=<su clave>
+```
+
+`npm run entorno:preparar` da de alta el segundo usuario solo si las dos variables están. Sin
+ellas, el recorrido que las necesita se salta solo y el resto de la suite no se entera: la
+fila de índice de cada usuario es independiente, de modo que añadir uno no le quita la suya al
+otro.
+
 ## Ejecución
 
 ```bash
@@ -244,7 +260,7 @@ las anotaciones explican el caso en lenguaje llano.
 | --- | --- | --- |
 | Tipo | `@estado-actual` | Documenta lo que el producto hace hoy, y pasa |
 | | `@defecto` | Acompaña a `@estado-actual` cuando lo documentado es un defecto: el caso congela el comportamiento incorrecto tal como es |
-| | `@esperado` | Afirma lo que el producto debería hacer y hoy no hace. Va declarado con `test.fail()`: mientras el defecto exista, falla y la suite sigue en verde; el día que se corrija, Playwright avisa con «Expected to fail, but passed» y hay que retirar la marca |
+| | `@esperado` | Afirma lo que el producto debería hacer y hoy no hace, de modo que **está en rojo a propósito**. El fallo lleva por motivo la aserción del propio defecto, y se lee en la primera línea del resultado. El día que el defecto se corrija, el caso pasa a verde y se queda como guardia de regresión |
 | | `@control` | Acompaña a un caso `@esperado`: comprueba lo que ya funciona y tiene que seguir funcionando después de la corrección |
 | Documento | `@pedido`, `@albaran`, `@factura` | Los documentos que recorre el caso |
 | Área | `@entrada`, `@teclado`, `@raton`, `@listado`, `@busqueda`, `@borrador`, `@adjuntos`, `@guardado`, `@estados`, `@numeracion`, `@existencias`, `@importes`, `@impreso`, `@vencimiento`, `@validacion` | La parte del flujo que ejercita |
@@ -257,20 +273,164 @@ ocurre** y **Cómo debería funcionar**. Un caso de comportamiento correcto llev
 un control añade **Para qué sirve**. Los casos `@esperado` viven además en su propia carpeta,
 `E2E/specs/mod_venta/esperado/`.
 
+**Los `@esperado` están en rojo, y así tiene que ser.** No se marcan como fallo esperado: una marca de
+fallo esperado da por buena cualquier causa —unas credenciales que faltan, una precondición que no se
+cumple, un selector que ya no existe— y deja la suite en verde mientras el recorrido no demuestra nada.
+En rojo, cada uno enseña su motivo y ese motivo es la aserción del defecto. La suite que **sí** debe
+estar siempre verde es la de todo lo demás:
+
+```bash
+npx playwright test E2E/specs/mod_venta --grep-invert @esperado --reporter=line   # debe pasar entera
+```
+
 ```bash
 npx playwright test E2E/specs/mod_venta --grep @esperado --reporter=line             # lo que debería funcionar y no funciona
 npx playwright test E2E/specs/mod_venta --grep "@defecto|@esperado" --reporter=line  # todos los defectos
 npx playwright test E2E/specs/mod_venta --grep-invert @esperado --reporter=line      # solo el estado actual
 ```
 
-**El informe HTML, en una carpeta propia.** El reporter HTML vacía su carpeta de salida antes de
+**El informe HTML es desechable por defecto.** El reporter HTML vacía su carpeta de salida antes de
 escribir, y lo hace con cualquier orden de Playwright que no fije otro reporter, incluida `--list`.
-Para conservar un informe, genéralo fuera de `E2E/informe`:
+Para conservar un informe, genéralo fuera de `E2E/informe-ultimo`:
 
 ```bash
 PLAYWRIGHT_HTML_OUTPUT_DIR=$HOME/informes-e2e/$(date +%F) npx playwright test E2E/specs/mod_venta --reporter=line,html
 npx playwright show-report $HOME/informes-e2e/$(date +%F)
 ```
+
+## Informe de las pruebas unitarias y de integración
+
+La salida de PHPUnit son puntos en un terminal. Este informe cuenta, por cada caso, **qué
+valida**, **qué código de TPVFox recorre** y **qué hizo el dato**, y se consulta como el de
+Playwright: con buscador, filtros por etiqueta y el fuente del producto a la vista.
+
+```bash
+npm run informe:pruebas     # genera en informe-pruebas/ (unos 30 s)
+npm run informe:ver         # lo sirve en http://127.0.0.1:8081
+```
+
+Hace falta servirlo: el navegador bloquea las peticiones de datos desde `file://`. Para
+conservar uno, genéralo aparte y sirve esa carpeta:
+
+```bash
+php support/informe-pruebas.php --salida=$HOME/informes-pruebas/$(date +%F)
+php -S 127.0.0.1:8081 -t $HOME/informes-pruebas/$(date +%F)
+```
+
+| Opción | Para qué |
+| --- | --- |
+| `--suites=unit-php` | Solo una de las suites de PHP |
+| `--sin-js` | Se salta las suites de Jest |
+| `--salida=<ruta>` | Genera en otro sitio, para conservarlo |
+| `--sin-traza` | Genera en la mitad de tiempo, sin cadena de llamadas y con el recorrido incompleto |
+
+**Por qué la traza viene puesta.** Es la única fuente que da **orden**: sin ella el informe
+sabe qué ficheros se recorrieron, pero no en qué secuencia, y el apartado «código que recorre»
+vuelve a ser una lista suelta. Con ella se lee como un recorrido —`albaranesVentas.php →
+ClaseVentas.php → ClaseArticulosStocks.php → claseModeloP.php`— y además aparecen las clases
+que no consultan nada, que sin traza no salen en ninguna parte.
+
+Cuesta: **1 minuto frente a 27 segundos**, y disco temporal que se limpia al terminar (un caso
+llega a 67 MB de traza en crudo). Con `--sin-traza` se recupera la velocidad y se pierde el
+orden.
+
+### De dónde sale cada cosa
+
+| En la ficha | De dónde | Hace falta escribirlo |
+| --- | --- | --- |
+| La frase del caso | Del nombre del método | No |
+| Las etiquetas | Del nombre de la clase y de la carpeta | No |
+| «Dado que…» | De los métodos de siembra que el caso llamó | No |
+| «Qué hizo el dato» | De las consultas reales, con el método que las pidió y su `fichero:línea` | No |
+| El código que recorre | De la cobertura por caso, sobre el fuente real | No |
+| La cadena de llamadas | De la traza, con `--con-traza` | No |
+| «Qué valida» en prosa | Del comentario del método | Sí |
+| Las cuatro anotaciones del defecto | Declaradas en el comentario | Sí |
+| Las etiquetas propias | `@group`, que además filtra por línea de órdenes | Sí |
+| `@estado rojo` · `@estado verde` | Declarado en el comentario | Sí |
+| `@codigo-afectado ruta.php:18-24` | Declarado en el comentario | Sí |
+
+Lo derivado no pisa lo escrito: si el caso declara algo, manda lo suyo.
+
+### Cómo se anota un caso
+
+Las anotaciones son las mismas seis que usan los recorridos de navegador, con los mismos
+nombres, para que lo que se lee en un informe se lea igual en el otro. Un caso de defecto
+lleva las cuatro primeras; uno de comportamiento correcto, `@comportamiento`; un control añade
+`@para-que-sirve`. Cada una se prolonga hasta la siguiente, así que puede ocupar párrafos.
+
+```php
+/**
+ * @estado rojo
+ * @group defecto
+ * @group pedido
+ * @group critico
+ *
+ * @que-ocurre-hoy Pedir el cambio de estado de un pedido cambia también el de un albarán
+ *   que no tiene nada que ver, por compartir el mismo identificador.
+ * @que-deberia-ocurrir Que el cambio alcance únicamente al documento del tipo pedido.
+ * @por-que-ocurre Las tres condiciones que eligen el tipo usan asignación en vez de
+ *   comparación, de modo que las tres se cumplen siempre.
+ * @como-deberia-funcionar Comparar en vez de asignar en las tres condiciones.
+ */
+public function test_defecto_modificarEstadoDocumento_pedidoModificaTambienUnAlbaran(): void
+```
+
+`@group` es la anotación de PHPUnit, de modo que declarar una etiqueta sirve además para
+filtrar sin el informe: `vendor/bin/phpunit --group defecto`.
+
+**En JS es igual, con dos diferencias.** Jest no tiene `@group`, así que las etiquetas van en
+una línea `@etiquetas defecto entrada validacion medio`. Y como Jest no da cobertura por caso,
+el código que el informe enseña **no es el que se midió sino la función que el caso prueba**:
+se deduce del `RUTA_SCRIPT` que el fichero declara y del nombre del `describe`, que por
+convención es el de la función de producto. La ficha lo dice con todas las letras para que no
+se lea como medido algo que es declarado.
+
+**No hace falta anotar los 532 casos.** Lo derivado ya da frase, etiquetas, flujo y código a
+todos; lo que se escribe a mano son los casos donde la causa raíz importa, y lo que se escribe
+es prosa que en su mayoría ya existe en el comentario, solo que sin etiquetar. La falta de
+anotación **no genera aviso**: los avisos quedan para las contradicciones, o dejarían de
+servir.
+
+### Las dos vistas del recorrido
+
+La cobertura pinta un fichero medio verde y no dice **por qué serie de entradas** se llegó
+hasta ahí. Por eso la ficha trae dos vistas del recorrido, una encima de la otra:
+
+- **Por dónde pasó** — el camino fichero a fichero, en orden y sin repetir:
+  `albaranesVentas.php → ClaseVentas.php → ClaseArticulosStocks.php → claseModeloP.php`. Solo
+  nombra ficheros del producto; lo que es preparación o comprobación se pliega en un tramo, que
+  es lo que evita que la siembra meta decenas de saltos por sus propias escrituras. **Existe
+  siempre**, con traza o sin ella: sin traza sale de los emisores de las propias consultas.
+- **Pasos, uno a uno** — la cadena de llamadas como árbol, con su profundidad, sus argumentos,
+  su valor de retorno y su duración. Solo con `--con-traza`.
+
+El camino dice por dónde; el árbol, cómo.
+
+### Los tres contrastes
+
+Son lo que el informe aporta sobre leer el fuente, y salen solos:
+
+1. **El estado declarado contra el real.** Avisa si un caso dice estar en rojo y pasa, o al
+   revés, o si está en rojo sin declararlo.
+2. **El código declarado contra el ejecutado.** Avisa si un caso dice cubrir un defecto y no
+   pasa por ninguna de esas líneas.
+3. **Ningún fichero de pruebas cita identificadores del sistema de calidad**, porque este
+   repositorio es público y tiene que sostenerse solo.
+
+### Cómo se instrumenta
+
+Dos piezas, las dos inertes mientras no se genera el informe:
+
+- **La conexión observada** (`support/php/Instrumentacion/ConexionObservada.php`) sustituye a
+  la conexión de los casos de integración y anota cada consulta con su SQL, su emisor y lo que
+  devolvió. Funciona porque el producto consulta siempre por la conexión que la suite le
+  entrega; no se toca ni una línea de TPVFox.
+- **El registro de flujo** (`RegistroDeFlujo.php`) arranca una traza por caso. Está declarado
+  en `phpunit.xml` y, sin su variable de entorno, todos sus métodos retornan en el acto:
+  medido, `npm run test:php:int` tarda lo mismo con la extensión registrada que sin ella.
+
+La carpeta `informe-pruebas/` no entra en el repositorio.
 
 ## Versiones fijadas
 

@@ -15,6 +15,8 @@ use mysqli;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 use RuntimeException;
+use TPVFox\Test\Instrumentacion\Bitacora;
+use TPVFox\Test\Instrumentacion\ConexionObservada;
 use TPVFox\Test\Siembra\EscenarioComprobacionStock;
 use TPVFox\Test\Siembra\Siembra;
 
@@ -61,20 +63,24 @@ abstract class CasoIntegracion extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Bitacora::empezarCaso($this->toString());
         $this->db = self::conectar($this->ejercicio);
 
         if ($this->aislarPorTransaccion) {
             $this->db->begin_transaction();
         }
 
-        if ($this->compartirConexionConElProducto) {
+        // Mientras se genera el informe, el producto usa la conexion observada en todos los
+        // casos y no solo en los que lo declaran: de otro modo el flujo del dato saldria a
+        // medias, con las consultas que el producto hace por su cuenta invisibles.
+        if ($this->compartirConexionConElProducto || Bitacora::estaActiva()) {
             $this->fijarConexionDelProducto($this->db);
         }
     }
 
     protected function tearDown(): void
     {
-        if ($this->compartirConexionConElProducto) {
+        if ($this->compartirConexionConElProducto || Bitacora::estaActiva()) {
             $this->fijarConexionDelProducto(null);
         }
 
@@ -85,6 +91,8 @@ abstract class CasoIntegracion extends TestCase
             $this->db->close();
             $this->db = null;
         }
+
+        Bitacora::terminarCaso();
         parent::tearDown();
     }
 
@@ -163,12 +171,18 @@ abstract class CasoIntegracion extends TestCase
             );
         }
 
-        $db = @new mysqli(
+        $credenciales = [
             Entorno::valor('TPVFOX_TEST_DB_HOST', 'localhost'),
             Entorno::valor('TPVFOX_TEST_DB_USER'),
             Entorno::valor('TPVFOX_TEST_DB_PASS'),
-            $base
-        );
+            $base,
+        ];
+
+        // Con el informe en marcha la conexion anota lo que se le pide; sin el es la de
+        // siempre, y la instrumentacion no cuesta nada.
+        $db = Bitacora::estaActiva()
+            ? @new ConexionObservada(...$credenciales)
+            : @new mysqli(...$credenciales);
 
         if ($db->connect_errno) {
             throw new RuntimeException("No se pudo conectar con «{$base}»: error {$db->connect_errno}.");

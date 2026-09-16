@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pruebas de TPVFox</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<header>
+  <h1>Pruebas unitarias y de integración</h1>
+  <p id="resumen" class="tenue">Cargando…</p>
+</header>
+
+<section class="tarjetas" id="tarjetas"></section>
+
+<nav class="pestanas" id="pestanas">
+  <button class="pestana activa" data-panel="casos">Casos</button>
+  <button class="pestana" data-panel="codigo">Código</button>
+  <button class="pestana" data-panel="datos">Datos</button>
+</nav>
+
+<div id="panel-casos">
+<section class="filtros">
+  <input type="search" id="buscador" placeholder="Buscar por nombre, frase, fichero o etiqueta…" autocomplete="off">
+  <div id="resultados" class="chips resultados"></div>
+  <div id="etiquetas" class="chips"></div>
+  <p id="cuenta" class="tenue"></p>
+</section>
+
+<main>
+  <aside id="lista" class="lista"></aside>
+  <article id="ficha" class="ficha">
+    <p class="tenue vacio">Elige un caso de la lista para ver qué valida, qué código recorre y qué hizo el dato.</p>
+  </article>
+</main>
+</div>
+
+<div id="panel-codigo" class="oculto"></div>
+<div id="panel-datos" class="oculto"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

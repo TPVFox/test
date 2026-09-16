@@ -11,6 +11,8 @@ vendor/
 .phpunit.result.cache
 coverage/
 E2E/informe/
+E2E/informe-ultimo/
+informe-pruebas/
 test-results/
 playwright-report/
 blob-report/
