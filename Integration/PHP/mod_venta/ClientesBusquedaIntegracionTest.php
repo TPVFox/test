@@ -4,7 +4,7 @@
  * Busqueda de cliente para la cabecera del documento. El caso de despacho `buscarClientes`
  * (`tareas/BuscarClientes.php`) solo normaliza la forma de la respuesta; la busqueda misma la hace
  * `Cliente` de `clases/cliente.php`, y es ahi donde viven las combinaciones que el camino sano no
- * toca, enumeradas al analizar las condiciones de test de FS-002.
+ * toca, enumeradas al analizar las condiciones de test de la busqueda.
  *
  * Se prueba la clase directamente y no por el despacho a proposito: `tareas.php` carga cada caso con
  * `include_once`, de modo que una segunda invocacion de `buscarClientes` en el mismo proceso PHP no
@@ -16,7 +16,7 @@
  * Dos casos reproducen defecto y se conservan en rojo: una busqueda por nombre no encuentra un
  * cliente cuyas palabras esten repartidas entre nombre comercial y razon social, y la sustitucion
  * textual del nombre de columna convierte una palabra buscada en el nombre de la columna. Su
- * correccion no es de este PCP.
+ * correccion queda fuera del alcance de estas pruebas.
  */
 
 declare(strict_types=1);
@@ -55,7 +55,7 @@ final class ClientesBusquedaIntegracionTest extends CasoIntegracion
 
     /**
      * Via por id x cliente inexistente: sin fila, la clase deja su variable de retorno sin asignar y
-     * devuelve nulo. Es el patron de variable no asignada de FS-003; aqui el despacho lo amortigua
+     * devuelve nulo. Es el mismo patron de variable no asignada; aqui el despacho lo amortigua
      * despues, pero la clase por si sola no distingue «no existe» de un fallo.
      */
     public function test_porIdInexistenteDevuelveNuloSinFila(): void
@@ -84,6 +84,8 @@ final class ClientesBusquedaIntegracionTest extends CasoIntegracion
      * campo no cumple ninguno de los dos grupos y no aparece, aunque cada palabra exista en el.
      *
      * Defecto: se conserva en rojo.
+     *
+     * @estado rojo
      */
     public function test_defecto_nombrePartidoEntreComercialYRazonSocialNoAparece(): void
     {
@@ -101,6 +103,8 @@ final class ClientesBusquedaIntegracionTest extends CasoIntegracion
      * del valor buscado, y arrastra el termino a un literal que ningun cliente cumple.
      *
      * Defecto: se conserva en rojo.
+     *
+     * @estado rojo
      */
     public function test_defecto_palabraIgualAlNombreDeColumnaSeSustituye(): void
     {
@@ -121,7 +125,10 @@ final class ClientesBusquedaIntegracionTest extends CasoIntegracion
      * `mysqli_report()` invocado en ningun punto del producto, un fallo de sintaxis lanza
      * `mysqli_sql_exception` antes de llegar ahi: esa rama no se alcanza nunca.
      *
-     * Defecto: se conserva en rojo.
+     * Afirma el comportamiento defectuoso —la excepcion— de modo que pasa mientras el
+     * defecto siga vivo.
+     *
+     * @estado verde
      */
     public function test_defecto_idInvalidoLanzaExcepcionEnVezDeDevolverError(): void
     {

@@ -1,6 +1,6 @@
 /**
  * Las 5 funciones puras de `js/AccionesDirectas.js` (el resto está acoplado a DOM real,
- * AJAX o estado global de página, y se prueba en E2E — ver PCP-TPY-compartida §12.1).
+ * AJAX o estado global de pagina, y se prueba en E2E).
  */
 
 'use strict';
@@ -45,7 +45,20 @@ describe('comprobarNumero', () => {
    * cero recibe "No es correcto el numero" y el campo se resetea. Corrección propuesta:
    * comprobar los dos primeros caracteres de la cadena directamente (`valor.charAt(0)` y
    * `valor.charAt(1)`), no una posicion relativa a una longitud fija de 10. Evidencia: este
-   * test, en rojo mientras el defecto siga sin corregirse por CC.
+   * test, en rojo mientras el defecto siga sin corregirse.
+   *
+   * @estado rojo
+   * @etiquetas defecto entrada validacion medio
+   *
+   * @que-ocurre-hoy Un cero suelto, o cualquier cantidad que empiece por cero sin punto
+   *   decimal detras, se rechaza como numero invalido: el cajero recibe «No es correcto el
+   *   numero» y el campo se resetea.
+   * @que-deberia-ocurrir Que el cero se acepte como lo que es, un numero valido.
+   * @por-que-ocurre La comprobacion mira una posicion relativa a una longitud fija de diez
+   *   caracteres, de modo que con una cadena de un solo caracter la comparacion nunca puede
+   *   cumplirse.
+   * @como-deberia-funcionar Comprobar los dos primeros caracteres de la cadena directamente,
+   *   sin depender de la longitud.
    */
   test.each([
     ['0'],

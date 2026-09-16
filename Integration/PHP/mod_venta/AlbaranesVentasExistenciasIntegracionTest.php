@@ -154,6 +154,8 @@ final class AlbaranesVentasExistenciasIntegracionTest extends CasoIntegracion
      * escrituras, no la causa concreta del fallo. Correccion propuesta: comprobar el
      * resultado del movimiento y abortar la operacion que lo pidio, dentro de una transaccion
      * que abarque tambien el inventario. Evidencia: este test.
+     *
+     * @estado rojo
      */
     public function test_defecto_siElMovimientoDeExistenciasFallaLaLineaYaQuedoEscrita(): void
     {

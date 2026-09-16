@@ -2,12 +2,12 @@
 
 /**
  * `ClaseVentas`, la base comun de `AlbaranesVentas`, `PedidosVentas` y `FacturasVentas`
- * (CV-01: el SQL vive en una clase de `clases/`).
+ * (el SQL vive en una clase de `clases/`, como pide la convencion).
  *
  * Dos de sus seis metodos no tienen ningun llamador dentro de `mod_venta`:
  * `sumarIvaBases()` solo lo usa la copia duplicada de `mod_compras`
- * (`ClaseCompras::sumarIvaBases()`, hallazgo ya recogido para `PCP-TPZ` en el PCP central,
- * §4.2), y ninguna de las tres clases hijas de venta lo invoca. Se prueba igual, por el
+ * (`ClaseCompras::sumarIvaBases()`, hallazgo ya recogido para el modulo de compras), y
+ * ninguna de las tres clases hijas de venta lo invoca. Se prueba igual, por el
  * mismo motivo que `modificarArrayPedidos()`.
  */
 
@@ -53,6 +53,8 @@ final class ClaseVentasIntegracionTest extends CasoIntegracion
      * `$this->insert_id`), nunca la propiedad de esta clase. Correccion propuesta: mover las
      * dos asignaciones antes del `return`, o eliminarlas si de verdad no las usa nadie.
      * Evidencia: este test, en rojo mientras el defecto siga sin corregirse por CC.
+     *
+     * @estado rojo
      */
     public function test_defecto_consulta_conExitoNuncaRellenaAffectedRowsNiInsertId(): void
     {
@@ -62,7 +64,7 @@ final class ClaseVentasIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * Defecto (contrato incumplido, no comportamiento nuevo): CV-03 documenta que un fallo
+     * Defecto (contrato incumplido, no comportamiento nuevo): la convencion documenta que un fallo
      * de SQL va en `['error']`/`['consulta']`, pero en este entorno cualificado mysqli
      * lanza excepcion antes de que `consulta()` pueda construir esa respuesta.
      *
@@ -72,8 +74,8 @@ final class ClaseVentasIntegracionTest extends CasoIntegracion
      * excepcion), y ninguna parte de `consulta()` lo desactiva ni la captura; el `else` que
      * construye `$respuesta['error']` (para cuando `$db->query()` devuelve `false`, el
      * comportamiento del modo anterior a 8.1) queda inalcanzable con esta configuracion.
-     * Mismo mecanismo que `DEV-TPX` ya documento para el bloqueo de solo lectura en
-     * `mod_reorganizacion`. Corrección propuesta: no es de este PCP decidir si se captura
+     * Mismo mecanismo ya documentado para el bloqueo de solo lectura en
+     * `mod_reorganizacion`. Correccion propuesta: no corresponde a estas pruebas decidir si se captura
      * la excepcion o se asume el nuevo contrato — es una decision de diseño para F2.
      * Evidencia: este test, que fija el comportamiento real (la excepcion) como resultado
      * esperado; se pone en rojo si `consulta()` alguna vez vuelve a devolver el array de

@@ -83,6 +83,8 @@ final class BuscarProductosIntegracionTest extends CasoIntegracion
      * sentido con una palabra; con varias, se debe generar como frase completa
      * (`campo = "Zumaque Alfa"`) en vez de encadenar igualdades por palabra. Evidencia:
      * este test, en rojo mientras el defecto siga sin corregirse por CC.
+     *
+     * @estado rojo
      */
     public function test_defecto_conVariasPalabrasYUnSoloResultadoPorLikeElEstadoQuedaSinDefinir(): void
     {

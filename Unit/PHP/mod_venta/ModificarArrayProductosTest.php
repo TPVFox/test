@@ -77,6 +77,8 @@ final class ModificarArrayProductosTest extends TestCase
      * pertenece a ningun adjunto. Correccion propuesta: inicializar `$product = [];` al
      * principio de cada vuelta del `foreach`. Evidencia: este test, en rojo mientras el
      * defecto siga sin corregirse por CC.
+     *
+     * @estado rojo
      */
     public function test_T3_unaClaveDeAdjuntoSobreviveAUnaLineaQueNoLaTrae(): void
     {

@@ -3,7 +3,8 @@
 /**
  * Composicion de HTML de `funciones.php` que no toca la base: filas de tabla, opciones de
  * `<select>` y los modales de cliente, producto, adjunto e incidencia. `mod_venta` compone
- * en servidor y el cliente solo inserta (CV-12): estas funciones son ese "componer".
+ * en servidor y el cliente solo inserta, como pide la convencion del proyecto: estas
+ * funciones son ese "componer".
  */
 
 declare(strict_types=1);

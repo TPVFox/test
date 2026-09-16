@@ -3,9 +3,9 @@
 /**
  * `clases/articulos.php` (raíz de la aplicación): metodos de lectura. No pertenece a
  * ningún módulo — la consumen `mod_compras`, `mod_producto`, `mod_productos` y
- * `mod_etiquetado` (`PCP-TPY` §4, punto de acoplamiento); `mod_venta` no la usa
+ * `mod_etiquetado` —es un punto de acoplamiento entre modulos—; `mod_venta` no la usa
  * directamente, pero se prueba aquí porque es donde el central decidió que se prueba una
- * sola vez para que `PCP-TPZ` la herede.
+ * sola vez y los demas modulos la heredan.
  *
  * `datosPrincipalesArticulo($idArticulo)` y `datosArticulosPrincipal($idArticulo,
  * $idTienda)` son dos métodos distintos con el nombre casi intercambiado: el primero no
@@ -73,6 +73,8 @@ final class ArticulosLecturaIntegracionTest extends CasoIntegracion
      * en este componente. Correccion propuesta: inicializar la variable a `null` antes del
      * `if`. Evidencia: este test, en rojo por el propio E_WARNING de PHP convertido en
      * error (no por una aserción), mientras el defecto siga sin corregirse por CC.
+     *
+     * @estado rojo
      */
     public function test_defecto_buscarNombreArticulo_sinMatchAvisaVariableIndefinida(): void
     {
@@ -97,6 +99,8 @@ final class ArticulosLecturaIntegracionTest extends CasoIntegracion
      * variable indefinida en vez de devolver algo que distinga "sin precio" de un error.
      * Evidencia: este test, en rojo por el propio E_WARNING de PHP convertido en error (no
      * por una aserción), mientras el defecto siga sin corregirse por CC.
+     *
+     * @estado rojo
      */
     public function test_defecto_articulosPrecio_sinPrecioAvisaVariableIndefinida(): void
     {
@@ -140,10 +144,14 @@ final class ArticulosLecturaIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * Defecto: `buscarPorNombre()` concatena `$valor` sin escapar dentro de un `LIKE` (CV-19,
-     * DS-TPY-COM-005). Una entrada que cierra la comilla y comenta el resto de la condición anula el
+     * Defecto: `buscarPorNombre()` concatena `$valor` sin escapar dentro de un `LIKE`.
+     * Una entrada que cierra la comilla y comenta el resto de la condición anula el
      * filtro de tienda: la busqueda deja de estar acotada a la tienda pedida y alcanza a todo
-     * `articulos`. Se conserva en rojo.
+     * `articulos`.
+     *
+     * Afirma el comportamiento defectuoso, de modo que pasa mientras el defecto siga vivo.
+     *
+     * @estado verde
      */
     public function test_defecto_buscarPorNombreEntradaConCargaIgnoraElFiltroDeTienda(): void
     {

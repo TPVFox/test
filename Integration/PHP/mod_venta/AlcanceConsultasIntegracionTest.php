@@ -1,16 +1,16 @@
 <?php
 
 /**
- * Alcance de las consultas (FS-015): la entrada del operador debe tratarse como dato, nunca como
+ * Alcance de las consultas: la entrada del operador debe tratarse como dato, nunca como
  * parte de la instruccion. `ComprobarPedidos()` de `PedidosVentas` concatena el identificador de
- * cliente en `... where idCliente=<valor> and estado="Guardado"`, sin parametrizar (DS-TPY-COM-005),
+ * cliente en `... where idCliente=<valor> and estado="Guardado"`, sin parametrizar,
  * de modo que una entrada capaz de cerrar la condicion del identificador y comentar el resto amplia
  * el alcance a documentos que la operacion no autoriza.
  *
  * El test contrasta el recuento legitimo de un cliente con el que devuelve la misma consulta cuando
- * el identificador lleva una carga que anula la condicion de estado. Es la instancia viva de FM-03 y
- * la evidencia de que CQA-3 no esta garantizada por construccion; se conserva en rojo. Su correccion
- * —parametrizar— no es de este PCP.
+ * el identificador lleva una carga que anula la condicion de estado. Es la instancia viva del riesgo de
+ * inyeccion y la evidencia de que el alcance no esta garantizado por construccion; se conserva en
+ * rojo. Su correccion —parametrizar— queda fuera del alcance de estas pruebas.
  */
 
 declare(strict_types=1);
@@ -53,7 +53,9 @@ final class AlcanceConsultasIntegracionTest extends CasoIntegracion
      * Defecto: una entrada que cierra la condicion del identificador y comenta el resto —
      * `1 OR 1=1-- ` — hace que el recuento deje de estar acotado por cliente y por estado, y alcance
      * a todos los pedidos de la tabla. El alcance pasa a depender del contenido de la entrada, que es
-     * lo que FS-015 prohibe. Se conserva en rojo.
+     * lo que el contrato de la consulta prohibe. Se conserva en rojo.
+     *
+     * @estado rojo
      */
     public function test_defecto_entradaConCargaAmpliaElAlcanceDelRecuento(): void
     {

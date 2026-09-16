@@ -2,7 +2,7 @@
 
 /**
  * Carga un fichero de TPVFox cuya primera linea es `include_once './../../inicial.php'`
- * (CV-14 de wiki/convencion) sin que ese include llegue a resolver.
+ * —como todo fichero del producto— sin que ese include llegue a resolver.
  *
  * `inicial.php` abre una conexion real via `ClaseSession` y depende de `configuracion.php`.
  * Un test de Unit/PHP no debe tocar la base ni la configuracion del entorno: aqui se fuerza

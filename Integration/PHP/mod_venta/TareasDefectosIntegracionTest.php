@@ -49,6 +49,23 @@ final class TareasDefectosIntegracionTest extends CasoIntegracion
      * quería tocar. Corrección propuesta: cambiar los tres `=` por `==` (o mejor, un único
      * `switch ($dedonde)`). Evidencia: este test, en rojo mientras el defecto siga sin
      * corregirse por CC.
+     *
+     * @estado rojo
+     * @group defecto
+     * @group pedido
+     * @group albaran
+     * @group estados
+     * @group critico
+     *
+     * @que-ocurre-hoy Pedir el cambio de estado de un pedido cambia tambien el estado de un
+     *   albaran que no tiene nada que ver con el, por el solo hecho de compartir el mismo
+     *   numero de identificador.
+     * @que-deberia-ocurrir Que el cambio alcance unicamente al documento del tipo pedido.
+     * @por-que-ocurre Las tres condiciones que eligen el tipo de documento usan asignacion en
+     *   vez de comparacion, de modo que las tres se cumplen siempre y la orden se aplica a los
+     *   tres tipos a la vez.
+     * @como-deberia-funcionar Comparar en vez de asignar en las tres condiciones, o resolver
+     *   el tipo de documento con una sola eleccion.
      */
     public function test_defecto_modificarEstadoDocumento_pedidoModificaTambienUnAlbaranConElMismoId(): void
     {
@@ -82,6 +99,8 @@ final class TareasDefectosIntegracionTest extends CasoIntegracion
      * cliente de que la operación no se realizó. Corrección propuesta: retirar el `case`
      * si la funcionalidad ya no hace falta, o restaurar el fichero si sí. Evidencia: este
      * test, en rojo mientras el defecto siga sin corregirse por CC.
+     *
+     * @estado rojo
      */
     public function test_defecto_anhadirPedidoTemp_apuntaAUnFicheroBorrado(): void
     {
@@ -93,6 +112,8 @@ final class TareasDefectosIntegracionTest extends CasoIntegracion
     /**
      * Mismo defecto que `anhadirPedidoTemp`, mismo commit de origen: `tareas.php:77`
      * incluye `tareas/BuscarPedido.php`, también borrado en `0f486fa7`.
+     *
+     * @estado rojo
      */
     public function test_defecto_buscarPedido_apuntaAUnFicheroBorrado(): void
     {

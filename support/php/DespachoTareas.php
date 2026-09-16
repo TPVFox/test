@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Invoca un `tareas.php` (CV-06: endpoint único por módulo, switch sobre `$_POST['pulsado']`,
+ * Invoca un `tareas.php` (endpoint unico por modulo, switch sobre `$_POST['pulsado']`,
  * `echo json_encode($respuesta)`) como lo haria una peticion real, sin pasar por HTTP.
  *
  * Tres cosas que `tareas.php` da por hechas y que aqui hay que resolver a mano:

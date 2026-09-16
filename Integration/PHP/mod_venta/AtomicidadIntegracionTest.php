@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Atomicidad del guardado temporal (FS-009): `anhadirTemporal` hace tres escrituras sueltas
+ * Atomicidad del guardado temporal: `anhadirTemporal` hace tres escrituras sueltas
  * -modificar los datos del temporal, enlazar el numero de documento real si lo hay, y actualizar sus
  * totales- sin abrir transaccion. Un fallo en la segunda deja hecha la primera y nunca llega a la
  * tercera: el temporal queda con datos nuevos pero totales viejos, sin ningun aviso de que la
@@ -40,7 +40,9 @@ final class AtomicidadIntegracionTest extends CasoIntegracion
      * totales) nunca se ejecuta. El temporal queda con productos nuevos y totales de antes, sin que
      * nada distinga ese estado de uno guardado con exito.
      *
-     * Se conserva en rojo.
+     * Afirma el comportamiento defectuoso, de modo que pasa mientras el defecto siga vivo.
+     *
+     * @estado verde
      *
      * @runInSeparateProcess
      * @preserveGlobalState disabled

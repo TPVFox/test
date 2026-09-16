@@ -81,6 +81,8 @@ final class RecalculoTotalesTest extends TestCase
      * `number_format(round(...), 2, '.', '')` a `base` en el mismo punto donde ya se hace
      * para `iva` y `BaseYiva`. Evidencia: este test, en rojo mientras el defecto siga sin
      * corregirse por CC.
+     *
+     * @estado rojo
      */
     public function test_T3_laBaseDelTramoNoSeRedondeaYArrastraResiduoDeComaFlotante(): void
     {

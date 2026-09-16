@@ -80,19 +80,19 @@ final class ArticulosEscrituraIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * Reproducción de `RD-2026-019` (abierta): la guarda de coste vacío no protege nada.
+     * Reproduccion de la incidencia registrada en produccion, aun abierta: la guarda de coste vacío no protege nada.
      *
      * Síntoma: `modificarCosteProveedorArticulo()` con `coste` vacío lanza
      * `mysqli_sql_exception: Incorrect decimal value: ''` — error 1366, exactamente el
-     * síntoma que `RD-2026-019` documentó en producción. Causa raíz (ya establecida por la
-     * RD): la función calcula `$antes = 0` cuando `$datos['coste']` está vacío pero nunca
+     * sintoma que esa incidencia documento en produccion. Causa raiz, ya establecida
+     * entonces: la función calcula `$antes = 0` cuando `$datos['coste']` está vacío pero nunca
      * usa esa variable — el `$coste` original, sin validar, sigue yendo a la sentencia SQL
      * tal cual. Este test fija el comportamiento reproducido en el entorno cualificado de
-     * este PCP como evidencia adicional para la CC que `RD-2026-019` ya tiene pendiente;
-     * no es un hallazgo nuevo de F3. Evidencia: este test, en rojo hasta que la CC de
-     * `RD-2026-019` valide la corrección.
+     * el entorno cualificado como evidencia adicional para la correccion que ya tiene pendiente;
+     * no es un hallazgo nuevo. Evidencia: este test, en rojo hasta que esa correccion
+     * se valide.
      */
-    public function test_reproduccionRD2026019_conCosteVacioLanzaExcepcion(): void
+    public function test_conCosteVacioLanzaExcepcionPorqueLaGuardaNoProtege(): void
     {
         $this->siembra->articuloProveedor($this->idArticulo, $this->idProveedor, 1.0);
 
@@ -135,7 +135,7 @@ final class ArticulosEscrituraIntegracionTest extends CasoIntegracion
      * con ese estado por defecto no se modifica nunca por esta via. Tiene llamadores reales
      * en `mod_producto`/`mod_productos` (`Recalculo_precios.php`), fuera del alcance de
      * `mod_venta`: se documenta aqui porque la clase es compartida, y la interpretacion de
-     * si el `<>` es intencional le corresponde a quien conozca ese flujo, no a este PCP.
+     * si el `<>` es intencional le corresponde a quien conozca ese flujo, no a estas pruebas.
      */
     public function test_modificarEstadosHistorico_noTocaLasFilasEnSinRevisar(): void
     {

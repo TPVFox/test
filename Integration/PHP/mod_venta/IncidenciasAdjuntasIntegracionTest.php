@@ -79,6 +79,8 @@ final class IncidenciasAdjuntasIntegracionTest extends CasoIntegracion
      * comparar sobre el valor decodificado (`JSON_EXTRACT` o filtrar en PHP tras decodificar
      * `datos`), no sobre el texto crudo del JSON. Evidencia: este test, en rojo mientras el
      * defecto siga sin corregirse por CC.
+     *
+     * @estado rojo
      */
     public function test_defecto_noEncuentraLaIncidenciaSiIdRealSeGuardoComoNumeroEnElJson(): void
     {

@@ -233,7 +233,7 @@ final class Siembra
      * las lee (usa `articulos.ultimoCoste`/`iva`/`beneficio` directamente, via
      * `datosArticulo()`); las necesita quien lea `articulosPrecios`/`articulosTiendas` en
      * vez del calculo, como `clases/articulos.php`. Metodo aparte, no una ampliacion de
-     * `articulo()`, para no anadir escrituras a un helper que ya usan otros PCP sin que las
+     * `articulo()`, para no anadir escrituras a un helper que ya usan otras pruebas sin que las
      * pidan.
      *
      * @param int|null $idTienda Sin valor, la tienda principal.
@@ -946,7 +946,7 @@ final class Siembra
     }
 
     /**
-     * Un cliente con nombre propio, para las busquedas de FS-002 que el cliente por
+     * Un cliente con nombre propio, para las busquedas por nombre que el cliente por
      * defecto no cubre: nombre comercial y razon social distintos, estado inactivo.
      *
      * @param array{razonsocial?: string, estado?: string} $opciones

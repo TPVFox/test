@@ -6,7 +6,8 @@
  * Hallazgo previo al de comportamiento: no tiene ningun llamador en todo el repositorio de
  * TPVFox (`grep -rn "modificarArrayPedidos" .` sobre PHP y JS no encuentra mas que su
  * propia definicion). Se prueba igual, porque F3 documenta el código tal como está y una
- * CC futura puede tanto corregirla como retirarla — esa decision no es de este PCP.
+ * correccion futura puede tanto arreglarla como retirarla — esa decision queda fuera
+ * del alcance de estas pruebas.
  *
  * También lee `$pedido['numPedido']` sin `isset()` (funciones.php:595): cualquier fila de
  * entrada que no traiga esa clave dispara el mismo tipo de aviso que el defecto de abajo.
@@ -61,6 +62,8 @@ final class ModificarArrayPedidosIntegracionTest extends CasoIntegracion
      * dado que no tiene llamadores) — no por una aserción fallida, sino por el propio
      * E_WARNING de PHP convertido en error de test: es más fiel al síntoma real que
      * envolverlo para poder afirmar algo sobre un valor que no debería llegar a existir.
+     *
+     * @estado rojo
      */
     public function test_defecto_conIdPedidoInexistenteDevuelveUnaFilaConDatosNulosMarcadaActiva(): void
     {

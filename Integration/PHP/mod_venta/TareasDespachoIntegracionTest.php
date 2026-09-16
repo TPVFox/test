@@ -1,7 +1,7 @@
 <?php
 
 /**
- * `tareas.php` como punto de entrada real (CV-06): un `$_POST['pulsado']` por caso, sin
+ * `tareas.php` como punto de entrada real: un `$_POST['pulsado']` por caso, sin
  * pasar por HTTP. Usa `DespachoTareas`, que resuelve lo que este fichero da por hecho —
  * `$BDTpv` global, su propio `include_once` relativo, la salida por `echo`.
  *
