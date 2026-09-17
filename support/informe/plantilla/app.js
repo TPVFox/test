@@ -352,7 +352,14 @@ const describirSalida = (paso) => {
 
 function pintarCobertura(caso, flujo) {
   const rutas = Object.entries(caso.cobertura || {});
-  if (!rutas.length) return '';
+
+  // Un caso que termina en error no deja cobertura: PHPUnit la descarta. Decirlo evita que
+  // el apartado se lea como «este caso no toca código», que seria falso.
+  if (!rutas.length) {
+    return caso.estado === 'error'
+      ? '<h3>Código que recorre</h3><p class="tenue">No hay cobertura de este caso: los que terminan en error no la dejan registrada. El recorrido y el flujo de abajo sí valen.</p>'
+      : '';
+  }
 
   // Ordenado como el recorrido, no por cuantas lineas tiene cada fichero. Una lista suelta de
   // ficheros con su recuento no cuenta nada; lo que se quiere saber es donde empieza el

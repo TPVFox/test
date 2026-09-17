@@ -572,6 +572,16 @@ function contrastar(array $caso): array
         $avisos[] = 'Esta en rojo y no lo declara.';
     }
 
+    // Un caso que termina en error no deja cobertura: PHPUnit la descarta. Medido sobre la
+    // suite: los 518 verdes y los 11 fallidos la traen, y los 3 con error no. Sin esta
+    // salvedad el contraste diria que el fichero declarado «no se registra», que es cierto
+    // pero enganoso: no es que no se recorriera, es que no hay con que comprobarlo.
+    if (($caso['declarado'] ?? []) !== [] && ($caso['cobertura'] ?? []) === [] && $caso['estado'] === 'error') {
+        $avisos[] = 'Declara codigo afectado y no se puede contrastar: un caso que termina en error no deja cobertura.';
+
+        return $avisos;
+    }
+
     foreach ($caso['declarado'] ?? [] as $rango) {
         $ejecutadas = lineasEjecutadasDe($caso, $rango['ruta']);
         if ($ejecutadas === null) {

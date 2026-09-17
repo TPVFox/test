@@ -112,11 +112,21 @@ final class Flujo
     private static function camino(array $llamadas, array $pasos): array
     {
         $fuente = [];
+        $declara = self::dondeSeDeclaraCadaClase($llamadas);
 
         foreach ($llamadas as $llamada) {
+            $nombre = (string) ($llamada['nombre'] ?? '');
+
+            // El fichero que declara la clase, no el que hizo la llamada. La traza apunta el
+            // sitio del llamante, de modo que `ClaseVentas->__construct` invocado desde
+            // `albaranesVentas.php` contaria como albaranesVentas y ClaseVentas quedaria fuera
+            // del recorrido aunque su codigo se ejecutara. Lo que se quiere saber es por donde
+            // paso el dato, no desde donde se le llamo.
+            $clase = self::claseDe($nombre);
+
             $fuente[] = [
-                'fichero' => (string) ($llamada['fichero'] ?? ''),
-                'funcion' => (string) ($llamada['nombre'] ?? ''),
+                'fichero' => $declara[$clase] ?? (string) ($llamada['fichero'] ?? ''),
+                'funcion' => $nombre,
             ];
         }
 
@@ -208,6 +218,47 @@ final class Flujo
         }
 
         return ['tramos' => array_values($porFichero), 'resumido' => true];
+    }
+
+    /**
+     * En que fichero se declara cada clase que aparece en la traza.
+     *
+     * Se leen solo los ficheros que la propia traza menciona: son unas pocas decenas, y evita
+     * recorrer el producto entero para resolver un punado de nombres.
+     *
+     * @param list<array<string,mixed>> $llamadas
+     * @return array<string,string>
+     */
+    private static function dondeSeDeclaraCadaClase(array $llamadas): array
+    {
+        $declara = [];
+        $vistos = [];
+
+        foreach ($llamadas as $llamada) {
+            $ruta = (string) ($llamada['fichero'] ?? '');
+
+            if ($ruta === '' || isset($vistos[$ruta]) || !is_file($ruta)) {
+                continue;
+            }
+
+            $vistos[$ruta] = true;
+
+            if (preg_match_all('/^\s*(?:abstract\s+|final\s+)?class\s+(\w+)/mi', (string) file_get_contents($ruta), $m)) {
+                foreach ($m[1] as $clase) {
+                    $declara[$clase] = $ruta;
+                }
+            }
+        }
+
+        return $declara;
+    }
+
+    /** La clase de un nombre `Clase->metodo` o `Clase::metodo`, si lo lleva. */
+    private static function claseDe(string $funcion): string
+    {
+        $partes = preg_split('/::|->/', $funcion) ?: [];
+
+        return count($partes) > 1 ? (string) $partes[0] : '';
     }
 
     /**

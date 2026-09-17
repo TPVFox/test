@@ -28,6 +28,11 @@ necesaria.
 **Criterio de pertenencia**: un caso baja al nivel más simple que pueda demostrarlo. Si no
 necesita base de datos, es unitario. Si no necesita navegador, no es E2E.
 
+**`Integration/JS` está vacía.** El nivel existe en `jest.config.js` y no tiene ni un fichero:
+es andamiaje puesto para cuando haga falta, no una suite que cubra algo. El informe la ejecuta
+y no aporta casos. Y `Unit/JS` tiene un único fichero, con 19 casos sobre 5 funciones puras de
+un script de 428 líneas: el JavaScript del producto está, hoy, esencialmente sin probar.
+
 ---
 
 ## Prerequisitos
@@ -406,6 +411,13 @@ hasta ahí. Por eso la ficha trae dos vistas del recorrido, una encima de la otr
   su valor de retorno y su duración. Solo con `--con-traza`.
 
 El camino dice por dónde; el árbol, cómo.
+
+### Un límite medido: los casos que terminan en error no dejan cobertura
+
+PHPUnit descarta la cobertura de un caso que acaba en error —no en fallo de aserción, en
+error—. Medido sobre esta suite: los 518 verdes y los 11 fallidos la traen; los 3 con error,
+ninguna. En el informe esos casos muestran su recorrido y su flujo, pero no su código, y la
+ficha lo dice para que no se lea como «este caso no toca nada».
 
 ### Los tres contrastes
 
