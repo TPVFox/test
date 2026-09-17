@@ -132,6 +132,16 @@ final class Datos
             <=> [self::ORDEN_GRAVEDAD[$a['gravedad']] ?? 0, $a['vivo']]);
         file_put_contents($base . '/defectos.json', self::json(['defectos' => $defectos]));
 
+        // El cruce con los recorridos de navegador: quien cubre cada fichero del producto.
+        $raizPruebas = dirname(__DIR__, 2);
+        $cruce = Cobertura::componer(
+            $raizPruebas . '/phpunit.xml',
+            $ficheros,
+            Recorridos::porFichero($raizPruebas . '/E2E/specs'),
+            Recorridos::ultimaPasada($raizPruebas . '/E2E/resultados.json')
+        );
+        file_put_contents($base . '/cobertura.json', self::json($cruce));
+
         file_put_contents($base . '/indice.json', self::json([
             'generado' => date('c'),
             'casos' => $indice,
@@ -146,6 +156,7 @@ final class Datos
             'tablas' => count($porCodigo['tablas']),
             'defectos' => count($defectos),
             'defectosVivos' => count(array_filter($defectos, static fn(array $d): bool => $d['vivo'])),
+            'cruce' => $cruce['resumen'],
         ];
     }
 
@@ -282,8 +293,11 @@ final class Datos
     /**
      * La cobertura del caso, y de paso apunta que ficheros hay que emitir.
      *
+     * Las lineas se acumulan por fichero, no solo se apunta que el fichero existe: la union de
+     * lo que todos los casos tocaron es lo que dice si un fichero tiene cobertura o ninguna.
+     *
      * @param array<string,mixed> $caso
-     * @param array<string,bool> $ficheros
+     * @param array<string,array<int,bool>> $ficheros
      * @return array<string,array{id:string, lineas:list<int>}>
      */
     private static function coberturaDe(array $caso, array &$ficheros): array
@@ -291,7 +305,11 @@ final class Datos
         $cobertura = [];
 
         foreach ($caso['cobertura'] ?? [] as $ruta => $lineas) {
-            $ficheros[$ruta] = true;
+            foreach ($lineas as $linea) {
+                $ficheros[$ruta][$linea] = true;
+            }
+
+            $ficheros[$ruta] ??= [];
             $cobertura[self::relativa($ruta)] = [
                 'id' => substr(sha1($ruta), 0, 16),
                 'lineas' => $lineas,
