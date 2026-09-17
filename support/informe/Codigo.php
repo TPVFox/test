@@ -27,6 +27,14 @@ final class Codigo
     /** Palabras que siguen a FROM o JOIN sin ser una tabla. */
     private const NO_SON_TABLAS = ['dual', 'select'];
 
+    /**
+     * Construcciones del lenguaje que la pila presenta como funciones.
+     *
+     * No son codigo de nadie: son como el fichero entro en memoria. Agruparlas dejaba una
+     * funcion llamada `require` con dieciseis casos a su nombre.
+     */
+    private const NO_SON_FUNCIONES = ['require', 'require_once', 'include', 'include_once', 'eval'];
+
     /** @var array<string, array{casos:array<string,bool>, funciones:array<string,bool>}> */
     private array $ficheros = [];
 
@@ -57,7 +65,7 @@ final class Codigo
             $funcion = (string) (($paso['origen'] ?? '') ?: ($paso['funcion'] ?? ''));
             $sql = (string) ($paso['sql'] ?? '');
 
-            if ($fichero === '' || $funcion === '') {
+            if ($fichero === '' || $funcion === '' || in_array($funcion, self::NO_SON_FUNCIONES, true)) {
                 continue;
             }
 

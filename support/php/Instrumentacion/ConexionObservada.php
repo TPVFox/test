@@ -30,6 +30,15 @@ final class ConexionObservada extends mysqli
     /** Cuanto SQL se conserva por paso; lo que pase de aqui se recorta y se declara. */
     private const LIMITE_SQL = 4000;
 
+    /**
+     * Construcciones del lenguaje que aparecen en la pila como si fueran funciones.
+     *
+     * No son quien pidio el dato, son como el fichero entro en memoria. Medido: aceptarlas
+     * dejaba las consultas que lanzan los constructores en la cabecera de un despacho
+     * atribuidas a una funcion llamada `require`, en dieciseis casos.
+     */
+    private const CONSTRUCCIONES_DEL_LENGUAJE = ['require', 'require_once', 'include', 'include_once', 'eval'];
+
     public function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
     {
         if (!Bitacora::estaActiva() || Bitacora::casoAbierto() === null) {
@@ -153,7 +162,7 @@ final class ConexionObservada extends mysqli
             // metodo de negocio, no el embudo por el que su consulta acabo pasando.
             if ($this->fase($suyo) === $capa) {
                 $nombre = self::nombreDe($pila[$indice + 1] ?? []);
-                if ($nombre !== '') {
+                if ($nombre !== '' && !in_array($nombre, self::CONSTRUCCIONES_DEL_LENGUAJE, true)) {
                     $origen = $nombre;
                 }
             }

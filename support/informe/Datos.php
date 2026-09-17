@@ -51,7 +51,7 @@ final class Datos
             $hash = Identidad::hash($id);
             $flujo = self::flujoDe($id, $hash, $dirFlujo);
 
-            if ($flujo !== null && ($flujo['pasos'] !== [] || $flujo['llamadas'] !== [])) {
+            if ($flujo !== null && ($flujo['pasos'] !== [] || $flujo['llamadas'] !== [] || ($flujo['armazon'] ?? []) !== [])) {
                 $conFlujo++;
             }
 
@@ -71,7 +71,9 @@ final class Datos
                 'declara' => $caso['estadoDeclarado'] ?? null,
                 'avisos' => count($caso['avisos'] ?? []),
                 'consultas' => $flujo['consultas'] ?? 0,
+                'montaje' => $flujo['montaje'] ?? 0,
                 'llamadas' => $flujo === null ? 0 : count($flujo['llamadas']),
+                'avisosPhp' => $flujo === null ? 0 : count($flujo['avisos'] ?? []),
                 'ficheros' => array_map(
                     static fn(string $f): string => basename($f),
                     array_keys($caso['cobertura'] ?? [])
