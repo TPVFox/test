@@ -35,11 +35,20 @@ final class Codigo
      */
     private const NO_SON_FUNCIONES = ['require', 'require_once', 'include', 'include_once', 'eval'];
 
+    /**
+     * Clases que no son del producto aunque aparezcan en su recorrido.
+     *
+     * La traza apunta el sitio del llamante, de modo que un `fetch_object` sobre un resultado
+     * de MariaDB queda atribuido al fichero de TPVFox que lo pidio. Es cierto, pero no es
+     * codigo del producto y no se lista como tal.
+     */
+    private const NO_SON_DEL_PRODUCTO = ['mysqli', 'mysqli_result', 'mysqli_stmt', 'mysqli_driver'];
+
+    /** Cuantas funciones se listan por fichero antes de resumir el resto en una linea. */
+    private const TOPE_FUNCIONES = 40;
+
     /** @var array<string, array{casos:array<string,bool>, funciones:array<string,bool>}> */
     private array $ficheros = [];
-
-    /** Rutas completas de los ficheros de producto vistos, para resolver donde vive cada clase. */
-    private array $rutasVistas = [];
 
     /** @var array<string, array{fichero:string, casos:array<string,bool>, tablas:array<string,string>}> */
     private array $funciones = [];
@@ -54,6 +63,32 @@ final class Codigo
      */
     public function anotar(string $idCaso, ?array $flujo): void
     {
+        // Del recorrido, no solo de las consultas. Una funcion que calcula, valida o compone
+        // no emite SQL y hasta ahora no existia en esta vista: medido, la vista conocia 11
+        // ficheros de los 37 que las pruebas recorren de verdad, y 122 funciones de 282.
+        foreach ($flujo['camino'] ?? [] as $tramo) {
+            if (($tramo['fase'] ?? '') !== 'ejercicio') {
+                continue;
+            }
+
+            $fichero = (string) ($tramo['fichero'] ?? '');
+
+            if ($fichero === '') {
+                continue;
+            }
+
+            foreach ($tramo['funciones'] ?? [] as $funcion) {
+                if (!self::esDelProducto((string) $funcion)) {
+                    continue;
+                }
+
+                // El fichero del recorrido manda: ya viene resuelto a donde se declara la
+                // clase, que es lo mismo que esta vista quiere saber.
+                $this->funciones[$funcion]['fichero'] = $fichero;
+                $this->funciones[$funcion]['casos'][$idCaso] = true;
+            }
+        }
+
         foreach ($flujo['pasos'] ?? [] as $paso) {
             if (($paso['fase'] ?? '') !== 'ejercicio') {
                 continue;
@@ -69,7 +104,6 @@ final class Codigo
                 continue;
             }
 
-            $this->rutasVistas[(string) ($paso['fichero'] ?? '')] = true;
             $this->funciones[$funcion]['emisor'] = $fichero;
             $this->funciones[$funcion]['casos'][$idCaso] = true;
             $this->funciones[$funcion]['casosPorFichero'][$idCaso] = true;
@@ -95,15 +129,28 @@ final class Codigo
      */
     public function resultado(): array
     {
-        $declara = $this->dondeSeDeclaraCadaClase();
+        $clases = Declaraciones::clases();
+        $funciones = Declaraciones::funciones();
         $porFichero = [];
 
         foreach ($this->funciones as $nombre => $suyo) {
-            // El fichero de una funcion es donde su clase esta declarada, no donde su consulta
-            // acabo saliendo: el producto canaliza las consultas por su clase base, y agrupar
-            // por el emisor colocaria `PedidosVentas->AddPedidoGuardado` bajo `ClaseVentas.php`.
+            // El fichero de una funcion es donde esta declarada, no donde su consulta acabo
+            // saliendo ni desde donde se la llamo: el producto canaliza las consultas por su
+            // clase base, y agrupar por el emisor colocaria `PedidosVentas->AddPedidoGuardado`
+            // bajo `ClaseVentas.php`. Lo que el recorrido supone solo vale cuando la
+            // declaracion no aparece por ninguna parte, y entonces es lo unico que hay.
             $clase = self::claseDe($nombre);
-            $ruta = $declara[$clase] ?? $suyo['emisor'];
+            $declarada = $clase !== ''
+                ? ($clases[$clase] ?? null)
+                : ($funciones[strtolower($nombre)] ?? null);
+
+            $ruta = $declarada !== null
+                ? self::relativa($declarada)
+                : ($suyo['fichero'] ?? $suyo['emisor'] ?? '');
+
+            if ($ruta === '') {
+                continue;
+            }
 
             $porFichero[$ruta]['funciones'][] = [
                 'nombre' => $nombre,
@@ -123,13 +170,15 @@ final class Codigo
             usort($funciones, static fn(array $a, array $b) => count($b['casos']) <=> count($a['casos']));
 
             [$modulo, $tipo] = self::ubicacion($ruta);
+            $cuantas = count($funciones);
 
             $ficheros[] = [
                 'ruta' => $ruta,
                 'modulo' => $modulo,
                 'tipo' => $tipo,
                 'casos' => count($datos['casos']),
-                'funciones' => $funciones,
+                'funciones' => array_slice($funciones, 0, self::TOPE_FUNCIONES),
+                'masFunciones' => max(0, $cuantas - self::TOPE_FUNCIONES),
             ];
         }
 
@@ -149,30 +198,6 @@ final class Codigo
         usort($tablas, static fn(array $a, array $b) => count($b['casos']) <=> count($a['casos']));
 
         return ['ficheros' => $ficheros, 'tablas' => $tablas];
-    }
-
-    /**
-     * En que fichero se declara cada clase, leyendo los propios ficheros de producto vistos.
-     *
-     * @return array<string,string>
-     */
-    private function dondeSeDeclaraCadaClase(): array
-    {
-        $declara = [];
-
-        foreach (array_keys($this->rutasVistas) as $ruta) {
-            if ($ruta === '' || !is_file($ruta)) {
-                continue;
-            }
-
-            if (preg_match_all('/^\s*(?:abstract\s+|final\s+)?class\s+(\w+)/mi', (string) file_get_contents($ruta), $m)) {
-                foreach ($m[1] as $clase) {
-                    $declara[$clase] = self::relativa($ruta);
-                }
-            }
-        }
-
-        return $declara;
     }
 
     /** La ruta sin el prefijo del producto, que es la que identifica un fichero sin ambiguedad. */
@@ -226,7 +251,31 @@ final class Codigo
             return ['(compartido)', 'clase'];
         }
 
+        // Empaquetada dentro de TPVFox pero escrita fuera: se lista, porque el recorrido pasa
+        // de verdad por ella, y se dice lo que es para que no se lea como codigo propio.
+        if (str_starts_with($ruta, 'lib/')) {
+            return ['(librería)', 'libreria'];
+        }
+
+        if (str_starts_with($ruta, 'controllers/')) {
+            return ['(común)', 'control'];
+        }
+
         return ['(otro)', 'otro'];
+    }
+
+    /** Si un nombre de funcion del recorrido es codigo del producto y no del entorno. */
+    private static function esDelProducto(string $funcion): bool
+    {
+        if ($funcion === '' || in_array($funcion, self::NO_SON_FUNCIONES, true)) {
+            return false;
+        }
+
+        if (str_contains($funcion, '{closure')) {
+            return false;
+        }
+
+        return !in_array(self::claseDe($funcion), self::NO_SON_DEL_PRODUCTO, true);
     }
 
     /** La clase de un nombre `Clase->metodo` o `Clase::metodo`. */
