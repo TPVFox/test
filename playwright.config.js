@@ -21,5 +21,12 @@ module.exports = defineConfig({
     video: 'on',
     screenshot: 'on'
   },
-  reporter: [['list'], ['html', { outputFolder: 'E2E/informe-ultimo', open: 'never' }]]
+  // El JSON no es para leerlo: lo consume el informe de pruebas unitarias y de integración para
+  // poder decir quién cubre cada fichero del producto. Va fuera de `E2E/informe-ultimo` porque
+  // el reporter HTML vacía esa carpeta antes de escribir y se lo llevaría por delante.
+  reporter: [
+    ['list'],
+    ['html', { outputFolder: 'E2E/informe-ultimo', open: 'never' }],
+    ['json', { outputFile: 'E2E/resultados.json' }]
+  ]
 });

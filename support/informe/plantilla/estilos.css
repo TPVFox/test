@@ -292,3 +292,17 @@ details.arbol.andamiaje li { opacity: .72; }
 .defecto h3 a:hover { text-decoration: underline; }
 .defecto .metodo { margin: 0 0 6px; }
 .defecto dl.anotaciones dt { margin-top: 8px; }
+
+/* ── El cruce de niveles: quién cubre cada fichero ────────────────────────────────────── */
+
+table.cruce { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.cruce td { padding: 3px 8px; border-bottom: 1px solid var(--borde); vertical-align: top; }
+table.cruce td.marca {
+  width: 92px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--tenue); white-space: nowrap;
+}
+table.cruce tr.quien-ambos td.marca { color: var(--verde); }
+table.cruce tr.quien-php td.marca { color: var(--verde); }
+table.cruce tr.quien-recorrido td.marca { color: var(--aviso); }
+table.cruce tr.quien-nadie td { opacity: .6; }
+table.cruce tr:last-child td { border-bottom: 0; }

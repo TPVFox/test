@@ -12,6 +12,7 @@ vendor/
 coverage/
 E2E/informe/
 E2E/informe-ultimo/
+E2E/resultados.json
 informe-pruebas/
 test-results/
 playwright-report/

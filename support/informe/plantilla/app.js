@@ -29,6 +29,7 @@ const estado = {
   claseMontada: null,
   vista: null,
   defectos: null,
+  cobertura: null,
   gravedad: 'todas',
   soloVivos: false,
   capa: null,
@@ -68,6 +69,7 @@ function enrutar() {
 
   if (seccion === 'caso' && partes[1]) return vistaCaso(partes[1]);
   if (seccion === 'defectos') return vistaDefectos();
+  if (seccion === 'cobertura') return vistaCobertura();
   if (seccion === 'codigo') return vistaCodigo();
   if (seccion === 'datos') return vistaDatos();
 
@@ -925,6 +927,79 @@ function defectosEnMarkdown() {
   }
 
   return lineas.join('\n');
+}
+
+
+// ── Vista: quién cubre cada fichero ─────────────────────────────────────────────────────
+
+/** Cómo se lee cada una de las cuatro situaciones de un fichero. */
+const QUIEN = {
+  ambos: ['Ambos', 'lo miden las pruebas PHP y lo recorre el navegador'],
+  php: ['Pruebas PHP', 'lo miden las pruebas unitarias o de integración'],
+  recorrido: ['Recorridos', 'no hay medida, hay constancia de que el navegador entra por él'],
+  nadie: ['Nadie', 'ningún nivel de prueba lo toca'],
+};
+
+/**
+ * El cruce de los dos niveles, fichero a fichero.
+ *
+ * Un 0 % no significa lo mismo si nadie prueba un fichero que si lo prueban los recorridos de
+ * navegador, y leer solo el porcentaje lleva a la conclusión contraria a la verdadera.
+ */
+async function vistaCobertura() {
+  estado.vista = 'cobertura';
+  pintarMigas([{ texto: 'Cobertura' }]);
+
+  if (!estado.cobertura) {
+    $('vista').innerHTML = '<p class="tenue">Cargando…</p>';
+    estado.cobertura = await (await fetch('datos/cobertura.json')).json();
+  }
+
+  const { resumen, modulos, pasada } = estado.cobertura;
+
+  const tarjetas = Object.keys(QUIEN)
+    .map((q) => `<div class="tarjeta ${q === 'nadie' && resumen.nadie ? 'aviso' : ''}">
+      <span class="valor">${resumen[q]}</span><span class="titulo">${esc(QUIEN[q][0])}</span></div>`)
+    .join('');
+
+  const grupos = modulos
+    .map((m) => `<details class="grupo" ${m.tocados ? 'open' : ''}>
+      <summary><code>${esc(m.nombre)}</code>
+        <span class="tenue">· ${m.tocados} de ${m.total} ficheros con alguna prueba</span></summary>
+      <div class="cuerpo"><table class="cruce">${m.ficheros.map(filaDeCruce).join('')}</table></div>
+    </details>`)
+    .join('');
+
+  $('vista').innerHTML = `
+    <p class="tenue">${resumen.total} ficheros del producto, en el ámbito que declara
+    <code>phpunit.xml</code>. <b>${resumen.nadie} no los toca ningún nivel de prueba</b>: ese es el
+    hueco, y no el 0 % de un fichero por el que sí entra el navegador.</p>
+    <section class="tarjetas">${tarjetas}</section>
+    <p class="tenue">Lo que la columna de recorridos dice es <b>por dónde entra</b> cada uno —la URL
+    que el recorrido nombra—, no todo lo que su petición acaba ejecutando: lo que la pantalla llame
+    después por AJAX no aparece aquí. Medirlo de verdad exigiría cobertura en el servidor durante la
+    pasada de navegador.
+    ${pasada && pasada.hay
+      ? `La última pasada de recorridos quedó registrada${pasada.fecha ? ` el ${new Date(pasada.fecha).toLocaleString('es-ES')}` : ''}.`
+      : 'De la última pasada de recorridos no hay registro: ejecuta <code>npm run test:e2e</code> para que lo haya.'}</p>
+    ${grupos}`;
+
+  window.scrollTo(0, 0);
+}
+
+function filaDeCruce(f) {
+  const specs = f.specs.length
+    ? f.specs.slice(0, 3).map((s) => `<code>${esc(cortar(s.spec))}</code>`).join(' ')
+      + (f.specs.length > 3 ? ` <span class="tenue">y ${f.specs.length - 3} más</span>` : '')
+    : '';
+
+  const medida = f.phpLineas ? `${f.phpLineas} líneas medidas` : '';
+
+  return `<tr class="quien-${f.quien}">
+    <td class="marca" title="${esc(QUIEN[f.quien][1])}">${esc(QUIEN[f.quien][0])}</td>
+    <td><code>${esc(cortar(f.ruta))}</code> <span class="tenue">${f.lineas} líneas</span></td>
+    <td class="tenue">${medida}${medida && specs ? ' · ' : ''}${specs}</td>
+  </tr>`;
 }
 
 

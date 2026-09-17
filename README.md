@@ -443,6 +443,43 @@ llega a hacer nada aparenta haber consultado cinco tablas. El informe las separa
 —una consulta pedida desde un constructor es montaje— y lo dice con todas las letras cuando la
 tarea en sí no consultó nada.
 
+### Quién cubre cada fichero
+
+Un fichero al 0,00 % no significa lo mismo si nadie lo prueba que si lo prueban los recorridos de
+navegador. `albaran.php` y `factura.php` suman 1.303 líneas sin una sola medida de PHP, y sin
+embargo ocho y doce recorridos entran por ellos: leer solo el porcentaje lleva a la conclusión
+contraria a la verdadera.
+
+`#/cobertura` pone los dos niveles al lado, sobre los **336 ficheros del ámbito que declara
+`phpunit.xml`** —el mismo bloque `<coverage>` que usa la medida, leído de ahí para que las dos
+listas no se separen—:
+
+| | Ficheros | |
+| --- | ---: | --- |
+| Pruebas PHP | 35 | medidas, con sus líneas |
+| Recorridos | 8 | constancia de paso, sin medida |
+| **Nadie** | **293** | el hueco de verdad |
+| Ambos | 0 | — |
+
+**Ese cero de la última fila es un hallazgo, no un defecto de la vista.** Los dos niveles no se
+solapan en ningún fichero: las pruebas PHP miden clases, los recorridos entran por pantallas, y
+entre unas y otras no hay un solo fichero en común. En `mod_venta` se ve entero —11 ficheros
+medidos, 6 cubiertos solo por recorridos, y un `index.php` de dos líneas que no cubre nadie—.
+
+**Lo que la columna de recorridos dice es por dónde entra cada uno**: la URL que el recorrido
+nombra en su fuente, no todo lo que la petición acaba ejecutando. Un `tareas.php` invocado por
+AJAX desde la pantalla no aparece. Medirlo de verdad exigiría cobertura en el servidor durante la
+pasada de navegador, que es otra obra; hasta entonces esto no se presenta como cobertura sino como
+lo que es.
+
+Playwright escribe además `E2E/resultados.json` —un reporter más, junto al HTML— y la vista lo usa
+para fechar la última pasada. Sin ese fichero sigue funcionando y dice que no hay registro.
+
+**Un listado no cuenta como pasada.** `playwright test --list` escribe el mismo fichero que una
+ejecución: 45 recorridos con sus 102 casos, todos en `skipped` y sin un solo resultado. Un caso
+solo se cuenta si trae resultados, de modo que listar no puede declarar en verde algo que nunca
+corrió.
+
 ### El registro de defectos
 
 `#/defectos` reúne lo que la suite documenta como defecto: **123 casos, 16 vivos**. Un defecto se
