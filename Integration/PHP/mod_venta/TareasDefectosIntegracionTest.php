@@ -66,7 +66,9 @@ final class TareasDefectosIntegracionTest extends CasoIntegracion
      *   tres tipos a la vez.
      * @como-deberia-funcionar Comparar en vez de asignar en las tres condiciones, o resolver
      *   el tipo de documento con una sola eleccion.
-     */
+          *
+     * @codigo-afectado modulos/mod_venta/tareas.php:143-149
+    */
     public function test_defecto_modificarEstadoDocumento_pedidoModificaTambienUnAlbaranConElMismoId(): void
     {
         $idArticulo = $this->siembra->articulo('Articulo estado cruzado');
@@ -101,7 +103,21 @@ final class TareasDefectosIntegracionTest extends CasoIntegracion
      * test, en rojo mientras el defecto siga sin corregirse por CC.
      *
      * @estado rojo
-     */
+          *
+     * @group defecto
+     * @group pedido
+     * @group borrador
+     * @group medio
+     * @codigo-afectado modulos/mod_venta/tareas.php:61-61
+     *
+     * @que-ocurre-hoy El caso de despacho no hace nada y no avisa: devuelve nulo en vez de una
+     *   respuesta, y quien lo llamo no se entera de que la operacion no se hizo.
+     * @que-deberia-ocurrir Que haga su trabajo, o que diga que no puede hacerlo.
+     * @por-que-ocurre El despacho incluye un fichero que se borro sin retirar el caso que lo
+     *   referencia, y al incluirse de forma no obligatoria el fallo no detiene nada.
+     * @como-deberia-funcionar Retirar el caso si la funcionalidad ya no hace falta, o restaurar
+     *   el fichero si si.
+    */
     public function test_defecto_anhadirPedidoTemp_apuntaAUnFicheroBorrado(): void
     {
         $resultado = $this->despachar(['pulsado' => 'anhadirPedidoTemp']);
@@ -114,7 +130,18 @@ final class TareasDefectosIntegracionTest extends CasoIntegracion
      * incluye `tareas/BuscarPedido.php`, también borrado en `0f486fa7`.
      *
      * @estado rojo
-     */
+          *
+     * @group defecto
+     * @group pedido
+     * @group busqueda
+     * @group medio
+     * @codigo-afectado modulos/mod_venta/tareas.php:77-77
+     *
+     * @que-ocurre-hoy Mismo silencio que el caso anterior, en la busqueda de pedido.
+     * @que-deberia-ocurrir Que busque, o que declare que no puede.
+     * @por-que-ocurre El mismo fichero borrado en el mismo cambio, con su caso sin retirar.
+     * @como-deberia-funcionar El mismo remedio: retirar el caso o restaurar el fichero.
+    */
     public function test_defecto_buscarPedido_apuntaAUnFicheroBorrado(): void
     {
         $resultado = $this->despachar(['pulsado' => 'buscarPedido']);

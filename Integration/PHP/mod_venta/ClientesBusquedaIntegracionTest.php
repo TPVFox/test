@@ -86,7 +86,19 @@ final class ClientesBusquedaIntegracionTest extends CasoIntegracion
      * Defecto: se conserva en rojo.
      *
      * @estado rojo
-     */
+          *
+     * @group defecto
+     * @group cliente
+     * @group busqueda
+     * @group medio
+     *
+     * @que-ocurre-hoy Un cliente cuyo nombre esta repartido entre el nombre comercial y la razon
+     *   social no aparece al buscarlo, aunque cada palabra exista en su ficha.
+     * @que-deberia-ocurrir Que lo encuentre, porque las dos palabras son suyas.
+     * @por-que-ocurre La consulta exige todas las palabras en el nombre comercial o todas en la
+     *   razon social; un reparto entre los dos campos no cumple ninguno de los dos grupos.
+     * @como-deberia-funcionar Buscar cada palabra en cualquiera de los dos campos.
+    */
     public function test_defecto_nombrePartidoEntreComercialYRazonSocialNoAparece(): void
     {
         $this->siembra->cliente('Panaderia', ['razonsocial' => 'Hermanos Perez SL']);
@@ -105,7 +117,20 @@ final class ClientesBusquedaIntegracionTest extends CasoIntegracion
      * Defecto: se conserva en rojo.
      *
      * @estado rojo
-     */
+          *
+     * @group defecto
+     * @group cliente
+     * @group busqueda
+     * @group medio
+     *
+     * @que-ocurre-hoy Buscar una palabra que coincide con el nombre de una columna no encuentra
+     *   al cliente que si la lleva.
+     * @que-deberia-ocurrir Que la palabra buscada se trate como dato, no como nombre de columna.
+     * @por-que-ocurre El segundo grupo de la consulta se compone sustituyendo textualmente el
+     *   nombre de una columna por el de otra, y la sustitucion alcanza tambien al valor buscado.
+     * @como-deberia-funcionar Componer cada grupo por separado en vez de derivarlo del anterior
+     *   con una sustitucion de texto.
+    */
     public function test_defecto_palabraIgualAlNombreDeColumnaSeSustituye(): void
     {
         // La palabra buscada esta solo en la razon social, no en el nombre comercial: asi el unico

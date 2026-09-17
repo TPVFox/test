@@ -85,7 +85,21 @@ final class BuscarProductosIntegracionTest extends CasoIntegracion
      * este test, en rojo mientras el defecto siga sin corregirse por CC.
      *
      * @estado rojo
-     */
+          *
+     * @group defecto
+     * @group busqueda
+     * @group bajo
+     *
+     * @que-ocurre-hoy Una busqueda de varias palabras que encuentra exactamente un articulo
+     *   devuelve el recuento pero sin la clave de estado, y PHP avisa de que falta.
+     * @que-deberia-ocurrir Que el estado se fije siempre, como su contrato declara.
+     * @por-que-ocurre El estado solo se marca cuando el primer intento encuentra algo o cuando
+     *   el resultado final tiene mas de una fila; el hueco entre ambos no lo fija nunca. Y el
+     *   primer intento encadena una igualdad por palabra sobre la misma columna, condicion que
+     *   ninguna fila puede cumplir con mas de una palabra.
+     * @como-deberia-funcionar Con varias palabras, buscar la frase completa en vez de encadenar
+     *   igualdades, y fijar el estado en todos los caminos.
+    */
     public function test_defecto_conVariasPalabrasYUnSoloResultadoPorLikeElEstadoQuedaSinDefinir(): void
     {
         $this->siembra->articulo('Zumaque Alfa');

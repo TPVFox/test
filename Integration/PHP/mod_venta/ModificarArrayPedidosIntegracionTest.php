@@ -64,7 +64,20 @@ final class ModificarArrayPedidosIntegracionTest extends CasoIntegracion
      * envolverlo para poder afirmar algo sobre un valor que no debería llegar a existir.
      *
      * @estado rojo
-     */
+          *
+     * @group defecto
+     * @group pedido
+     * @group medio
+     * @codigo-afectado modulos/mod_venta/funciones.php:599-602
+     *
+     * @que-ocurre-hoy Con un identificador de pedido que no existe, la funcion devuelve una
+     *   fila con estado «Activo» y el resto de campos nulos: tiene apariencia de dato valido.
+     * @que-deberia-ocurrir Que diga explicitamente que no encontro el pedido.
+     * @por-que-ocurre La variable de la fila nunca se asigna porque la consulta no devuelve
+     *   nada, y el codigo que sigue la usa igual sin comprobarlo.
+     * @como-deberia-funcionar Comprobar que la consulta devolvio alguna fila antes de componer
+     *   la respuesta, y devolver un error explicito si no.
+    */
     public function test_defecto_conIdPedidoInexistenteDevuelveUnaFilaConDatosNulosMarcadaActiva(): void
     {
         \modificarArrayPedidos([['idPedido' => 999999, 'Numpedcli' => 1, 'numPedido' => 0]], $this->db);

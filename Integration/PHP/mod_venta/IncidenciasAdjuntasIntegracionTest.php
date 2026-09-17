@@ -81,7 +81,18 @@ final class IncidenciasAdjuntasIntegracionTest extends CasoIntegracion
      * defecto siga sin corregirse por CC.
      *
      * @estado rojo
-     */
+          *
+     * @group defecto
+     * @group adjuntos
+     * @group critico
+     *
+     * @que-ocurre-hoy Una incidencia cuyo identificador se guardo como numero no aparece, y el
+     *   resultado sale vacio como si el documento no tuviera ninguna.
+     * @que-deberia-ocurrir Que se encuentre, porque el identificador es el mismo.
+     * @por-que-ocurre La busqueda compara sobre el texto crudo del JSON, exigiendo comillas
+     *   alrededor del valor; si se codifico como numero, no las lleva y la comparacion falla.
+     * @como-deberia-funcionar Comparar sobre el valor decodificado, no sobre el texto del JSON.
+    */
     public function test_defecto_noEncuentraLaIncidenciaSiIdRealSeGuardoComoNumeroEnElJson(): void
     {
         $this->siembra->incidencia(

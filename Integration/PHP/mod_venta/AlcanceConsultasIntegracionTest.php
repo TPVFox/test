@@ -56,7 +56,20 @@ final class AlcanceConsultasIntegracionTest extends CasoIntegracion
      * lo que el contrato de la consulta prohibe. Se conserva en rojo.
      *
      * @estado rojo
-     */
+          *
+     * @group defecto
+     * @group pedido
+     * @group busqueda
+     * @group critico
+     *
+     * @que-ocurre-hoy Una entrada que cierra la condicion del identificador y comenta el resto
+     *   hace que el recuento deje de estar acotado por cliente y por estado, y alcance a todos
+     *   los pedidos de la tabla.
+     * @que-deberia-ocurrir Que el alcance lo fije la consulta y no el contenido de la entrada.
+     * @por-que-ocurre El identificador de cliente se concatena en el texto de la sentencia sin
+     *   parametrizar, de modo que la entrada pasa a formar parte de la instruccion.
+     * @como-deberia-funcionar Pasar el identificador como parametro de una consulta preparada.
+    */
     public function test_defecto_entradaConCargaAmpliaElAlcanceDelRecuento(): void
     {
         $articulo = $this->siembra->articulo('Articulo de alcance');

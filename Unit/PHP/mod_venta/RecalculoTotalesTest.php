@@ -83,7 +83,20 @@ final class RecalculoTotalesTest extends TestCase
      * corregirse por CC.
      *
      * @estado rojo
-     */
+          *
+     * @group defecto
+     * @group importes
+     * @group alto
+     * @codigo-afectado modulos/mod_venta/funciones.php:932-933
+     *
+     * @que-ocurre-hoy La base de un tramo de impuesto arrastra el residuo de sumar en coma
+     *   flotante, y ese residuo llega tal cual a la pantalla y al documento impreso.
+     * @que-deberia-ocurrir Que la base salga redondeada como el resto de campos del tramo.
+     * @por-que-ocurre El segundo recorrido redondea el impuesto y el total del tramo, pero deja
+     *   la base como quedo del primero.
+     * @como-deberia-funcionar Redondear la base en el mismo punto en que ya se redondean los
+     *   otros dos.
+    */
     public function test_T3_laBaseDelTramoNoSeRedondeaYArrastraResiduoDeComaFlotante(): void
     {
         self::cargar();

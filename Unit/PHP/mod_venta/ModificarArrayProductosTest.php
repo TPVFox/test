@@ -79,7 +79,18 @@ final class ModificarArrayProductosTest extends TestCase
      * defecto siga sin corregirse por CC.
      *
      * @estado rojo
-     */
+          *
+     * @group defecto
+     * @group entrada
+     * @group alto
+     *
+     * @que-ocurre-hoy Una linea que no trae clave de adjunto sale con la de la linea anterior,
+     *   de modo que puede quedar bloqueada o numerada con el adjunto equivocado.
+     * @que-deberia-ocurrir Que cada linea salga solo con lo suyo.
+     * @por-que-ocurre La variable que compone la linea se declara una sola vez fuera del bucle y
+     *   nunca se reinicia; las claves que solo se escriben cuando existen no se borran cuando no.
+     * @como-deberia-funcionar Reiniciarla al principio de cada vuelta.
+    */
     public function test_T3_unaClaveDeAdjuntoSobreviveAUnaLineaQueNoLaTrae(): void
     {
         self::cargar();

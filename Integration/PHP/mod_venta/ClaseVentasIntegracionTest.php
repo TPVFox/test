@@ -55,7 +55,19 @@ final class ClaseVentasIntegracionTest extends CasoIntegracion
      * Evidencia: este test, en rojo mientras el defecto siga sin corregirse por CC.
      *
      * @estado rojo
-     */
+          *
+     * @group defecto
+     * @group guardado
+     * @group bajo
+     *
+     * @que-ocurre-hoy Tras una consulta con exito, las propiedades de filas afectadas e
+     *   identificador insertado siguen valiendo nulo, pese a que el comentario dice lo contrario.
+     * @que-deberia-ocurrir Que queden rellenas, que es lo que la clase promete.
+     * @por-que-ocurre El metodo retorna dentro del propio `if`, antes de llegar a las dos lineas
+     *   que las asignan.
+     * @como-deberia-funcionar Mover las dos asignaciones antes del retorno, o retirarlas si de
+     *   verdad no las usa nadie.
+    */
     public function test_defecto_consulta_conExitoNuncaRellenaAffectedRowsNiInsertId(): void
     {
         $this->claseVentas->consulta('SELECT 1 AS uno');

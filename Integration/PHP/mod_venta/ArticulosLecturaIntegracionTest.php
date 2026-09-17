@@ -75,7 +75,19 @@ final class ArticulosLecturaIntegracionTest extends CasoIntegracion
      * error (no por una aserción), mientras el defecto siga sin corregirse por CC.
      *
      * @estado rojo
-     */
+          *
+     * @group defecto
+     * @group articulo
+     * @group busqueda
+     * @group medio
+     *
+     * @que-ocurre-hoy Buscar un articulo que no existe avisa de variable indefinida y devuelve
+     *   nulo, de modo que quien llama no distingue «no hay coincidencia» de un fallo.
+     * @que-deberia-ocurrir Que devuelva un valor que diga «no hay coincidencia», sin avisos.
+     * @por-que-ocurre La variable de retorno solo se asigna dentro del `if` que comprueba la
+     *   fila, y se lee despues fuera de el, sin haberla inicializado.
+     * @como-deberia-funcionar Inicializarla a nulo antes del `if`.
+    */
     public function test_defecto_buscarNombreArticulo_sinMatchAvisaVariableIndefinida(): void
     {
         $this->articulos->buscarNombreArticulo(999999999);
@@ -101,7 +113,19 @@ final class ArticulosLecturaIntegracionTest extends CasoIntegracion
      * por una aserción), mientras el defecto siga sin corregirse por CC.
      *
      * @estado rojo
-     */
+          *
+     * @group defecto
+     * @group articulo
+     * @group importes
+     * @group medio
+     *
+     * @que-ocurre-hoy Un articulo sin fila de precio —uno recien creado, antes de fijarselo—
+     *   hace que la funcion avise de variable indefinida en vez de devolver nada util.
+     * @que-deberia-ocurrir Que «sin precio» sea un resultado, no un aviso de PHP.
+     * @por-que-ocurre El mismo patron que en la busqueda por nombre: variable asignada dentro
+     *   del `if` y leida fuera.
+     * @como-deberia-funcionar Inicializarla antes del `if`, en los dos metodos a la vez.
+    */
     public function test_defecto_articulosPrecio_sinPrecioAvisaVariableIndefinida(): void
     {
         $idArticulo = $this->siembra->articulo('Articulo sin precio propio');
