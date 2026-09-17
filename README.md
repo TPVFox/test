@@ -443,6 +443,68 @@ llega a hacer nada aparenta haber consultado cinco tablas. El informe las separa
 —una consulta pedida desde un constructor es montaje— y lo dice con todas las letras cuando la
 tarea en sí no consultó nada.
 
+### El registro de defectos
+
+`#/defectos` reúne lo que la suite documenta como defecto: **123 casos, 16 vivos**. Un defecto se
+reconoce por cualquiera de tres señales —el método empieza por `test_defecto_`, lleva la etiqueta
+`defecto`, o declara `@estado rojo`—, de modo que los 119 que ya existían entraron sin tocar nada.
+
+**Vivo** quiere decir que su caso sigue en rojo: el defecto sigue ahí. Los corregidos se quedan en
+el registro, porque su caso en verde es justamente la prueba de que lo están.
+
+Cada ficha lleva síntoma, qué debería ocurrir, causa raíz y corrección cuando el caso los declara,
+y si no la prosa de su comentario —los 123 dicen algo—. Se filtra por gravedad y por «solo vivos»,
+y **se copia en Markdown** para pegarlo en un registro sin volver a escribirlo.
+
+### Por qué puerta entra cada caso
+
+La cobertura dice qué líneas se ejecutaron; no dice si se llegó a ellas como llega la aplicación.
+Cada caso declara ahora su **puerta de entrada**, derivada del primer marco de producto de su
+traza:
+
+| Puerta | Casos | Qué significa |
+| --- | ---: | --- |
+| **Despacho** | 15 | Entra por `tareas.php`, como la aplicación |
+| **Clase** | 378 | Construye la clase y llama a un método público |
+| **Ayudante interno** | 79 | Entra por un método que TPVFox **solo alcanza desde dentro de su propia clase** |
+| Sin flujo | 79 | Unitarios puros: no tocan la base ni dejan traza de producto |
+
+Los 79 de la tercera fila son el motivo de que esto exista. `ClaseComprobacionStockEmision->contextoDeCalculo`
+son 38 de ellos, y en el producto **solo se llega ahí desde `ClaseComprobacionStockEmision.php:121`**,
+en mitad de una operación mayor. Probar un ayudante por separado es legítimo; lo que no vale es que
+el informe pinte ese recorrido con la misma autoridad que uno completo. Por eso la ficha dice, con
+todas las letras:
+
+> Este recorrido empieza donde entra la prueba, no donde entra la aplicación.
+
+Debajo, de dónde llega el producto a esa misma puerta. **Es una búsqueda por nombre de método**: no
+distingue dos clases con el mismo método y no ve el despacho dinámico (`$objeto->$metodo()`). El
+dato que sostiene es el negativo —si un nombre no aparece en ningún sitio salvo su propia clase,
+nadie lo llama desde fuera—, y así está redactado.
+
+### Las otras dos vistas: por código y por datos
+
+El informe cuenta casos, pero los mismos datos responden a la pregunta que más importa al
+mantener el producto: **qué le pasa a esta función**. La pestaña Código invierte el eje —29
+ficheros de TPVFox y 307 funciones, cada una con los casos que la cubren y las tablas que
+mueve— y la de Datos lo hace por tabla: 36 tablas, con quién las lee y quién las escribe.
+
+Las funciones salen **del recorrido y de las consultas**, no solo de las consultas. Contando
+únicamente las que emiten SQL se quedaba fuera todo lo que calcula, valida o compone: la vista
+conocía 11 ficheros de los 29 que las pruebas recorren, y 122 funciones de 307. Las 187 que no
+consultan nada lo dicen, en lugar de aparecer mudas.
+
+**Dónde se declara una función se lee del producto, no se deduce del recorrido.** Cuesta leer
+1.908 ficheros una vez por informe —0,4 s, frente al minuto que tarda la generación— y evita el
+error que había antes: cuando la clase no aparecía en la traza del caso se daba por buena la del
+llamante, y así `ClaseComprobacionStockExtraccion->extraer` acabó listada dentro de
+`PosstockQueryRepository.php`. Adivinar dónde vive una función es peor que no decirlo, porque
+quien lee no tiene forma de saber que es mentira.
+
+Cada fichero dice además **de qué módulo es y qué papel cumple** —clase, tarea, despacho,
+funciones, vista, control, librería—, porque hay dos `funciones.php` en módulos distintos y
+porque `lib/` está dentro de TPVFox sin ser código de TPVFox.
+
 ### Lo que PHP avisó, que en la ejecución normal no se ve
 
 El despacho de tareas instala `set_error_handler(fn () => true)` para que un aviso de PHP no
@@ -460,7 +522,7 @@ que pasó por `tareas.php` y no nombra `BuscarPedido.php`, y eso descoloca hasta
 qué: un `include_once` que falla no ejecuta nada, de modo que no hay nada que medir. El aviso sí
 lo cuenta, y de paso aparecen las dos líneas que rematan el defecto:
 
-```
+```text
 tareas.php:77   include_once(…/mod_venta/tareas/BuscarPedido.php): Failed to open stream
                 → el fichero no existe
 tareas.php:198  Undefined variable $respuesta

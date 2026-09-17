@@ -28,6 +28,10 @@ const estado = {
   clase: null,
   claseMontada: null,
   vista: null,
+  defectos: null,
+  gravedad: 'todas',
+  soloVivos: false,
+  capa: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -63,6 +67,7 @@ function enrutar() {
   }
 
   if (seccion === 'caso' && partes[1]) return vistaCaso(partes[1]);
+  if (seccion === 'defectos') return vistaDefectos();
   if (seccion === 'codigo') return vistaCodigo();
   if (seccion === 'datos') return vistaDatos();
 
@@ -90,6 +95,35 @@ function escuchar() {
     if (resultado) {
       estado.resultado = resultado.dataset.resultado;
       pintarResultados();
+      pintarLista();
+      return;
+    }
+
+    const gravedad = ev.target.closest('[data-gravedad]');
+    if (gravedad) {
+      estado.gravedad = gravedad.dataset.gravedad;
+      vistaDefectos();
+      return;
+    }
+
+    if (ev.target.closest('#solo-vivos')) {
+      estado.soloVivos = !estado.soloVivos;
+      vistaDefectos();
+      return;
+    }
+
+    const copiar = ev.target.closest('#copiar-defectos');
+    if (copiar) {
+      navigator.clipboard.writeText(defectosEnMarkdown()).then(
+        () => { copiar.textContent = 'Copiado'; },
+        () => { copiar.textContent = 'No se pudo copiar'; });
+      return;
+    }
+
+    const capa = ev.target.closest('[data-capa]');
+    if (capa) {
+      estado.capa = estado.capa === capa.dataset.capa ? null : capa.dataset.capa;
+      pintarCapas();
       pintarLista();
       return;
     }
@@ -174,6 +208,7 @@ function vistaCasos() {
       <section class="filtros">
         <input type="search" id="buscador" placeholder="Buscar por nombre, frase, fichero o etiqueta…" autocomplete="off">
         <div id="resultados" class="chips resultados"></div>
+        <div id="capas" class="chips capas"></div>
         <div id="etiquetas" class="chips"></div>
         <p id="cuenta" class="tenue"></p>
       </section>
@@ -182,6 +217,7 @@ function vistaCasos() {
     estado.vista = 'casos';
     $('buscador').value = estado.texto;
     pintarResultados();
+    pintarCapas();
     pintarEtiquetas();
   }
 
@@ -211,6 +247,37 @@ function pintarResultados() {
     .join('');
 }
 
+/** Los nombres con que se lee cada puerta de entrada al producto. */
+const CAPAS = {
+  pantalla: ['Pantalla', 'entra por la pantalla, como el navegador'],
+  despacho: ['Despacho', 'entra por el despacho de tareas, como la aplicación'],
+  clase: ['Clase', 'construye la clase y llama a un método público'],
+  ayudante: ['Ayudante interno', 'entra por un método que TPVFox solo alcanza desde dentro de su propia clase'],
+};
+
+/**
+ * Por qué puerta entra cada caso al producto.
+ *
+ * Es el filtro que responde «¿esto se parece a lo que hace la aplicación?». Los casos sin flujo
+ * registrado —los unitarios puros— no tienen puerta y no aparecen aquí.
+ */
+function pintarCapas() {
+  const cuenta = new Map();
+  for (const caso of estado.casos) {
+    if (caso.capa) cuenta.set(caso.capa, (cuenta.get(caso.capa) || 0) + 1);
+  }
+
+  if (!cuenta.size) {
+    $('capas').innerHTML = '';
+    return;
+  }
+
+  $('capas').innerHTML = '<span class="tenue rotulo">Entra por</span>' + Object.keys(CAPAS)
+    .filter((c) => cuenta.has(c))
+    .map((c) => `<button class="chip ${estado.capa === c ? 'activa' : ''}" data-capa="${c}" title="${esc(CAPAS[c][1])}">${esc(CAPAS[c][0])} <span class="tenue">${cuenta.get(c)}</span></button>`)
+    .join('');
+}
+
 /** Las etiquetas que existen de verdad, con cuantos casos las llevan. */
 function pintarEtiquetas() {
   const cuenta = new Map();
@@ -231,6 +298,7 @@ function casosVisibles() {
   return estado.casos.filter((caso) => {
     if (estado.ids && !estado.ids.has(caso.id)) return false;
     if (estado.clase && caso.clase !== estado.clase) return false;
+    if (estado.capa && caso.capa !== estado.capa) return false;
 
     const rojo = caso.estado === 'fallo' || caso.estado === 'error';
     if (estado.resultado === 'pasan' && caso.estado !== 'verde') return false;
@@ -264,6 +332,7 @@ function pintarLista() {
       const rojo = caso.estado === 'fallo' || caso.estado === 'error';
       const marcas = [];
       if (caso.avisos) marcas.push('⚠ aviso');
+      if (caso.capa) marcas.push(CAPAS[caso.capa] ? CAPAS[caso.capa][0].toLowerCase() : caso.capa);
       if (caso.avisosPhp) marcas.push(`${caso.avisosPhp} avisos de PHP`);
       if (caso.consultas) marcas.push(`${caso.consultas} consultas`);
       if (caso.declara) marcas.push(`declara ${caso.declara}`);
@@ -413,6 +482,7 @@ function pintarCamino(flujo) {
       .join('');
 
     return `<h3>Por dónde pasó — ${resumen.tramos.length} ficheros</h3>
+      ${pintarEntrada(flujo.entrada)}
       <p class="tenue">El caso entra y sale de los mismos ficheros muchas veces
       (${flujo.camino.length} tramos), así que van una vez cada uno, en el orden de aparición.</p>
       <ol class="camino">${filas}</ol>`;
@@ -434,8 +504,57 @@ function pintarCamino(flujo) {
   const construidos = flujo.camino.filter((t) => t.soloConstruye).length;
 
   return `<h3>Por dónde pasó — ${flujo.camino.length} tramos</h3>
+    ${pintarEntrada(flujo.entrada)}
     ${construidos ? `<p class="tenue">${construidos} de esos tramos solo construyen un objeto: el dato no pasa por ellos, se montan por estar en la cabecera del fichero.</p>` : ''}
     <ol class="camino">${tramos}</ol>`;
+}
+
+/**
+ * Por qué puerta entró la prueba, y de dónde llega el producto a esa misma puerta.
+ *
+ * Un recorrido que empieza en un ayudante interno es cierto como ejecución y engañoso como
+ * retrato del producto: empieza a mitad de la frase. Decirlo cuesta un párrafo y es la
+ * diferencia entre una foto parcial y una foto parcial que se sabe parcial.
+ */
+function pintarEntrada(entrada) {
+  if (!entrada) return '';
+
+  const [nombre, explicacion] = CAPAS[entrada.capa] || [entrada.capa, ''];
+  const intermedia = entrada.capa === 'ayudante';
+
+  let arriba = '';
+  if (entrada.soloInterno && entrada.dentro.length) {
+    arriba = `En TPVFox solo se llega aquí desde dentro de la propia clase, en ${sitios(entrada.dentro)}.`;
+  } else if (entrada.fuera && entrada.fuera.length) {
+    arriba = `En TPVFox se nombra este método en ${sitios(entrada.fuera)}.
+      <span class="tenue">La búsqueda es por nombre: no distingue dos clases con el mismo método, ni ve el despacho dinámico.</span>`;
+  }
+
+  return `<div class="entrada ${intermedia ? 'intermedia' : ''}">
+    <p class="puerta"><span class="marca">La prueba entra aquí</span>
+      <code>${esc(entrada.funcion ? cortarFuncion(entrada.funcion) : entrada.fichero)}</code>
+      <span class="tenue">${entrada.funcion ? `${esc(entrada.fichero)} · ` : ''}${esc(nombre)}${explicacion ? ` — ${esc(explicacion)}` : ''}</span></p>
+    ${intermedia ? '<p class="aviso-entrada">Este recorrido empieza donde entra la prueba, no donde entra la aplicación.</p>' : ''}
+    ${arriba ? `<p class="tenue">${arriba}</p>` : ''}
+  </div>`;
+}
+
+/**
+ * Una lista de sitios, agrupando por fichero.
+ *
+ * Cuatro llamadas en el mismo fichero son un fichero y cuatro líneas, no cuatro rutas largas
+ * repetidas.
+ */
+function sitios(cuales) {
+  const porFichero = new Map();
+  for (const s of cuales) {
+    if (!porFichero.has(s.fichero)) porFichero.set(s.fichero, []);
+    porFichero.get(s.fichero).push(s.linea);
+  }
+
+  return [...porFichero.entries()]
+    .map(([fichero, lineas]) => `<code>${esc(cortar(fichero))}:${lineas.join(', ')}</code>`)
+    .join(' · ');
 }
 
 /** El ultimo tramo de un nombre de funcion: `Clase->metodo` sin su espacio de nombres. */
@@ -709,6 +828,106 @@ function tramosDe(lineas, total) {
 }
 
 
+// ── Vista: el registro de defectos ──────────────────────────────────────────────────────
+
+/**
+ * Los defectos que la suite documenta, vivos y corregidos.
+ *
+ * Un defecto **vivo** es uno cuyo caso sigue en rojo: el defecto sigue ahí. Uno corregido se
+ * conserva porque su caso en verde es justamente la prueba de que lo está. Es el registro que
+ * hace falta mientras los defectos esperan corrección, y sale de lo que ya se anota en los
+ * comentarios: no hay nada que escribir aparte.
+ */
+async function vistaDefectos() {
+  estado.vista = 'defectos';
+  pintarMigas([{ texto: 'Defectos' }]);
+
+  if (!estado.defectos) {
+    $('vista').innerHTML = '<p class="tenue">Cargando…</p>';
+    estado.defectos = (await (await fetch('datos/defectos.json')).json()).defectos;
+  }
+
+  const todos = estado.defectos;
+  const vivos = todos.filter((d) => d.vivo).length;
+
+  const cuenta = (g) => todos.filter((d) => d.gravedad === g).length;
+  const gravedades = ['critico', 'alto', 'medio', 'bajo'].filter((g) => cuenta(g));
+
+  const visibles = todos.filter((d) =>
+    (estado.gravedad === 'todas' || d.gravedad === estado.gravedad) && (!estado.soloVivos || d.vivo));
+
+  $('vista').innerHTML = `
+    <p class="tenue">${todos.length} defectos documentados por la suite, <b>${vivos} vivos</b>
+    —su caso sigue en rojo—. Los corregidos se quedan: su caso en verde es la prueba de que lo están.</p>
+    <div class="chips resultados">
+      <button class="chip ${estado.gravedad === 'todas' ? 'activa' : ''}" data-gravedad="todas">Todas <span class="tenue">${todos.length}</span></button>
+      ${gravedades.map((g) => `<button class="chip ${estado.gravedad === g ? 'activa' : ''}" data-gravedad="${g}">${g} <span class="tenue">${cuenta(g)}</span></button>`).join('')}
+      <button class="chip ${estado.soloVivos ? 'activa' : ''}" id="solo-vivos">Solo vivos <span class="tenue">${vivos}</span></button>
+      <button class="chip" id="copiar-defectos">Copiar en Markdown</button>
+    </div>
+    <p class="tenue" id="cuenta">${visibles.length} de ${todos.length}</p>
+    <div class="defectos">${visibles.map(fichaDeDefecto).join('')}</div>`;
+
+  window.scrollTo(0, 0);
+}
+
+const CAMPOS_DEFECTO = [
+  ['sintoma', 'Qué ocurre hoy'],
+  ['esperado', 'Qué debería ocurrir'],
+  ['causa', 'Por qué ocurre'],
+  ['correccion', 'Cómo debería funcionar'],
+];
+
+function fichaDeDefecto(d) {
+  const puestos = CAMPOS_DEFECTO.filter(([clave]) => d[clave]);
+
+  const cuerpo = puestos.length
+    ? `<dl class="anotaciones">${puestos.map(([clave, titulo]) => `<dt>${esc(titulo)}</dt><dd>${esc(d[clave])}</dd>`).join('')}</dl>`
+    : d.prosa
+      ? `<p>${esc(d.prosa)}</p>`
+      : '<p class="tenue">Sin anotar: este caso se reconoce como defecto por su nombre, pero no dice cuál.</p>';
+
+  const codigo = (d.codigo || [])
+    .map((c) => `<code>${esc(c.ruta)}:${c.desde}${c.hasta !== c.desde ? '-' + c.hasta : ''}</code>`)
+    .join(' ');
+
+  return `<article class="defecto ${d.vivo ? 'vivo' : 'corregido'}">
+    <h3><a href="#/caso/${d.id}">${esc(d.frase)}</a>
+      <span class="estado ${d.vivo ? 'rojo' : 'verde'}">${d.vivo ? 'vivo' : 'corregido'}</span>
+      ${d.gravedad ? `<span class="etiqueta">${esc(d.gravedad)}</span>` : ''}
+      ${d.documento ? `<span class="etiqueta">${esc(d.documento)}</span>` : ''}
+    </h3>
+    <p class="metodo">${esc(d.clase)}::${esc(d.metodo)}</p>
+    ${(d.avisos || []).map((a) => `<div class="aviso-caja">⚠ ${esc(a)}</div>`).join('')}
+    ${cuerpo}
+    ${codigo ? `<p class="tenue">Código afectado: ${codigo}</p>` : ''}
+  </article>`;
+}
+
+/** El registro en Markdown, para pegarlo donde haga falta sin volver a escribirlo. */
+function defectosEnMarkdown() {
+  const visibles = estado.defectos.filter((d) =>
+    (estado.gravedad === 'todas' || d.gravedad === estado.gravedad) && (!estado.soloVivos || d.vivo));
+
+  const lineas = [`# Defectos documentados por la suite`, '', `${visibles.length} defectos · ${visibles.filter((d) => d.vivo).length} vivos`, ''];
+
+  for (const d of visibles) {
+    lineas.push(`## ${d.frase}`, '');
+    lineas.push(`- **Estado**: ${d.vivo ? 'vivo' : 'corregido'}${d.gravedad ? ` · ${d.gravedad}` : ''}${d.documento ? ` · ${d.documento}` : ''}`);
+    lineas.push(`- **Caso**: \`${d.clase}::${d.metodo}\``);
+    for (const [clave, titulo] of CAMPOS_DEFECTO) {
+      if (d[clave]) lineas.push(`- **${titulo}**: ${d[clave]}`);
+    }
+    for (const c of d.codigo || []) {
+      lineas.push(`- **Código afectado**: \`${c.ruta}:${c.desde}${c.hasta !== c.desde ? '-' + c.hasta : ''}\``);
+    }
+    lineas.push('');
+  }
+
+  return lineas.join('\n');
+}
+
+
 // ── Vistas: el código y los datos ───────────────────────────────────────────────────────
 
 /** Trae los datos de las vistas por código y por datos, que van en su propio fichero. */
@@ -719,13 +938,21 @@ async function traerCodigo() {
   return estado.codigo;
 }
 
-/** Una barra de proporción: lo que se compara de un vistazo sin leer números. */
-function barra(texto, cuantos, maximo, datos = '') {
+/**
+ * Una barra de proporción: lo que se compara de un vistazo sin leer números.
+ *
+ * Lo que acompaña a la barra —las tablas que mueve una función— va debajo y no encima: dentro
+ * de la barra se amontonaba, porque hay funciones que tocan trece tablas y el sitio es el que es.
+ */
+function barra(texto, cuantos, maximo, datos = '', debajo = '') {
   const ancho = maximo ? Math.max(2, Math.round((cuantos / maximo) * 100)) : 0;
 
-  return `<div class="barra ${datos ? 'pulsable' : ''}" ${datos}>
-    <div class="relleno"><span style="width:${ancho}%"></span><div class="texto">${texto}</div></div>
-    <div class="cuenta">${cuantos}</div>
+  return `<div class="linea">
+    <div class="barra ${datos ? 'pulsable' : ''}" ${datos}>
+      <div class="relleno"><span style="width:${ancho}%"></span><div class="texto">${texto}</div></div>
+      <div class="cuenta">${cuantos}</div>
+    </div>
+    ${debajo ? `<div class="tablas">${debajo}</div>` : ''}
   </div>`;
 }
 
@@ -751,17 +978,20 @@ async function vistaCodigo() {
           .join('');
 
         return barra(
-          `${esc(cortarFuncion(fn.nombre))} ${tablas}`,
+          esc(cortarFuncion(fn.nombre)),
           fn.casos.length,
           tope,
-          `data-casos="${fn.casos.join(',')}" data-motivo="${esc(cortarFuncion(fn.nombre))}"`
+          `data-casos="${fn.casos.join(',')}" data-motivo="${esc(cortarFuncion(fn.nombre))}"`,
+          tablas || '<span class="sin-tablas">no consulta la base</span>'
         );
       })
       .join('');
 
     html += `<details class="grupo">
       <summary><code>${esc(fichero.ruta)}</code><span class="ubicacion">${esc(fichero.tipo)} · ${esc(fichero.modulo)}</span> <span class="tenue">· ${fichero.casos} casos · ${fichero.funciones.length} funciones</span></summary>
-      <div class="cuerpo">${funciones}${matriz(fichero.funciones)}</div>
+      <div class="cuerpo">${funciones}${
+        fichero.masFunciones ? `<p class="tenue">y ${fichero.masFunciones} funciones más, con menos casos</p>` : ''
+      }${matriz(fichero.funciones)}</div>
     </details>`;
   }
 
