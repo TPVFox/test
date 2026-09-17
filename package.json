@@ -16,9 +16,7 @@
         "bases:preparar": "php support/preparar-bases.php",
         "entorno:preparar": "php support/preparar-entorno.php",
         "escenarios:sembrar": "php support/sembrar-escenarios.php",
-        "esfuerzo:medir": "php support/medir-esfuerzo.php",
-        "entorno:up": "docker compose -f entorno/docker-compose.yml up -d",
-        "entorno:down": "docker compose -f entorno/docker-compose.yml down -v"
+        "esfuerzo:medir": "php support/medir-esfuerzo.php"
     },
     "devDependencies": {
         "@playwright/test": "1.61.1",

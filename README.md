@@ -4,70 +4,29 @@ Pruebas de TPVFox en tres niveles: **PHPUnit** (PHP), **Jest** (JS) y **Playwrig
 
 ## Por qué está en un repositorio aparte
 
-`TPVFox/TPVFox` se despliega tal cual: no existe un paso de empaquetado, de modo que todo lo
-que contiene acaba en el servidor de cada instalación. Por eso el repositorio principal lleva
-únicamente lo que se ejecuta en producción.
+`TPVFox` se despliega tal cual: no hay paso de empaquetado, de modo que todo lo que contiene
+acaba en el servidor de cada instalación. Por eso el repositorio principal lleva únicamente lo
+que se ejecuta en producción, y las pruebas viven aquí.
 
-Las pruebas, sus dependencias de desarrollo y su configuración viven aquí. Se ejecutan contra
-un clon de `TPVFox` situado como repositorio hermano.
-
-Esta separación responde a cómo se distribuye hoy el proyecto, no a una preferencia de
-organización. Si en el futuro el despliegue incorpora un paso de empaquetado, deja de ser
-necesaria.
+Se ejecutan contra un clon de `TPVFox` situado como repositorio hermano. Es una consecuencia de
+cómo se distribuye hoy el proyecto; si algún día el despliegue incorpora empaquetado, deja de
+hacer falta.
 
 ## Los tres niveles
 
-| Nivel | Herramienta | Qué verifica | Requiere para ejecutarse |
+| Nivel | Herramienta | Qué verifica | Requiere |
 | --- | --- | --- | --- |
 | `Unit/PHP` | PHPUnit | Funciones y clases aisladas: cálculo, validación, saneado | Nada |
-| `Unit/JS` | Jest (`node`) | Lógica JS pura: cálculo de líneas, formato, validación de entrada | Node |
-| `Integration/PHP` | PHPUnit | Consultas y flujos que tocan base de datos | Base de datos de pruebas |
-| `Integration/JS` | Jest (`jsdom`) | Interacción entre módulos JS y DOM, sin navegador real | Node |
-| `E2E` | Playwright | Recorridos completos en navegador real: sesión, AJAX, impresión, formularios | Aplicación en marcha |
+| `Unit/JS` | Jest (`node`) | Lógica JS pura: cálculo de líneas, formato, validación | Node |
+| `Integration/PHP` | PHPUnit | Consultas y flujos que tocan base de datos | Base de pruebas |
+| `Integration/JS` | Jest (`jsdom`) | Módulos JS contra el DOM, sin navegador real | Node |
+| `E2E` | Playwright | Recorridos en navegador real: sesión, AJAX, impresión | Aplicación en marcha |
 
 **Criterio de pertenencia**: un caso baja al nivel más simple que pueda demostrarlo. Si no
-necesita base de datos, es unitario. Si no necesita navegador, no es E2E.
+necesita base de datos, es unitario; si no necesita navegador, no es E2E.
 
-**`Integration/JS` está vacía.** El nivel existe en `jest.config.js` y no tiene ni un fichero:
-es andamiaje puesto para cuando haga falta, no una suite que cubra algo. El informe la ejecuta
-y no aporta casos. Y `Unit/JS` tiene un único fichero, con 19 casos sobre 5 funciones puras de
-un script de 428 líneas: el JavaScript del producto está, hoy, esencialmente sin probar.
-
----
-
-## Prerequisitos
-
-Todo lo que hace falta, y de dónde sale. Las órdenes son de Debian y Ubuntu; en otra
-distribución cambian los nombres de paquete, no la lista.
-
-| Prerrequisito | Versión | Para qué |
-| --- | --- | --- |
-| PHP con `mysqli`, `libxml` y `dom` | ≥ 8.0 | Los dos niveles PHP. Por debajo de 8.0 el código de TPVFox ni siquiera analiza |
-| Composer | 2.x | Instalar PHPUnit |
-| Node y npm | Node ≥ 18.19 y < 20 | Jest y Playwright |
-| MariaDB o MySQL | MariaDB ≥ 10.0 / MySQL ≥ 5.6 | Las pruebas de integración. Es requisito de TPVFox igualmente |
-
-```bash
-sudo apt install php-cli php-mysql php-xml php-mbstring composer mariadb-server
-```
-
-Node conviene instalarlo con un gestor de versiones, porque la horquilla es estrecha:
-
-```bash
-# con nvm
-nvm install 18.19.1 && nvm use 18.19.1
-node -v          # ha de decir v18.19.x
-```
-
-Comprobación rápida de que la máquina cumple:
-
-```bash
-php -v
-php -r 'foreach (["mysqli","libxml","dom"] as $e) printf("%-8s %s\n", $e, extension_loaded($e) ? "ok" : "FALTA");'
-composer -V
-node -v && npm -v
-mariadb --version
-```
+**`Integration/JS` está vacía** y `Unit/JS` tiene un solo fichero: el JavaScript del producto
+está hoy esencialmente sin probar. Se dice aquí para que nadie lo deduzca de un verde.
 
 ## Puesta en marcha
 
@@ -75,664 +34,54 @@ mariadb --version
 git clone <url-de-test> test
 git clone <url-de-TPVFox> TPVFox     # repositorio hermano, al lado de test/
 
-cd test
-composer install
-npm install
-npx playwright install               # navegadores; añade --with-deps si faltan librerías del sistema
+cd test && composer install && npm install
+npx playwright install               # añade --with-deps si faltan librerías del sistema
+
+npm run test:php                     # 96 casos, 2 en rojo — no necesitan base de datos
+npm run test:js                      # 19 casos, 2 en rojo
 ```
 
-El código bajo prueba se localiza en `../TPVFox` por defecto. Se puede apuntar a otra ruta con
-`TPVFOX_PATH` (Jest y PHPUnit) y `TPVFOX_URL` (Playwright).
+**Esos rojos son deliberados**: son casos que afirman lo que el producto debería hacer y hoy no
+hace. La suite no está verde a propósito, y cada rojo está documentado.
 
-`TPVFOX_URL` admite un prefijo de ruta —`http://localhost:8080/TPVFox`— cuando la aplicación no
-se sirve en la raíz del servidor. La barra final la pone la configuración, así que da igual
-escribirla o no.
+Los otros dos niveles necesitan base de datos y un usuario de la aplicación.
+**→ [docs/instalacion.md](docs/instalacion.md)**
 
-Con esto ya corren los niveles unitarios. La integración y el E2E necesitan base de datos.
+## Órdenes
 
-## La base de pruebas
-
-La integración corre sobre **dos bases de ejercicios consecutivos**, porque hay comportamiento
-del producto que compara un ejercicio con el anterior. Cada ejercicio de TPVFox vive en su
-propia base y el ejercicio no es un parámetro: es una propiedad del despliegue.
-
-**Las bases de pruebas son propias y su nombre empieza por `tpvfox_test`.** La suite se niega a
-arrancar contra cualquier otro nombre: un mismo motor puede alojar bases que no son de pruebas, y
-una variable de entorno mal puesta no puede bastar para escribir sobre una de ellas.
-
-### 1. Crear las bases y concederlas
-
-Requiere privilegios de administración del motor, así que no lo hace ningún guion de este
-repositorio. Una sola vez:
-
-```sql
-CREATE DATABASE tpvfox_test_2025 CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-CREATE DATABASE tpvfox_test_2026 CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-GRANT ALL PRIVILEGES ON tpvfox_test_2025.* TO 'tpvfox'@'localhost';
-GRANT ALL PRIVILEGES ON tpvfox_test_2026.* TO 'tpvfox'@'localhost';
-FLUSH PRIVILEGES;
-```
-
-Los años son un ejemplo: sirve cualquier par consecutivo.
-
-### 2. Declarar la configuración
-
-`test/.env`, que no se versiona:
-
-```ini
-TPVFOX_TEST_DB_HOST=localhost
-TPVFOX_TEST_DB_USER=tpvfox
-TPVFOX_TEST_DB_PASS=<contraseña>
-TPVFOX_TEST_DB_VIGENTE=tpvfox_test_2026
-TPVFOX_TEST_DB_ANTERIOR=tpvfox_test_2025
-```
-
-Las mismas claves valen como variables de entorno, y ahí ganan al fichero: en integración
-continua no hace falta `.env`.
-
-### 3. Cargar el esquema
-
-```bash
-npm run bases:preparar              # respeta lo que ya haya
-npm run bases:preparar -- --rehacer # tira los objetos y vuelve a cargar
-```
-
-Carga el esquema de referencia de `BD/BDtpv/` del clon de TPVFox: 74 tablas y las 4 vistas, sin
-datos. **Los datos de siembra se generan**; no se extraen de ninguna instalación real, y ninguno
-entra en este repositorio.
-
-### 4. Conectar el propio TPVFox a la base de pruebas
-
-Necesario solo para los casos de integración que ejercitan código que hereda de `TFModelo`: ese
-código abre su propia conexión —independiente de la que usa la suite para sembrar y comprobar—, a
-través de `TPVFox/configuracion.php`. TPVFox no trae ese fichero (cada despliegue real tiene el
-suyo, con sus propias credenciales) y no se versiona.
-
-`TPVFox/configuracion.php`, en el clon de TPVFox contra el que corre la suite:
-
-```php
-<?php
-$servidorMysql = 'localhost';
-$nombrebdMysql = 'tpvfox_test_2026';   // el mismo valor que TPVFOX_TEST_DB_VIGENTE
-$usuarioMysql  = 'tpvfox';
-$passwordMysql = '<contraseña>';
-```
-
-### Dónde vive la siembra
-
-`support/siembra/` reúne todo lo que genera datos, con su propio espacio de nombres
-(`TPVFox\Test\Siembra\`). Está separado de `support/php/` —que son los apoyos de la propia
-suite: `CasoIntegracion`, `Entorno`— porque la siembra no la consume solo la integración:
-también la necesitan los recorridos E2E, que corren contra un despliegue real y no pueden
-partir de una base vacía.
-
-| Qué | Dónde |
+| Orden | Qué hace |
 | --- | --- |
-| Primitivas: artículo, familia, proveedor, tienda, movimientos | `support/siembra/Siembra.php` |
-| Escenarios de un módulo: qué ocurre en cada caso, y en qué ejercicio | `support/siembra/Escenario*.php` |
+| `npm run test:php` | Unitario PHP |
+| `npm run test:php:int` | Integración PHP — requiere base de datos |
+| `npm run test:js` | Unitario JS |
+| `npm run test:js:int` | Integración JS |
+| `npm run test:e2e` | Recorridos de navegador — requiere la aplicación en marcha |
+| `npm run test:e2e:ui` | Lo mismo, con la interfaz de Playwright para depurar |
+| `npm run cobertura -- <ámbito>` | Cobertura sobre el ámbito que se declare |
+| `npm run informe:pruebas` | Genera el informe consultable de los tres niveles |
+| `npm run informe:ver` | Lo sirve en `http://127.0.0.1:8081` |
+| `npm run entorno:preparar` | Deja la máquina lista de una vez: esquema, tienda, usuario y siembra |
+| `npm run bases:preparar` | Solo el esquema de las dos bases |
+| `npm run escenarios:sembrar` | Siembra persistente de los escenarios que cruzan de un ejercicio a otro |
+| `npm run esfuerzo:medir` | Siembra de volumen y medida de los tres tramos que más cuestan |
 
-La primitiva no sabe de ningún módulo. Un escenario sí, y por eso vive aparte: es lo que
-permite que dos despliegues de ejercicios consecutivos se siembren desde un mismo guion en
-vez de coordinarse a mano.
+## Documentación
 
-### Aislamiento entre casos
-
-Cada caso se envuelve en transacción con `ROLLBACK`: ningún dato persiste.
-
-La excepción son los casos que ejercitan la apertura de transacción del propio producto. En
-MySQL y MariaDB un `START TRANSACTION` dentro de otro confirma el anterior de forma implícita,
-de modo que ahí la transacción de la suite dejaría de aislar sin avisar. Esos casos ponen
-`$this->aislarPorTransaccion = false` y limpian lo que siembren.
-
-## Entorno con contenedor (opcional)
-
-`entorno/docker-compose.yml` levanta el motor y la aplicación sin tocar la máquina. Es una
-comodidad para empezar rápido o para trabajar sin instalar nada, **no el entorno de referencia**:
-el motor instalado es requisito de TPVFox de todos modos.
-
-```bash
-npm run entorno:up
-npm run entorno:down     # -v incluido: destruye también los volúmenes
-```
-
-## Usuario para los recorridos E2E
-
-Playwright inicia sesión como un usuario real del despliegue contra el que corre: no hay ningún
-mecanismo en este repositorio que lo siembre — ni `Siembra` (que no toca `usuarios`) ni ningún otro. Hay
-que crearlo a mano, una vez por base de pruebas, y exportar `TPVFOX_E2E_USUARIO`/`TPVFOX_E2E_CLAVE`
-antes de `npm run test:e2e`.
-
-Con un grupo `group_id = 9` el usuario es administrador y no hace falta dar de alta permisos fila a
-fila: `ClasePermisos` los resuelve todos a 1 automáticamente. Hace falta también una tienda con
-`tipoTienda = 'principal'` — solo puede haber una activa — y su fila en `indices`:
-
-```php
-<?php
-require_once 'test/support/siembra/Siembra.php';
-$db = new mysqli('localhost', 'tpvfox', 'tpvfox', 'tpvfox_test_2026');
-$siembra = new TPVFox\Test\Siembra\Siembra($db);
-$idTienda = $siembra->tienda('2026');
-// usuarioPorDefecto() no sirve aquí: crea group_id=1 y una contraseña que no es un hash válido.
-// Hace falta un INSERT propio en usuarios (password = MD5(clave), group_id = 9, estado = 'activo')
-// y otro en indices (idTienda, idUsuario) para que el login lo acepte como sesión completa.
-```
-
-Los recorridos de la comprobación de existencias en el cambio de año suben además un fichero de
-ejemplo, generado con el propio código de emisión en vez de a mano:
-
-```bash
-php support/generar-fixture-e2e.php <ano-vigente> <idTienda>
-```
-
-`<ano-vigente>` es el ejercicio del despliegue contra el que corre el recorrido del vigente, y
-`<idTienda>` la tienda sembrada en esa base. El recorrido del anterior necesita correr contra el
-despliegue del ejercicio inmediatamente anterior a ese, con su propio usuario y su propia tienda
-sembrados igual.
-
-
-### Segundo usuario, opcional
-
-Un recorrido comprueba que el listado de documentos en curso se acota a quien lo mira, y para
-eso hacen falta dos sesiones distintas. Se declaran igual que las del primero:
-
-```
-TPVFOX_E2E_USUARIO2=<otro usuario>
-TPVFOX_E2E_CLAVE2=<su clave>
-```
-
-`npm run entorno:preparar` da de alta el segundo usuario solo si las dos variables están. Sin
-ellas, el recorrido que las necesita se salta solo y el resto de la suite no se entera: la
-fila de índice de cada usuario es independiente, de modo que añadir uno no le quita la suya al
-otro.
-
-## Ejecución
-
-```bash
-npm run test:php                        # unitario PHP
-npm run test:js                         # unitario JS
-npm run test:php:int                    # integración PHP  (requiere BD)
-npm run test:js:int                     # integración JS
-npm run entorno:up && npm run test:e2e  # E2E
-```
-
-### Etiquetas y anotaciones de los recorridos E2E
-
-Cada caso E2E lleva etiquetas y anotaciones, y el informe HTML de Playwright las muestra en la
-ficha del caso. Las etiquetas se filtran escribiéndolas en el buscador del informe o con `--grep`;
-las anotaciones explican el caso en lenguaje llano.
-
-| Grupo | Etiqueta | Qué significa |
-| --- | --- | --- |
-| Tipo | `@estado-actual` | Documenta lo que el producto hace hoy, y pasa |
-| | `@defecto` | Acompaña a `@estado-actual` cuando lo documentado es un defecto: el caso congela el comportamiento incorrecto tal como es |
-| | `@esperado` | Afirma lo que el producto debería hacer y hoy no hace, de modo que **está en rojo a propósito**. El fallo lleva por motivo la aserción del propio defecto, y se lee en la primera línea del resultado. El día que el defecto se corrija, el caso pasa a verde y se queda como guardia de regresión |
-| | `@control` | Acompaña a un caso `@esperado`: comprueba lo que ya funciona y tiene que seguir funcionando después de la corrección |
-| Documento | `@pedido`, `@albaran`, `@factura` | Los documentos que recorre el caso |
-| Área | `@entrada`, `@teclado`, `@raton`, `@listado`, `@busqueda`, `@borrador`, `@adjuntos`, `@guardado`, `@estados`, `@numeracion`, `@existencias`, `@importes`, `@impreso`, `@vencimiento`, `@validacion` | La parte del flujo que ejercita |
-| Gravedad | `@critico`, `@alto`, `@medio`, `@bajo` | Solo en `@defecto` y `@esperado`: cuánto daño hace el defecto |
-| Camino | `@directo` | Solo en `@esperado`: el defecto se alcanza navegando con normalidad |
-| | `@forzado` | Solo en `@esperado`: el recorrido tiene que intervenir la petición para provocarlo |
-
-Un caso con defecto lleva cuatro anotaciones: **Qué ocurre hoy**, **Qué debería ocurrir**, **Por qué
-ocurre** y **Cómo debería funcionar**. Un caso de comportamiento correcto lleva **Comportamiento**, y
-un control añade **Para qué sirve**. Los casos `@esperado` viven además en su propia carpeta,
-`E2E/specs/mod_venta/esperado/`.
-
-**Los `@esperado` están en rojo, y así tiene que ser.** No se marcan como fallo esperado: una marca de
-fallo esperado da por buena cualquier causa —unas credenciales que faltan, una precondición que no se
-cumple, un selector que ya no existe— y deja la suite en verde mientras el recorrido no demuestra nada.
-En rojo, cada uno enseña su motivo y ese motivo es la aserción del defecto. La suite que **sí** debe
-estar siempre verde es la de todo lo demás:
-
-```bash
-npx playwright test E2E/specs/mod_venta --grep-invert @esperado --reporter=line   # debe pasar entera
-```
-
-```bash
-npx playwright test E2E/specs/mod_venta --grep @esperado --reporter=line             # lo que debería funcionar y no funciona
-npx playwright test E2E/specs/mod_venta --grep "@defecto|@esperado" --reporter=line  # todos los defectos
-npx playwright test E2E/specs/mod_venta --grep-invert @esperado --reporter=line      # solo el estado actual
-```
-
-**El informe HTML es desechable por defecto.** El reporter HTML vacía su carpeta de salida antes de
-escribir, y lo hace con cualquier orden de Playwright que no fije otro reporter, incluida `--list`.
-Para conservar un informe, genéralo fuera de `E2E/informe-ultimo`:
-
-```bash
-PLAYWRIGHT_HTML_OUTPUT_DIR=$HOME/informes-e2e/$(date +%F) npx playwright test E2E/specs/mod_venta --reporter=line,html
-npx playwright show-report $HOME/informes-e2e/$(date +%F)
-```
-
-## Informe de pruebas
-
-La salida de PHPUnit son puntos en un terminal. Este informe cuenta, por cada caso, **qué
-valida**, **qué código de TPVFox recorre** y **qué hizo el dato**, y se consulta como el de
-Playwright: con buscador, filtros por etiqueta y el fuente del producto a la vista.
-
-**Lleva los tres niveles en una sola lista**: 653 casos —96 unitarios de PHP, 436 de integración,
-19 de JS y 102 recorridos de navegador—, con un filtro por nivel para cuando se quiera mirar uno
-solo. Van juntos a propósito: buscar «albarán» tiene que devolver lo que hay en los tres, que es
-la pregunta de verdad.
-
-Se navega por páginas, no por paneles: cada vista tiene su dirección —`#/`, `#/codigo`,
-`#/caso/<id>`—, con migas para volver y el botón de atrás del navegador funcionando. Un caso
-concreto se puede enlazar, y una sección nueva es una ruta nueva en lugar de otra cosa apilada
-en el mismo panel.
-
-```bash
-npm run informe:pruebas     # genera en informe-pruebas/ (unos 50 s)
-npm run informe:ver         # lo sirve en http://127.0.0.1:8081
-```
-
-Hace falta servirlo: el navegador bloquea las peticiones de datos desde `file://`. Para
-conservar uno, genéralo aparte y sirve esa carpeta:
-
-```bash
-php support/informe-pruebas.php --salida=$HOME/informes-pruebas/$(date +%F)
-php -S 127.0.0.1:8081 -t $HOME/informes-pruebas/$(date +%F)
-```
-
-| Opción | Para qué |
+| | |
 | --- | --- |
-| `--suites=unit-php` | Solo una de las suites de PHP |
-| `--sin-js` | Se salta las suites de Jest |
-| `--salida=<ruta>` | Genera en otro sitio, para conservarlo |
-| `--sin-traza` | Genera en la mitad de tiempo, sin cadena de llamadas y con el recorrido incompleto |
-
-**Por qué la traza viene puesta.** Es la única fuente que da **orden**: sin ella el informe
-sabe qué ficheros se recorrieron, pero no en qué secuencia, y el apartado «código que recorre»
-vuelve a ser una lista suelta. Con ella se lee como un recorrido —`albaranesVentas.php →
-ClaseVentas.php → ClaseArticulosStocks.php → claseModeloP.php`— y además aparecen las clases
-que no consultan nada, que sin traza no salen en ninguna parte.
-
-Cuesta: **1 minuto frente a 27 segundos**, y disco temporal que se limpia al terminar (un caso
-llega a 67 MB de traza en crudo). Con `--sin-traza` se recupera la velocidad y se pierde el
-orden.
-
-### De dónde sale cada cosa
-
-| En la ficha | De dónde | Hace falta escribirlo |
-| --- | --- | --- |
-| La frase del caso | Del nombre del método | No |
-| Las etiquetas | Del nombre de la clase y de la carpeta | No |
-| «Dado que…» | De los métodos de siembra que el caso llamó | No |
-| «Qué hizo el dato» | De las consultas reales, con el método que las pidió y su `fichero:línea` | No |
-| El código que recorre | De la cobertura por caso, sobre el fuente real | No |
-| La cadena de llamadas | De la traza, que viene puesta | No |
-| «Qué valida» en prosa | Del comentario del método | Sí |
-| Las cuatro anotaciones del defecto | Declaradas en el comentario | Sí |
-| Las etiquetas propias | `@group`, que además filtra por línea de órdenes | Sí |
-| `@estado rojo` · `@estado verde` | Declarado en el comentario | Sí |
-| `@codigo-afectado ruta.php:18-24` | Declarado en el comentario | Sí |
-
-Lo derivado no pisa lo escrito: si el caso declara algo, manda lo suyo.
-
-### Cómo se anota un caso
-
-Las anotaciones son las mismas seis que usan los recorridos de navegador, con los mismos
-nombres, para que lo que se lee en un informe se lea igual en el otro. Un caso de defecto
-lleva las cuatro primeras; uno de comportamiento correcto, `@comportamiento`; un control añade
-`@para-que-sirve`. Cada una se prolonga hasta la siguiente, así que puede ocupar párrafos.
-
-```php
-/**
- * @estado rojo
- * @group defecto
- * @group pedido
- * @group critico
- *
- * @que-ocurre-hoy Pedir el cambio de estado de un pedido cambia también el de un albarán
- *   que no tiene nada que ver, por compartir el mismo identificador.
- * @que-deberia-ocurrir Que el cambio alcance únicamente al documento del tipo pedido.
- * @por-que-ocurre Las tres condiciones que eligen el tipo usan asignación en vez de
- *   comparación, de modo que las tres se cumplen siempre.
- * @como-deberia-funcionar Comparar en vez de asignar en las tres condiciones.
- */
-public function test_defecto_modificarEstadoDocumento_pedidoModificaTambienUnAlbaran(): void
-```
-
-`@group` es la anotación de PHPUnit, de modo que declarar una etiqueta sirve además para
-filtrar sin el informe: `vendor/bin/phpunit --group defecto`.
-
-**En JS es igual, con dos diferencias.** Jest no tiene `@group`, así que las etiquetas van en
-una línea `@etiquetas defecto entrada validacion medio`. Y como Jest no da cobertura por caso,
-el código que el informe enseña **no es el que se midió sino la función que el caso prueba**:
-se deduce del `RUTA_SCRIPT` que el fichero declara y del nombre del `describe`, que por
-convención es el de la función de producto. La ficha lo dice con todas las letras para que no
-se lea como medido algo que es declarado.
-
-**No hace falta anotar los 532 casos.** Lo derivado ya da frase, etiquetas, flujo y código a
-todos; lo que se escribe a mano son los casos donde la causa raíz importa, y lo que se escribe
-es prosa que en su mayoría ya existe en el comentario, solo que sin etiquetar. La falta de
-anotación **no genera aviso**: los avisos quedan para las contradicciones, o dejarían de
-servir.
-
-### Las dos vistas del recorrido
-
-La cobertura pinta un fichero medio verde y no dice **por qué serie de entradas** se llegó
-hasta ahí. Por eso la ficha trae dos vistas del recorrido, una encima de la otra:
-
-- **Por dónde pasó** — el camino fichero a fichero, en orden:
-  `tareas.php → ClaseIncidencia.php → tareas.php → pedidosVentas.php → …`. Cada llamada aporta
-  dos sitios, de dónde salió y dónde está declarado lo que llamó, porque si no se pierde el
-  punto de entrada: un despacho como `tareas.php` no declara ninguna clase y desaparecería del
-  camino justo el fichero por el que el caso entra. Un tramo que **solo construye** un objeto se
-  dice: el dato no pasa por ahí, se monta por estar en la cabecera del fichero. Lo que es
-  preparación o comprobación se pliega en un tramo, que es lo que evita que la siembra meta
-  decenas de saltos por sus propias escrituras. **Existe siempre**, con traza o sin ella.
-- **Pasos, uno a uno** — la cadena de llamadas como árbol, con su profundidad, sus argumentos,
-  su valor de retorno y su duración. **Solo TPVFox**: el andamiaje de la prueba va aparte y
-  plegado, y las tripas de PHPUnit y el propio instrumento no se guardan. Medido en un caso de
-  despacho, de 249 marcos de traza 17 eran del producto; leerlos mezclados hacía pasar por
-  recorrido lo que era el montaje de la prueba. Se pierde con `--sin-traza`.
-
-El camino dice por dónde; el árbol, cómo.
-
-### El fuente, por tramos
-
-Abrir un fichero enseña **los tramos que el caso ejecutó, con tres líneas de contexto**, y entre
-ellos cuánto se salta. Medido sobre la suite: pintarlos enteros son **10.817 líneas para enseñar
-1.819 ejecutadas, el 17 %**; en `PosstockQueryRepository.php` son 114 de 1.891, el 6 %. El
-fichero entero sigue a un clic.
-
-**Las ramas de `switch` descartadas se cuentan aparte, no se pintan como recorrido.** PHP evalúa
-cada `case` hasta dar con el que coincide, y la cobertura marca esas líneas como ejecutadas. Sin
-distinguirlas, un caso que entra en `case 'buscarPedido'` aparenta haber pasado también por
-`abririncidencia`, `anhadirTemporal` y `buscarClientes`, en las que no entró.
-
-### Las consultas del montaje, separadas de las del caso
-
-Un despacho construye en su cabecera los objetos que quizá use después, y varios de esos
-constructores lanzan un `SELECT count(*)` nada más nacer. Contadas con las demás, un caso que no
-llega a hacer nada aparenta haber consultado cinco tablas. El informe las separa por su origen
-—una consulta pedida desde un constructor es montaje— y lo dice con todas las letras cuando la
-tarea en sí no consultó nada.
-
-### Los recorridos de navegador, sin escribir nada
-
-Los recorridos entran del volcado JSON que Playwright deja al ejecutarse, y **no hace falta leer
-ni un fuente**: un recorrido declara sus etiquetas y sus anotaciones en la propia llamada a
-`test()`, y el volcado las emite enteras.
-
-```js
-test('T1 teclear el número del pedido y pulsar Intro trae sus líneas al albarán', {
-  tag: ['@estado-actual', '@albaran', '@pedido', '@teclado', '@adjuntos'],
-  annotation: [{ type: 'Comportamiento', description: 'Tecleando el número de un pedido…' }],
-}, async ({ page }) => {
-```
-
-Son **las mismas seis anotaciones** que usan los otros dos niveles, con su nombre escrito para
-leerse; el informe las traduce a la misma clave y la ficha no distingue de dónde viene el caso.
-Medido: 102 recorridos, 96 con etiquetas y 96 con anotaciones tipadas, de las cuales 42 son el
-cuarteto que documenta un defecto. Por eso el registro de defectos pasó de 123 a **165** y cubre
-los tres niveles.
-
-**Un recorrido que consta pero no se ha ejecutado no es verde, ni rojo, ni omitido.** El volcado
-que deja `playwright test --list` trae todo el vocabulario pero ningún resultado, así que esos
-casos entran como **`sin ejecutar`**, con su propio filtro y su aviso en la ficha. Es lo que
-permite consultar qué valida cada recorrido con el entorno apagado.
-
-Lo que la ficha de un recorrido **no** trae es su flujo del dato: se ejecuta en un navegador real
-y no se instrumenta desde aquí. Dice eso, y no «no consulta la base», que sería falso. Lo que sí
-trae es **por dónde entra** —las pantallas a las que navega su fuente— y la evidencia queda en el
-informe de Playwright, con su traza, su vídeo y sus capturas.
-
-**Los recorridos no pasan por el contraste de estado declarado.** Un caso de PHP declara el suyo
-con `@estado`; un recorrido lo declara con su vocabulario de etiquetas, y traducir una cosa en la
-otra es una decisión que no está tomada. Aplicarlo diría de los 102 que no declaran nada.
-
-### Quién cubre cada fichero
-
-Un fichero al 0,00 % no significa lo mismo si nadie lo prueba que si lo prueban los recorridos de
-navegador. `albaran.php` y `factura.php` suman 1.303 líneas sin una sola medida de PHP, y sin
-embargo ocho y doce recorridos entran por ellos: leer solo el porcentaje lleva a la conclusión
-contraria a la verdadera.
-
-`#/cobertura` pone los dos niveles al lado, sobre los **373 ficheros del ámbito que declara
-`phpunit.xml`** —336 de PHP y 37 de JavaScript; el mismo bloque `<coverage>` que usa la medida,
-leído de ahí para que las dos listas no se separen—:
-
-| | Ficheros | |
-| --- | ---: | --- |
-| Pruebas | 35 | las miden las pruebas de la suite |
-| Recorridos | 12 | constancia de paso, sin medida |
-| Ambos | 1 | `AccionesDirectas.js` |
-| **Nadie** | **325** | el hueco de verdad |
-
-En `mod_venta` se ve entero: 11 ficheros medidos, 6 pantallas cubiertas solo por recorridos, el
-JavaScript que esas pantallas cargan, y un `index.php` de dos líneas que no cubre nadie.
-
-**Lo que esta vista dice se queda corto por abajo, nunca por arriba.** De un recorrido se sabe la
-URL que su fuente nombra, no todo lo que la petición acaba ejecutando: `funciones.js` llama a
-`tareas.php` once veces por AJAX, y ese salto no se le atribuye a ningún recorrido. De modo que la
-fila «Ambos» está por debajo de la verdad —los dos niveles se solapan más de lo que aquí figura—,
-mientras que lo que aparece como alcanzado lo está de verdad, y los que no toca nadie no los toca
-nadie.
-
-Cerrarlo exigiría **cobertura en el servidor durante la pasada de navegador**: `pcov` en el
-contenedor que sirve el `:8080`, un `auto_prepend_file` que arranque la medida y vuelque un `.cov`
-por petición, una cabecera desde Playwright para saber qué recorrido la causó, y la fusión en el
-informe. Es técnica conocida y toca el entorno E2E, no esta suite. Hasta entonces, esto no se
-presenta como cobertura sino como lo que es.
-
-**Del JavaScript se dice que lo prueban, nunca cuánto.** `jest.config.js` declara
-`collectCoverageFrom` sobre `modulos/**/*.js` y un `coverageThreshold` del 70 %, y al ejecutarlo
-mide `0/0 — Unknown%`: los casos cargan el script del producto leyéndolo y evaluándolo con
-`vm.runInContext`, y la cobertura de V8 solo ve lo que pasa por el sistema de módulos. **Es un
-umbral que no puede fallar porque no hay nada que medir**, y queda dicho aquí hasta que se decida
-qué hacer con él. Lo que sí se deriva es qué JavaScript carga cada pantalla, leyendo sus
-`<script src>`: por eso `funciones.js` figura con 41 recorridos.
-
-Playwright escribe además `E2E/resultados.json` —un reporter más, junto al HTML— y la vista lo usa
-para fechar la última pasada. Sin ese fichero sigue funcionando y dice que no hay registro.
-
-**Un listado no cuenta como pasada.** `playwright test --list` escribe el mismo fichero que una
-ejecución: 45 recorridos con sus 102 casos, todos en `skipped` y sin un solo resultado. Un caso
-solo se cuenta si trae resultados, de modo que listar no puede declarar en verde algo que nunca
-corrió.
-
-### Desde cuándo
-
-Cada generación apuntaba antes lo suyo y pisaba lo anterior, de modo que el informe solo sabía
-hablar en presente. Un defecto que lleva en rojo desde agosto y uno que se puso en rojo esta
-mañana no son el mismo asunto, y llevar el registro **mientras esperan corrección** exige la otra
-mitad: desde cuándo.
-
-Cada pasada deja una línea por caso —identificador, estado y milisegundos— con su fecha y los
-commits de TPVFox y de la suite que la produjeron. Con 551 casos son unos 17 KB por ejecución, en
-`.historia-pruebas/`, que no entra en el repositorio.
-
-```bash
-Historia: 2 ejecuciones registradas
-```
-
-**Vive fuera del informe emitido.** El informe se genera donde le digan —`--salida` sirve
-justamente para conservar copias— y atar la historia a la carpeta de salida haría que cada copia
-arrancase su propio registro desde cero mientras el de verdad se queda en otra parte.
-
-**No se borra nada.** Para componer la vista se leen las últimas 60 ejecuciones, que es otra cosa:
-el fichero viejo sigue ahí aunque esa vista no lo mire. Un registro que se poda deja de servir
-justo para lo que se guardó.
-
-Con eso, tres sitios dicen algo que antes no podían:
-
-- **La ficha de un caso**: «en rojo desde el 3 de septiembre · 2 de 4 ejecuciones». Si en toda la
-  ventana estuvo igual no se inventa una fecha —dice «en las N ejecuciones registradas»—, porque
-  puede venir de antes de lo que hay guardado.
-- **El registro de defectos**: lo mismo, y el Markdown que se copia lo lleva.
-- **La lista de casos**: cómo viene la suite, `en rojo: 16 → 16`. No es un gráfico, es una línea
-  de números; con eso se ve si algo se torció entre dos generaciones.
-
-**Intermitente** es un caso que cambió de color **sin que cambiara el commit del producto**. En una
-suite determinista no debería ocurrir; cuando ocurre, lo que falla es la prueba. Hoy son 0.
-
-### El registro de defectos
-
-`#/defectos` reúne lo que la suite documenta como defecto: **123 casos, 16 vivos**. Un defecto se
-reconoce por cualquiera de tres señales —el método empieza por `test_defecto_`, lleva la etiqueta
-`defecto`, o declara `@estado rojo`—, de modo que los 119 que ya existían entraron sin tocar nada.
-
-**Vivo** quiere decir que su caso sigue en rojo: el defecto sigue ahí. Los corregidos se quedan en
-el registro, porque su caso en verde es justamente la prueba de que lo están.
-
-Cada ficha lleva síntoma, qué debería ocurrir, causa raíz y corrección cuando el caso los declara,
-y si no la prosa de su comentario —los 123 dicen algo—. Se filtra por gravedad y por «solo vivos»,
-y **se copia en Markdown** para pegarlo en un registro sin volver a escribirlo.
-
-### Por qué puerta entra cada caso
-
-La cobertura dice qué líneas se ejecutaron; no dice si se llegó a ellas como llega la aplicación.
-Cada caso declara ahora su **puerta de entrada**, derivada del primer marco de producto de su
-traza:
-
-| Puerta | Casos | Qué significa |
-| --- | ---: | --- |
-| **Despacho** | 15 | Entra por `tareas.php`, como la aplicación |
-| **Clase** | 378 | Construye la clase y llama a un método público |
-| **Ayudante interno** | 79 | Entra por un método que TPVFox **solo alcanza desde dentro de su propia clase** |
-| Sin flujo | 79 | Unitarios puros: no tocan la base ni dejan traza de producto |
-
-Los 79 de la tercera fila son el motivo de que esto exista. `ClaseComprobacionStockEmision->contextoDeCalculo`
-son 38 de ellos, y en el producto **solo se llega ahí desde `ClaseComprobacionStockEmision.php:121`**,
-en mitad de una operación mayor. Probar un ayudante por separado es legítimo; lo que no vale es que
-el informe pinte ese recorrido con la misma autoridad que uno completo. Por eso la ficha dice, con
-todas las letras:
-
-> Este recorrido empieza donde entra la prueba, no donde entra la aplicación.
-
-Debajo, de dónde llega el producto a esa misma puerta. **Es una búsqueda por nombre de método**: no
-distingue dos clases con el mismo método y no ve el despacho dinámico (`$objeto->$metodo()`). El
-dato que sostiene es el negativo —si un nombre no aparece en ningún sitio salvo su propia clase,
-nadie lo llama desde fuera—, y así está redactado.
-
-### Las otras dos vistas: por código y por datos
-
-El informe cuenta casos, pero los mismos datos responden a la pregunta que más importa al
-mantener el producto: **qué le pasa a esta función**. La pestaña Código invierte el eje —29
-ficheros de TPVFox y 307 funciones, cada una con los casos que la cubren y las tablas que
-mueve— y la de Datos lo hace por tabla: 36 tablas, con quién las lee y quién las escribe.
-
-Las funciones salen **del recorrido y de las consultas**, no solo de las consultas. Contando
-únicamente las que emiten SQL se quedaba fuera todo lo que calcula, valida o compone: la vista
-conocía 11 ficheros de los 29 que las pruebas recorren, y 122 funciones de 307. Las 187 que no
-consultan nada lo dicen, en lugar de aparecer mudas.
-
-**Dónde se declara una función se lee del producto, no se deduce del recorrido.** Cuesta leer
-1.908 ficheros una vez por informe —0,4 s, frente al minuto que tarda la generación— y evita el
-error que había antes: cuando la clase no aparecía en la traza del caso se daba por buena la del
-llamante, y así `ClaseComprobacionStockExtraccion->extraer` acabó listada dentro de
-`PosstockQueryRepository.php`. Adivinar dónde vive una función es peor que no decirlo, porque
-quien lee no tiene forma de saber que es mentira.
-
-Cada fichero dice además **de qué módulo es y qué papel cumple** —clase, tarea, despacho,
-funciones, vista, control, librería—, porque hay dos `funciones.php` en módulos distintos y
-porque `lib/` está dentro de TPVFox sin ser código de TPVFox.
-
-### Lo que PHP avisó, que en la ejecución normal no se ve
-
-El despacho de tareas instala `set_error_handler(fn () => true)` para que un aviso de PHP no
-tumbe el caso a mitad. Eso silencia los avisos del producto: no salen por pantalla, no llegan a
-ningún registro y no dejan rastro en la cobertura. La traza sí los conserva, porque cada aviso
-es una llamada a ese manejador con su mensaje, su fichero y su línea. El informe los vuelve a
-sacar a la luz.
-
-Medido: **208 avisos en 32 casos**, 157 distintos —47 avisos y 110 usos de algo obsoleto—.
-Includes que fallan, propiedades dinámicas creadas al vuelo, pérdida de precisión al pasar de
-float a entero, variables no definidas.
-
-Es lo que explica un caso como *«buscarPedido: apunta a un fichero borrado»*. Su cobertura dice
-que pasó por `tareas.php` y no nombra `BuscarPedido.php`, y eso descoloca hasta que se ve por
-qué: un `include_once` que falla no ejecuta nada, de modo que no hay nada que medir. El aviso sí
-lo cuenta, y de paso aparecen las dos líneas que rematan el defecto:
-
-```text
-tareas.php:77   include_once(…/mod_venta/tareas/BuscarPedido.php): Failed to open stream
-                → el fichero no existe
-tareas.php:198  Undefined variable $respuesta
-tareas.php:199  Undefined variable $respuesta
-```
-
-Cuando el aviso nombra un fichero, el informe comprueba si existe, y así distingue el defecto
-del producto del artefacto del andamiaje: en ese mismo caso `./../../inicial.php` también falla,
-pero por ser una ruta relativa al directorio de trabajo, que el andamiaje cambia. Ese fichero
-existe, y el informe lo dice en vez de sumarlo a la cuenta de lo que está roto.
-
-### Un límite medido: los casos que terminan en error no dejan cobertura
-
-PHPUnit descarta la cobertura de un caso que acaba en error —no en fallo de aserción, en
-error—. Medido sobre esta suite: los 518 verdes y los 11 fallidos la traen; los 3 con error,
-ninguna. En el informe esos casos muestran su recorrido y su flujo, pero no su código, y la
-ficha lo dice para que no se lea como «este caso no toca nada».
-
-### Los tres contrastes
-
-Son lo que el informe aporta sobre leer el fuente, y salen solos:
-
-1. **El estado declarado contra el real.** Avisa si un caso dice estar en rojo y pasa, o al
-   revés, o si está en rojo sin declararlo.
-2. **El código declarado contra el ejecutado.** Avisa si un caso dice cubrir un defecto y no
-   pasa por ninguna de esas líneas.
-3. **Ningún fichero de pruebas cita identificadores del sistema de calidad**, porque este
-   repositorio es público y tiene que sostenerse solo.
-
-### Cómo se instrumenta
-
-Dos piezas, las dos inertes mientras no se genera el informe:
-
-- **La conexión observada** (`support/php/Instrumentacion/ConexionObservada.php`) sustituye a
-  la conexión de los casos de integración y anota cada consulta con su SQL, su emisor y lo que
-  devolvió. Funciona porque el producto consulta siempre por la conexión que la suite le
-  entrega; no se toca ni una línea de TPVFox.
-- **El registro de flujo** (`RegistroDeFlujo.php`) arranca una traza por caso. Está declarado
-  en `phpunit.xml` y, sin su variable de entorno, todos sus métodos retornan en el acto:
-  medido, `npm run test:php:int` tarda lo mismo con la extensión registrada que sin ella.
-
-La carpeta `informe-pruebas/` no entra en el repositorio.
+| [docs/instalacion.md](docs/instalacion.md) | Del clon a la primera ejecución |
+| [docs/escribir-pruebas.md](docs/escribir-pruebas.md) | Dónde va un caso, cómo se siembra y cómo se anota |
+| [docs/informe.md](docs/informe.md) | Qué enseña el informe y qué no puede enseñar |
+| [docs/instrumentacion.md](docs/instrumentacion.md) | Cómo está hecho, para quien tenga que tocarlo |
+
+El porqué de cada pieza está en el docblock de su clase, no aquí.
 
 ## Versiones fijadas
 
-- **Playwright 1.61.1** sobre **Node 18.19.x**, **Jest 29.7**, **PHPUnit 9.6**.
-- `composer.lock` y `package-lock.json` se versionan: son lo que hace reproducible una ejecución.
+**Playwright 1.61.1** sobre **Node 18.19.x**, **Jest 29.7**, **PHPUnit 9.6**. `composer.lock` y
+`package-lock.json` se versionan: son lo que hace reproducible una ejecución.
 
-**Por qué no se sube a Playwright 1.62.** Exige Node ≥ 20, y lo que aporta no toca a esta suite:
-el modelo nuevo de component testing no aplica —las pantallas de TPVFox se componen en
-servidor—, y `AbortSignal`, capturas WebP, `reporter.preprocess()`, `retryStrategy` y el resto de
-API nueva no aparecen en ningún recorrido. Queda el salto de versión de los navegadores, pero lo
-que se prueba es una aplicación servida: el navegador no es el objeto de la prueba. Cuando el
-equipo de ejecución pase a Node 20 se revisa; hasta entonces no hay motivo.
-
-## Cobertura
-
-El objetivo es **70%** en líneas y en métodos. Lo que se declara en cada ejecución no es el
-umbral sino **el ámbito**: un porcentaje solo significa algo si se dice sobre qué se mide.
-
-```bash
-npm run cobertura -- modulos/mod_reorganizacion                          # una carpeta
-npm run cobertura -- clases/ClaseTFModelo.php                            # un fichero
-npm run cobertura -- mod_reorganizacion/clases/ClaseComprobacionStock    # un prefijo
-npm run cobertura -- modulos/mod_informes --umbral=80
-npm run cobertura -- <ámbito> --suites=unit-php
-npm run cobertura -- <ámbito> --detalle                                  # qué falta
-```
-
-**`--detalle` dice qué queda fuera**, línea a línea y método a método. Un umbral cumplido
-no distingue si lo no cubierto es accesorio o es justo la rama que nadie probó, y esa es la
-diferencia entre una entrega verificada y una que solo lo parece.
-
-El ámbito **no tiene valor por defecto**, a propósito: este repositorio prueba TPVFox entero,
-y un ámbito por defecto acabaría midiendo siempre lo de una entrega concreta. El guion sale
-con error si el ámbito no casa con ningún fichero medido, si la suite no pasa, o si no se
-alcanza el umbral. Cuando falla, lista los cinco ficheros que más lastran.
-
-**Qué se mide y qué no** (`phpunit.xml`, bloque `<coverage>`): entra el código propio del
-producto —`modulos/`, `clases/`, `controllers/`, `app/`—, y no solo los módulos: las clases
-base de `clases/` son las que el código de los módulos hereda y consume. Queda fuera `lib/`,
-que es de terceros, y `plugins/`, `jquery/` y `estatico/`.
-
-**Medir un módulo que ya tenía código.** Un módulo con código anterior a las pruebas arrastra
-su cobertura hacia abajo aunque lo nuevo esté verificado del todo. Ahí el ámbito se declara
-por prefijo de ruta, de forma que mida el código que la entrega produce; la cobertura del
-código anterior es un objetivo aparte y no la decide una entrega que no lo tocó.
-
-**En JavaScript** el umbral sigue configurado como global en `jest.config.js`. Cuando existan
-pruebas JS habrá que darle el mismo tratamiento; hoy no hay ninguna.
+**No se sube a Playwright 1.62** porque exige Node ≥ 20 y lo que aporta no toca a esta suite: el
+modelo nuevo de component testing no aplica —las pantallas de TPVFox se componen en servidor— y el
+resto de API nueva no aparece en ningún recorrido. Queda el salto de versión de los navegadores,
+pero lo que se prueba es una aplicación servida: el navegador no es el objeto de la prueba.

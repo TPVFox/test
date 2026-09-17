@@ -50,7 +50,7 @@ foreach (['vigente' => 'TPVFOX_TEST_DB_VIGENTE', 'anterior' => 'TPVFOX_TEST_DB_A
 
     if ($db->connect_errno) {
         fwrite(STDERR, "No se pudo conectar con «{$base}»: error {$db->connect_errno}.\n");
-        fwrite(STDERR, "Crea la base y concedela antes de ejecutar este guion (README, «Preparar las bases»).\n");
+        fwrite(STDERR, "Crea la base y concedela antes de ejecutar este guion (docs/instalacion.md, paso 3).\n");
         exit(1);
     }
 
