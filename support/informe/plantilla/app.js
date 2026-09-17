@@ -934,9 +934,9 @@ function defectosEnMarkdown() {
 
 /** Cómo se lee cada una de las cuatro situaciones de un fichero. */
 const QUIEN = {
-  ambos: ['Ambos', 'lo miden las pruebas PHP y lo recorre el navegador'],
-  php: ['Pruebas PHP', 'lo miden las pruebas unitarias o de integración'],
-  recorrido: ['Recorridos', 'no hay medida, hay constancia de que el navegador entra por él'],
+  ambos: ['Ambos', 'lo alcanzan las pruebas de la suite y los recorridos de navegador'],
+  pruebas: ['Pruebas', 'lo alcanzan las pruebas unitarias o de integración'],
+  recorrido: ['Recorridos', 'no hay medida, hay constancia de que el navegador pasa por él'],
   nadie: ['Nadie', 'ningún nivel de prueba lo toca'],
 };
 
@@ -971,14 +971,21 @@ async function vistaCobertura() {
     .join('');
 
   $('vista').innerHTML = `
-    <p class="tenue">${resumen.total} ficheros del producto, en el ámbito que declara
-    <code>phpunit.xml</code>. <b>${resumen.nadie} no los toca ningún nivel de prueba</b>: ese es el
-    hueco, y no el 0 % de un fichero por el que sí entra el navegador.</p>
+    <p class="tenue">${resumen.total} ficheros del producto —PHP y JavaScript— en el ámbito que
+    declara <code>phpunit.xml</code>. <b>${resumen.nadie} no los toca ningún nivel de prueba</b>:
+    ese es el hueco, y no el 0 % de un fichero por el que sí entra el navegador.</p>
     <section class="tarjetas">${tarjetas}</section>
-    <p class="tenue">Lo que la columna de recorridos dice es <b>por dónde entra</b> cada uno —la URL
-    que el recorrido nombra—, no todo lo que su petición acaba ejecutando: lo que la pantalla llame
-    después por AJAX no aparece aquí. Medirlo de verdad exigiría cobertura en el servidor durante la
-    pasada de navegador.
+    <div class="aviso-caja">
+      <b>Esta columna se queda corta por abajo, nunca por arriba.</b> De un recorrido se sabe la URL
+      que su fuente nombra, no todo lo que la petición acaba ejecutando: una pantalla que llame a
+      <code>tareas.php</code> por AJAX —<code>funciones.js</code> lo hace once veces— alcanza código
+      que aquí no se le atribuye. Por eso <b>«Ambos» sale más bajo de lo que es</b>, y por eso lo que
+      figura como alcanzado lo está de verdad. Medirlo exigiría cobertura en el servidor durante la
+      pasada de navegador.
+    </div>
+    <p class="tenue">Del JavaScript se dice <b>que lo prueban</b>, nunca cuánto: los casos de Jest
+    cargan el script leyéndolo y evaluándolo, y la cobertura de V8 no ve nada —medido,
+    <code>0/0</code> pese al umbral del 70 % declarado—.
     ${pasada && pasada.hay
       ? `La última pasada de recorridos quedó registrada${pasada.fecha ? ` el ${new Date(pasada.fecha).toLocaleString('es-ES')}` : ''}.`
       : 'De la última pasada de recorridos no hay registro: ejecuta <code>npm run test:e2e</code> para que lo haya.'}</p>
@@ -993,11 +1000,14 @@ function filaDeCruce(f) {
       + (f.specs.length > 3 ? ` <span class="tenue">y ${f.specs.length - 3} más</span>` : '')
     : '';
 
-  const medida = f.phpLineas ? `${f.phpLineas} líneas medidas` : '';
+  // De PHP se dice cuántas líneas se midieron; de JavaScript, que hay casos que lo prueban. Un
+  // número sin medida detrás se leería como una medida.
+  const medida = f.tocadas ? (f.medido ? `${f.tocadas} líneas medidas` : 'lo prueban casos de Jest') : '';
 
   return `<tr class="quien-${f.quien}">
     <td class="marca" title="${esc(QUIEN[f.quien][1])}">${esc(QUIEN[f.quien][0])}</td>
-    <td><code>${esc(cortar(f.ruta))}</code> <span class="tenue">${f.lineas} líneas</span></td>
+    <td><code>${esc(cortar(f.ruta))}</code>
+      <span class="tenue">${f.lineas} líneas${f.lenguaje === 'js' ? ' · js' : ''}</span></td>
     <td class="tenue">${medida}${medida && specs ? ' · ' : ''}${specs}</td>
   </tr>`;
 }

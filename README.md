@@ -450,27 +450,40 @@ navegador. `albaran.php` y `factura.php` suman 1.303 líneas sin una sola medida
 embargo ocho y doce recorridos entran por ellos: leer solo el porcentaje lleva a la conclusión
 contraria a la verdadera.
 
-`#/cobertura` pone los dos niveles al lado, sobre los **336 ficheros del ámbito que declara
-`phpunit.xml`** —el mismo bloque `<coverage>` que usa la medida, leído de ahí para que las dos
-listas no se separen—:
+`#/cobertura` pone los dos niveles al lado, sobre los **373 ficheros del ámbito que declara
+`phpunit.xml`** —336 de PHP y 37 de JavaScript; el mismo bloque `<coverage>` que usa la medida,
+leído de ahí para que las dos listas no se separen—:
 
 | | Ficheros | |
 | --- | ---: | --- |
-| Pruebas PHP | 35 | medidas, con sus líneas |
-| Recorridos | 8 | constancia de paso, sin medida |
-| **Nadie** | **293** | el hueco de verdad |
-| Ambos | 0 | — |
+| Pruebas | 35 | las miden las pruebas de la suite |
+| Recorridos | 12 | constancia de paso, sin medida |
+| Ambos | 1 | `AccionesDirectas.js` |
+| **Nadie** | **325** | el hueco de verdad |
 
-**Ese cero de la última fila es un hallazgo, no un defecto de la vista.** Los dos niveles no se
-solapan en ningún fichero: las pruebas PHP miden clases, los recorridos entran por pantallas, y
-entre unas y otras no hay un solo fichero en común. En `mod_venta` se ve entero —11 ficheros
-medidos, 6 cubiertos solo por recorridos, y un `index.php` de dos líneas que no cubre nadie—.
+En `mod_venta` se ve entero: 11 ficheros medidos, 6 pantallas cubiertas solo por recorridos, el
+JavaScript que esas pantallas cargan, y un `index.php` de dos líneas que no cubre nadie.
 
-**Lo que la columna de recorridos dice es por dónde entra cada uno**: la URL que el recorrido
-nombra en su fuente, no todo lo que la petición acaba ejecutando. Un `tareas.php` invocado por
-AJAX desde la pantalla no aparece. Medirlo de verdad exigiría cobertura en el servidor durante la
-pasada de navegador, que es otra obra; hasta entonces esto no se presenta como cobertura sino como
-lo que es.
+**Lo que esta vista dice se queda corto por abajo, nunca por arriba.** De un recorrido se sabe la
+URL que su fuente nombra, no todo lo que la petición acaba ejecutando: `funciones.js` llama a
+`tareas.php` once veces por AJAX, y ese salto no se le atribuye a ningún recorrido. De modo que la
+fila «Ambos» está por debajo de la verdad —los dos niveles se solapan más de lo que aquí figura—,
+mientras que lo que aparece como alcanzado lo está de verdad, y los que no toca nadie no los toca
+nadie.
+
+Cerrarlo exigiría **cobertura en el servidor durante la pasada de navegador**: `pcov` en el
+contenedor que sirve el `:8080`, un `auto_prepend_file` que arranque la medida y vuelque un `.cov`
+por petición, una cabecera desde Playwright para saber qué recorrido la causó, y la fusión en el
+informe. Es técnica conocida y toca el entorno E2E, no esta suite. Hasta entonces, esto no se
+presenta como cobertura sino como lo que es.
+
+**Del JavaScript se dice que lo prueban, nunca cuánto.** `jest.config.js` declara
+`collectCoverageFrom` sobre `modulos/**/*.js` y un `coverageThreshold` del 70 %, y al ejecutarlo
+mide `0/0 — Unknown%`: los casos cargan el script del producto leyéndolo y evaluándolo con
+`vm.runInContext`, y la cobertura de V8 solo ve lo que pasa por el sistema de módulos. **Es un
+umbral que no puede fallar porque no hay nada que medir**, y queda dicho aquí hasta que se decida
+qué hacer con él. Lo que sí se deriva es qué JavaScript carga cada pantalla, leyendo sus
+`<script src>`: por eso `funciones.js` figura con 41 recorridos.
 
 Playwright escribe además `E2E/resultados.json` —un reporter más, junto al HTML— y la vista lo usa
 para fechar la última pasada. Sin ese fichero sigue funcionando y dice que no hay registro.

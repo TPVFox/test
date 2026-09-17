@@ -134,10 +134,12 @@ final class Datos
 
         // El cruce con los recorridos de navegador: quien cubre cada fichero del producto.
         $raizPruebas = dirname(__DIR__, 2);
+        $porPantalla = Recorridos::porFichero($raizPruebas . '/E2E/specs');
         $cruce = Cobertura::componer(
             $raizPruebas . '/phpunit.xml',
             $ficheros,
-            Recorridos::porFichero($raizPruebas . '/E2E/specs'),
+            $porPantalla,
+            Recorridos::scripts($porPantalla, (string) constant('RUTA_TPVFOX')),
             Recorridos::ultimaPasada($raizPruebas . '/E2E/resultados.json')
         );
         file_put_contents($base . '/cobertura.json', self::json($cruce));

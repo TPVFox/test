@@ -10,13 +10,20 @@
  *
  * Esta vista pone los dos al lado y clasifica cada fichero en uno de cuatro sitios:
  *
- * - **ambos** — lo miden las pruebas PHP y lo recorre el navegador.
- * - **php** — solo lo miden las pruebas PHP.
+ * - **ambos** — lo alcanzan las dos cosas.
+ * - **pruebas** — solo lo alcanzan las pruebas de la suite.
  * - **recorrido** — solo entran por el los recorridos. No hay medida, hay constancia de paso.
  * - **nadie** — ningun nivel lo toca. Este es el hueco de verdad.
  *
  * **El ambito se lee de `phpunit.xml`**, del mismo bloque `<coverage>` que usa la medida de
  * cobertura. Copiarlo aqui habria dejado dos listas que se separan en cuanto alguien toque una.
+ * De ahi salen tambien los directorios excluidos, que valen igual para el JavaScript.
+ *
+ * **El JavaScript entra con el mismo trato y una diferencia declarada**: de un fichero PHP se
+ * sabe que lineas se ejecutaron, y de uno de JavaScript no. `jest.config.js` declara un umbral
+ * del 70 %, pero medido da `0/0`: los casos cargan el script del producto leyendolo y
+ * evaluandolo en un contexto de `vm`, y la cobertura de V8 solo ve lo que pasa por el sistema de
+ * modulos. De modo que en JavaScript la columna dice **que lo prueban**, nunca cuanto.
  *
  * **Lo que no es.** La columna de recorridos dice por donde **entra** un recorrido, no todo lo
  * que su peticion ejecuta: lo que la pantalla llame despues por AJAX no aparece. Medirlo de
@@ -40,20 +47,26 @@ final class Cobertura
      * @param array<string, list<array{spec:string, veces:int}>> $recorridos
      * @return array<string,mixed>
      */
-    public static function componer(string $phpunitXml, array $cubiertos, array $recorridos, array $pasada): array
-    {
+    public static function componer(
+        string $phpunitXml,
+        array $cubiertos,
+        array $recorridos,
+        array $scripts,
+        array $pasada
+    ): array {
         $ambito = self::ambitoDe($phpunitXml);
         $porModulo = [];
-        $resumen = ['ambos' => 0, 'php' => 0, 'recorrido' => 0, 'nadie' => 0];
+        $resumen = ['ambos' => 0, 'pruebas' => 0, 'recorrido' => 0, 'nadie' => 0];
 
         foreach (self::ficherosDelAmbito($ambito) as $absoluta) {
             $ruta = self::relativa($absoluta);
-            $lineasPhp = count($cubiertos[$absoluta] ?? []);
-            $specs = $recorridos[$ruta] ?? [];
+            $lenguaje = str_ends_with($absoluta, '.js') ? 'js' : 'php';
+            $tocadas = count($cubiertos[$absoluta] ?? []);
+            $specs = $lenguaje === 'js' ? ($scripts[$ruta] ?? []) : ($recorridos[$ruta] ?? []);
 
             $quien = match (true) {
-                $lineasPhp > 0 && $specs !== [] => 'ambos',
-                $lineasPhp > 0 => 'php',
+                $tocadas > 0 && $specs !== [] => 'ambos',
+                $tocadas > 0 => 'pruebas',
                 $specs !== [] => 'recorrido',
                 default => 'nadie',
             };
@@ -63,8 +76,12 @@ final class Cobertura
 
             $porModulo[$modulo][] = [
                 'ruta' => $ruta,
+                'lenguaje' => $lenguaje,
                 'lineas' => self::cuantasLineas($absoluta),
-                'phpLineas' => $lineasPhp,
+                'tocadas' => $tocadas,
+                // De PHP se mide que lineas se ejecutaron; de JavaScript se declara cual se
+                // prueba. Decirlo por fichero evita que un numero se lea como una medida.
+                'medido' => $lenguaje === 'php',
                 'specs' => $specs,
                 'quien' => $quien,
             ];
@@ -94,7 +111,7 @@ final class Cobertura
     }
 
     /** Lo cubierto primero, y el hueco al final: es el orden en que se lee. */
-    private const ORDEN = ['ambos' => 4, 'php' => 3, 'recorrido' => 2, 'nadie' => 1];
+    private const ORDEN = ['ambos' => 4, 'pruebas' => 3, 'recorrido' => 2, 'nadie' => 1];
 
     /**
      * El ambito de medida declarado en `phpunit.xml`.
@@ -155,7 +172,7 @@ final class Cobertura
             );
 
             foreach ($arbol as $fichero) {
-                if ($fichero->getExtension() !== 'php') {
+                if (!in_array($fichero->getExtension(), ['php', 'js'], true)) {
                     continue;
                 }
 

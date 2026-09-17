@@ -78,6 +78,59 @@ final class Recorridos
     }
 
     /**
+     * Que ficheros de JavaScript carga cada pantalla por la que entra un recorrido.
+     *
+     * Una pantalla declara sus scripts con `<script src>`, de modo que si un recorrido entra por
+     * `albaran.php` el navegador carga y ejecuta `funciones.js` y `AccionesDirectas.js` con él.
+     * Es la misma clase de dato que el resto de esta vista: constancia de paso, no medida.
+     *
+     * @param array<string, list<array{spec:string, veces:int}>> $porPantalla
+     * @return array<string, list<array{spec:string, veces:int}>>
+     */
+    public static function scripts(array $porPantalla, string $raizProducto): array
+    {
+        $porScript = [];
+
+        foreach ($porPantalla as $pantalla => $specs) {
+            $absoluta = rtrim($raizProducto, '/') . '/' . $pantalla;
+
+            if (!is_file($absoluta)) {
+                continue;
+            }
+
+            $fuente = (string) @file_get_contents($absoluta);
+
+            if (!preg_match_all('#src=["\'][^"\']*?((?:modulos|controllers|app|clases)/[A-Za-z0-9_/.-]+\.js)#', $fuente, $m)) {
+                continue;
+            }
+
+            foreach (array_unique($m[1]) as $script) {
+                foreach ($specs as $spec) {
+                    $porScript[$script][] = $spec;
+                }
+            }
+        }
+
+        // Una misma pantalla y un mismo recorrido pueden llegar por varios caminos: se funden.
+        foreach ($porScript as $script => $specs) {
+            $porNombre = [];
+
+            foreach ($specs as $spec) {
+                $porNombre[$spec['spec']] = ($porNombre[$spec['spec']] ?? 0) + $spec['veces'];
+            }
+
+            arsort($porNombre);
+            $porScript[$script] = array_map(
+                static fn(string $nombre, int $veces): array => ['spec' => $nombre, 'veces' => $veces],
+                array_keys($porNombre),
+                $porNombre
+            );
+        }
+
+        return $porScript;
+    }
+
+    /**
      * Como le fue a cada recorrido en la ultima pasada, si quedo registrada.
      *
      * @return array{hay:bool, fecha:string, specs:array<string,array{casos:int, rojos:int}>}
