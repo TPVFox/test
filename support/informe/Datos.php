@@ -44,6 +44,7 @@ final class Datos
 
         $indice = [];
         $ficheros = [];
+        $defectos = [];
         $conFlujo = 0;
         $codigo = new Codigo();
 
@@ -74,6 +75,7 @@ final class Datos
                 'montaje' => $flujo['montaje'] ?? 0,
                 'llamadas' => $flujo === null ? 0 : count($flujo['llamadas']),
                 'avisosPhp' => $flujo === null ? 0 : count($flujo['avisos'] ?? []),
+                'capa' => $flujo['entrada']['capa'] ?? null,
                 'ficheros' => array_map(
                     static fn(string $f): string => basename($f),
                     array_keys($caso['cobertura'] ?? [])
@@ -101,6 +103,12 @@ final class Datos
                     'flujo' => $flujo,
                 ])
             );
+
+            $defecto = self::defectoDe($hash, $caso, $etiquetas);
+
+            if ($defecto !== null) {
+                $defectos[] = $defecto;
+            }
         }
 
         foreach ($ficheros as $ruta => $casosDeLaLinea) {
@@ -118,6 +126,12 @@ final class Datos
         $porCodigo = $codigo->resultado();
         file_put_contents($base . '/codigo.json', self::json($porCodigo));
 
+        // El registro de defectos va en su propio fichero: lleva la prosa entera de cada uno y
+        // cargarla al arrancar encareceria el informe para quien solo quiere mirar un caso.
+        usort($defectos, static fn(array $a, array $b) => [self::ORDEN_GRAVEDAD[$b['gravedad']] ?? 0, $b['vivo']]
+            <=> [self::ORDEN_GRAVEDAD[$a['gravedad']] ?? 0, $a['vivo']]);
+        file_put_contents($base . '/defectos.json', self::json(['defectos' => $defectos]));
+
         file_put_contents($base . '/indice.json', self::json([
             'generado' => date('c'),
             'casos' => $indice,
@@ -130,7 +144,80 @@ final class Datos
             'conFlujo' => $conFlujo,
             'ficherosProducto' => count($porCodigo['ficheros']),
             'tablas' => count($porCodigo['tablas']),
+            'defectos' => count($defectos),
+            'defectosVivos' => count(array_filter($defectos, static fn(array $d): bool => $d['vivo'])),
         ];
+    }
+
+    /**
+     * La ficha de un caso visto como defecto, si lo es.
+     *
+     * Un defecto se reconoce por tres senales, cualquiera de ellas: el nombre del metodo empieza
+     * por `test_defecto_`, lleva la etiqueta `defecto`, o declara estar en rojo. La primera cubre
+     * los 119 que ya existen sin tocar nada.
+     *
+     * **Vivo** quiere decir que el defecto sigue ahi: el caso esta en rojo. Uno que ya pasa
+     * describe algo corregido, y se conserva en el registro porque es la prueba de que lo esta.
+     *
+     * @param array<string,mixed> $caso
+     * @param list<string> $etiquetas
+     * @return array<string,mixed>|null
+     */
+    private static function defectoDe(string $hash, array $caso, array $etiquetas): ?array
+    {
+        $metodo = (string) ($caso['metodo'] ?? '');
+        $declarado = $caso['estadoDeclarado'] ?? null;
+
+        $esDefecto = str_starts_with($metodo, 'test_defecto_')
+            || in_array('defecto', $etiquetas, true)
+            || $declarado === 'rojo';
+
+        if (!$esDefecto) {
+            return null;
+        }
+
+        $anotaciones = $caso['anotaciones'] ?? [];
+        $enRojo = in_array($caso['estado'], ['fallo', 'error'], true);
+
+        return [
+            'id' => $hash,
+            'clase' => Vocabulario::nombreCorto($caso['clase']),
+            'metodo' => $metodo,
+            'frase' => self::fraseDe($caso),
+            'estado' => $caso['estado'],
+            'declara' => $declarado,
+            'vivo' => $enRojo,
+            'gravedad' => self::unaDe($etiquetas, ['critico', 'alto', 'medio', 'bajo']),
+            'documento' => self::unaDe($etiquetas, ['pedido', 'albaran', 'factura']),
+            'etiquetas' => $etiquetas,
+            'sintoma' => (string) ($anotaciones['que-ocurre-hoy'] ?? ''),
+            'esperado' => (string) ($anotaciones['que-deberia-ocurrir'] ?? ''),
+            'causa' => (string) ($anotaciones['por-que-ocurre'] ?? ''),
+            'correccion' => (string) ($anotaciones['como-deberia-funcionar'] ?? ''),
+            'prosa' => (string) ($caso['prosa'] ?? ''),
+            'codigo' => $caso['declarado'] ?? [],
+            'avisos' => $caso['avisos'] ?? [],
+        ];
+    }
+
+    /** Orden de lectura de un registro de defectos: lo grave primero. */
+    private const ORDEN_GRAVEDAD = ['critico' => 4, 'alto' => 3, 'medio' => 2, 'bajo' => 1];
+
+    /**
+     * La primera de unas etiquetas que el caso lleve, o cadena vacia.
+     *
+     * @param list<string> $etiquetas
+     * @param list<string> $cuales
+     */
+    private static function unaDe(array $etiquetas, array $cuales): string
+    {
+        foreach ($cuales as $cual) {
+            if (in_array($cual, $etiquetas, true)) {
+                return $cual;
+            }
+        }
+
+        return '';
     }
 
     /**

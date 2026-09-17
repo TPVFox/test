@@ -108,9 +108,10 @@ final class Flujo
 
         $traza = $rutaTraza !== null ? LectorDeTraza::leer($rutaTraza) : ['llamadas' => [], 'recortado' => false];
 
-        // Donde se declara cada cosa se resuelve una vez y sirve para las dos preguntas: si un
-        // marco es del producto o del armazon, y a que fichero pertenece cada tramo del camino.
-        $declara = self::dondeSeDeclara($traza['llamadas']);
+        // Donde se declara cada cosa se lee del producto entero, una sola vez por informe, y
+        // sirve para las dos preguntas: si un marco es del producto o del armazon, y a que
+        // fichero pertenece cada tramo del camino.
+        $declara = ['clases' => Declaraciones::clases(), 'funciones' => Declaraciones::funciones()];
         $reparto = self::repartir($traza['llamadas'], $declara);
         $llamadas = $reparto['producto'];
         $camino = self::camino($llamadas, $pasos, $declara['clases']);
@@ -124,6 +125,7 @@ final class Flujo
             'avisos' => $reparto['avisos'],
             'camino' => $camino,
             'caminoResumen' => self::resumenDelCamino($camino),
+            'entrada' => self::entrada($llamadas, $declara),
             'consultas' => $total,
             'montaje' => count(array_filter($visibles, static fn(array $p) => ($p['montaje'] ?? false) === true)),
             'recortado' => $total > $tope || ($traza['recortado'] ?? false),
@@ -276,46 +278,116 @@ final class Flujo
     }
 
     /**
-     * Donde se declara cada clase y cada funcion suelta que aparece en la traza.
+     * Por donde entra la prueba al producto, y que clase de sitio es ese.
      *
-     * Se leen solo los ficheros de producto que la propia traza menciona: son unas pocas
-     * decenas, y evita recorrer TPVFox entero para resolver un punado de nombres. Sirve para
-     * dos cosas distintas: saber a que fichero pertenece un tramo del camino, y decidir si un
-     * marco es del producto o del armazon de pruebas.
+     * El recorrido de un caso empieza donde la prueba llama, que casi nunca es donde empieza la
+     * aplicacion: medido, 28 de los 31 ficheros de integracion construyen la clase y llaman al
+     * metodo en vez de pasar por el despacho, y 79 casos entran por un ayudante que TPVFox solo
+     * alcanza desde dentro de su propia clase. Eso no invalida la prueba, pero sin decirlo el
+     * recorrido aparenta ser el del producto cuando empieza a mitad de la frase.
      *
      * @param list<array<string,mixed>> $llamadas
-     * @return array{clases:array<string,string>, funciones:array<string,string>}
+     * @param array{clases:array<string,string>, funciones:array<string,string>} $declara
+     * @return array<string,mixed>|null
      */
-    private static function dondeSeDeclara(array $llamadas): array
+    private static function entrada(array $llamadas, array $declara): ?array
     {
-        $clases = [];
-        $funciones = [];
-        $vistos = [];
+        $nombre = (string) ($llamadas[0]['nombre'] ?? '');
 
-        foreach ($llamadas as $llamada) {
-            $ruta = (string) ($llamada['fichero'] ?? '');
+        if ($nombre === '') {
+            return null;
+        }
 
-            if ($ruta === '' || isset($vistos[$ruta]) || self::faseDe($ruta) !== 'ejercicio' || !is_file($ruta)) {
-                continue;
-            }
+        // Si la primera llamada de producto salio de un **guion** de producto —un despacho o una
+        // pantalla—, la prueba entro por ese guion y no por la funcion que se llamo dentro. Hace
+        // falta mirarlo porque un fichero que se incluye no es una funcion y no deja marco propio
+        // en la traza: sin esto, un caso que pasa por `tareas.php` seria indistinguible de uno
+        // que construye la clase a mano.
+        //
+        // Solo para guiones. Que la llamada venga de un fichero de clase no significa que se
+        // entrara por ahi: significa que la clase ya estaba corriendo, y entonces la puerta es
+        // la funcion, como en el caso normal.
+        $desde = (string) ($llamadas[0]['fichero'] ?? '');
 
-            $vistos[$ruta] = true;
-            $fuente = (string) file_get_contents($ruta);
+        if ($desde !== '' && self::faseDe($desde) === 'ejercicio') {
+            $fichero = self::relativa($desde);
+            $capa = self::capaDe($fichero, false);
 
-            if (preg_match_all('/^\s*(?:abstract\s+|final\s+)?class\s+(\w+)/mi', $fuente, $m)) {
-                foreach ($m[1] as $clase) {
-                    $clases[$clase] = $ruta;
-                }
-            }
-
-            if (preg_match_all('/^\s*function\s+&?(\w+)\s*\(/mi', $fuente, $m)) {
-                foreach ($m[1] as $funcion) {
-                    $funciones[strtolower($funcion)] = $ruta;
-                }
+            if (in_array($capa, ['despacho', 'pantalla'], true)) {
+                return [
+                    'funcion' => '',
+                    'fichero' => $fichero,
+                    'capa' => $capa,
+                    'dentro' => [],
+                    'fuera' => [],
+                    'soloInterno' => false,
+                ];
             }
         }
 
-        return ['clases' => $clases, 'funciones' => $funciones];
+        $clase = self::claseDe($nombre);
+        $declarada = $clase !== ''
+            ? ($declara['clases'][$clase] ?? null)
+            : ($declara['funciones'][strtolower($nombre)] ?? null);
+
+        $fichero = self::relativa($declarada ?? (string) ($llamadas[0]['fichero'] ?? ''));
+
+        // De donde llega el producto a este mismo punto, separando lo que esta dentro del
+        // fichero que lo declara de lo que viene de fuera.
+        $dentro = [];
+        $fuera = [];
+
+        foreach (Declaraciones::usos(self::metodoDe($nombre)) as [$ruta, $linea]) {
+            $sitio = ['fichero' => self::relativa($ruta), 'linea' => $linea];
+
+            if ($declarada !== null && $ruta === $declarada) {
+                $dentro[] = $sitio;
+            } else {
+                $fuera[] = $sitio;
+            }
+        }
+
+        $soloInterno = $dentro !== [] && $fuera === [];
+
+        return [
+            'funcion' => $nombre,
+            'fichero' => $fichero,
+            'capa' => self::capaDe($fichero, $soloInterno),
+            'dentro' => array_slice($dentro, 0, 4),
+            'fuera' => array_slice($fuera, 0, 4),
+            'soloInterno' => $soloInterno,
+        ];
+    }
+
+    /**
+     * Que clase de sitio es un fichero del producto, visto como puerta de entrada.
+     *
+     * La convencion de TPVFox lo dice en la ruta: la raiz de un modulo son sus pantallas,
+     * `tareas.php` y `tareas/` son el despacho de peticiones, y el resto son clases. Un metodo
+     * al que nadie llama desde fuera de su propio fichero es un ayudante interno: la aplicacion
+     * nunca entra por ahi, llega en mitad de una operacion mayor.
+     */
+    private static function capaDe(string $fichero, bool $soloInterno): string
+    {
+        if (preg_match('#^modulos/[a-z_]+/tareas(\.php$|/)#', $fichero) === 1) {
+            return 'despacho';
+        }
+
+        if (preg_match('#^modulos/[a-z_]+/[^/]+\.php$#', $fichero) === 1
+            && !str_ends_with($fichero, '/funciones.php')
+        ) {
+            return 'pantalla';
+        }
+
+        return $soloInterno ? 'ayudante' : 'clase';
+    }
+
+    /** El metodo de un nombre `Clase->metodo`, o el nombre entero si no lleva clase. */
+    private static function metodoDe(string $funcion): string
+    {
+        $partes = preg_split('/::|->/', $funcion) ?: [];
+
+        return (string) end($partes);
     }
 
     /** La ruta sin el prefijo del producto, que es como se nombra el fichero en todo el informe. */

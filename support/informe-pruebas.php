@@ -687,6 +687,8 @@ function informarPorTerminal(array $casos, array $citas, string $salida): void
             $GLOBALS['emitidos']['casos'], $GLOBALS['emitidos']['fuentes'], $GLOBALS['emitidos']['conFlujo']);
         printf("Codigo: %d ficheros de producto, %d tablas\n",
             $GLOBALS['emitidos']['ficherosProducto'], $GLOBALS['emitidos']['tablas']);
+        printf("Defectos: %d registrados, %d vivos\n",
+            $GLOBALS['emitidos']['defectos'], $GLOBALS['emitidos']['defectosVivos']);
     }
     echo "Informe: " . realpath($salida) . "/index.html\n\n";
 }
