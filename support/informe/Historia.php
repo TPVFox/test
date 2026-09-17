@@ -175,6 +175,10 @@ final class Historia
     /**
      * Si el caso dio resultados distintos sin que cambiara el commit del producto.
      *
+     * `sinEjecutar` no cuenta: es la ausencia de resultado, no un resultado. Sin esta salvedad,
+     * la primera pasada de navegador marcaba como intermitentes los 102 recorridos de golpe, por
+     * el solo hecho de pasar de no haberse ejecutado a tener por fin un color.
+     *
      * @param list<array{0:string,1:string,2:string}> $pasos
      */
     private static function esIntermitente(array $pasos): bool
@@ -182,7 +186,7 @@ final class Historia
         $porCommit = [];
 
         foreach ($pasos as [$estado, , $commit]) {
-            if ($commit === '') {
+            if ($commit === '' || $estado === 'sinEjecutar') {
                 continue;
             }
 
