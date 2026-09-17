@@ -9,7 +9,7 @@
  *   1. El resultado real de cada caso            -> XML de JUnit  (--log-junit)
  *   2. Las lineas de producto que cada caso toco -> volcado pcov  (--coverage-php)
  *   3. Lo que el dato hizo, paso a paso          -> bitacora de la conexion observada
- *   4. La cadena de llamadas                     -> traza de Xdebug, solo con --con-traza
+ *   4. La cadena de llamadas                     -> traza de Xdebug, salvo con --sin-traza
  *   5. Lo que el caso dice de si mismo           -> docblock del metodo, por Reflection
  *
  * Y con todo ello hace tres contrastes que ninguna fuente puede hacer sola:

@@ -310,7 +310,7 @@ valida**, **qué código de TPVFox recorre** y **qué hizo el dato**, y se consu
 Playwright: con buscador, filtros por etiqueta y el fuente del producto a la vista.
 
 ```bash
-npm run informe:pruebas     # genera en informe-pruebas/ (unos 30 s)
+npm run informe:pruebas     # genera en informe-pruebas/ (unos 50 s)
 npm run informe:ver         # lo sirve en http://127.0.0.1:8081
 ```
 
@@ -348,7 +348,7 @@ orden.
 | «Dado que…» | De los métodos de siembra que el caso llamó | No |
 | «Qué hizo el dato» | De las consultas reales, con el método que las pidió y su `fichero:línea` | No |
 | El código que recorre | De la cobertura por caso, sobre el fuente real | No |
-| La cadena de llamadas | De la traza, con `--con-traza` | No |
+| La cadena de llamadas | De la traza, que viene puesta | No |
 | «Qué valida» en prosa | Del comentario del método | Sí |
 | Las cuatro anotaciones del defecto | Declaradas en el comentario | Sí |
 | Las etiquetas propias | `@group`, que además filtra por línea de órdenes | Sí |
@@ -408,7 +408,7 @@ hasta ahí. Por eso la ficha trae dos vistas del recorrido, una encima de la otr
   es lo que evita que la siembra meta decenas de saltos por sus propias escrituras. **Existe
   siempre**, con traza o sin ella: sin traza sale de los emisores de las propias consultas.
 - **Pasos, uno a uno** — la cadena de llamadas como árbol, con su profundidad, sus argumentos,
-  su valor de retorno y su duración. Solo con `--con-traza`.
+  su valor de retorno y su duración. Se pierde con `--sin-traza`.
 
 El camino dice por dónde; el árbol, cómo.
 
