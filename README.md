@@ -303,11 +303,16 @@ PLAYWRIGHT_HTML_OUTPUT_DIR=$HOME/informes-e2e/$(date +%F) npx playwright test E2
 npx playwright show-report $HOME/informes-e2e/$(date +%F)
 ```
 
-## Informe de las pruebas unitarias y de integración
+## Informe de pruebas
 
 La salida de PHPUnit son puntos en un terminal. Este informe cuenta, por cada caso, **qué
 valida**, **qué código de TPVFox recorre** y **qué hizo el dato**, y se consulta como el de
 Playwright: con buscador, filtros por etiqueta y el fuente del producto a la vista.
+
+**Lleva los tres niveles en una sola lista**: 653 casos —96 unitarios de PHP, 436 de integración,
+19 de JS y 102 recorridos de navegador—, con un filtro por nivel para cuando se quiera mirar uno
+solo. Van juntos a propósito: buscar «albarán» tiene que devolver lo que hay en los tres, que es
+la pregunta de verdad.
 
 Se navega por páginas, no por paneles: cada vista tiene su dirección —`#/`, `#/codigo`,
 `#/caso/<id>`—, con migas para volver y el botón de atrás del navegador funcionando. Un caso
@@ -442,6 +447,39 @@ constructores lanzan un `SELECT count(*)` nada más nacer. Contadas con las dem�
 llega a hacer nada aparenta haber consultado cinco tablas. El informe las separa por su origen
 —una consulta pedida desde un constructor es montaje— y lo dice con todas las letras cuando la
 tarea en sí no consultó nada.
+
+### Los recorridos de navegador, sin escribir nada
+
+Los recorridos entran del volcado JSON que Playwright deja al ejecutarse, y **no hace falta leer
+ni un fuente**: un recorrido declara sus etiquetas y sus anotaciones en la propia llamada a
+`test()`, y el volcado las emite enteras.
+
+```js
+test('T1 teclear el número del pedido y pulsar Intro trae sus líneas al albarán', {
+  tag: ['@estado-actual', '@albaran', '@pedido', '@teclado', '@adjuntos'],
+  annotation: [{ type: 'Comportamiento', description: 'Tecleando el número de un pedido…' }],
+}, async ({ page }) => {
+```
+
+Son **las mismas seis anotaciones** que usan los otros dos niveles, con su nombre escrito para
+leerse; el informe las traduce a la misma clave y la ficha no distingue de dónde viene el caso.
+Medido: 102 recorridos, 96 con etiquetas y 96 con anotaciones tipadas, de las cuales 42 son el
+cuarteto que documenta un defecto. Por eso el registro de defectos pasó de 123 a **165** y cubre
+los tres niveles.
+
+**Un recorrido que consta pero no se ha ejecutado no es verde, ni rojo, ni omitido.** El volcado
+que deja `playwright test --list` trae todo el vocabulario pero ningún resultado, así que esos
+casos entran como **`sin ejecutar`**, con su propio filtro y su aviso en la ficha. Es lo que
+permite consultar qué valida cada recorrido con el entorno apagado.
+
+Lo que la ficha de un recorrido **no** trae es su flujo del dato: se ejecuta en un navegador real
+y no se instrumenta desde aquí. Dice eso, y no «no consulta la base», que sería falso. Lo que sí
+trae es **por dónde entra** —las pantallas a las que navega su fuente— y la evidencia queda en el
+informe de Playwright, con su traza, su vídeo y sus capturas.
+
+**Los recorridos no pasan por el contraste de estado declarado.** Un caso de PHP declara el suyo
+con `@estado`; un recorrido lo declara con su vocabulario de etiquetas, y traducir una cosa en la
+otra es una decisión que no está tomada. Aplicarlo diría de los 102 que no declaran nada.
 
 ### Quién cubre cada fichero
 

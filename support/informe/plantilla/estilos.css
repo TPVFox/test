@@ -314,3 +314,9 @@ p.historia { font-size: 12px; color: var(--tenue); margin: 2px 0 6px; }
   font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em;
   color: var(--aviso); border: 1px solid var(--aviso); border-radius: 4px; padding: 0 5px;
 }
+
+/* ── Un recorrido que consta pero no se ha ejecutado ──────────────────────────────────── */
+
+.fila.sin-ejecutar { border-left-color: var(--tenue); border-left-style: dashed; }
+.fila.sin-ejecutar .frase { color: var(--tenue); }
+.estado.sin-ejecutar { background: var(--borde); color: var(--tenue); }

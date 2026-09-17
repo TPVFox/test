@@ -34,6 +34,7 @@ const estado = {
   gravedad: 'todas',
   soloVivos: false,
   capa: null,
+  nivel: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -127,6 +128,14 @@ function escuchar() {
       return;
     }
 
+    const nivel = ev.target.closest('[data-nivel]');
+    if (nivel) {
+      estado.nivel = estado.nivel === nivel.dataset.nivel ? null : nivel.dataset.nivel;
+      pintarNiveles();
+      pintarLista();
+      return;
+    }
+
     const capa = ev.target.closest('[data-capa]');
     if (capa) {
       estado.capa = estado.capa === capa.dataset.capa ? null : capa.dataset.capa;
@@ -215,6 +224,7 @@ function vistaCasos() {
       <section class="filtros">
         <input type="search" id="buscador" placeholder="Buscar por nombre, frase, fichero o etiqueta…" autocomplete="off">
         <div id="resultados" class="chips resultados"></div>
+        <div id="niveles" class="chips capas"></div>
         <div id="capas" class="chips capas"></div>
         <div id="etiquetas" class="chips"></div>
         <p id="cuenta" class="tenue"></p>
@@ -224,6 +234,7 @@ function vistaCasos() {
     estado.vista = 'casos';
     $('buscador').value = estado.texto;
     pintarResultados();
+    pintarNiveles();
     pintarCapas();
     pintarEtiquetas();
   }
@@ -244,13 +255,49 @@ function pintarResultados() {
     pasan: estado.casos.filter((c) => c.estado === 'verde').length,
     rojo: estado.casos.filter((c) => c.estado === 'fallo' || c.estado === 'error').length,
     omitidos: estado.casos.filter((c) => c.estado === 'omitido').length,
+    sinEjecutar: estado.casos.filter((c) => c.estado === 'sinEjecutar').length,
   };
 
   const nombres = { todos: 'Todos', pasan: 'Pasan', rojo: 'En rojo', omitidos: 'Omitidos' };
 
+  // Un recorrido que consta pero no se ha ejecutado no es verde, ni rojo, ni omitido. Solo
+  // aparece cuando lo hay, para no inventar una categoría vacía en los informes que no lo tienen.
+  if (cuenta.sinEjecutar) nombres.sinEjecutar = 'Sin ejecutar';
+
   $('resultados').innerHTML = Object.entries(nombres)
     .map(([clave, nombre]) =>
       `<button class="chip ${clave === estado.resultado ? 'activa' : ''}" data-resultado="${clave}">${nombre} <span class="tenue">${cuenta[clave]}</span></button>`)
+    .join('');
+}
+
+/** Los tres niveles de prueba, con lo que cada uno demuestra. */
+const NIVELES = {
+  unitario: ['Unitario', 'funciones y clases aisladas, sin base de datos'],
+  integracion: ['Integración', 'consultas y flujos que tocan la base'],
+  js: ['JS', 'lógica de navegador en Jest, sin navegador real'],
+  e2e: ['Recorrido', 'navegador real contra la aplicación en marcha'],
+};
+
+/**
+ * Por qué nivel se prueba cada caso.
+ *
+ * Los tres viven en la misma lista a propósito: buscar «albarán» tiene que devolver lo que hay
+ * en los tres, que es la pregunta de verdad. El filtro está para cuando se quiere lo contrario.
+ */
+function pintarNiveles() {
+  const cuenta = new Map();
+  for (const caso of estado.casos) {
+    if (caso.nivel && caso.nivel !== 'otro') cuenta.set(caso.nivel, (cuenta.get(caso.nivel) || 0) + 1);
+  }
+
+  if (cuenta.size < 2) {
+    $('niveles').innerHTML = '';
+    return;
+  }
+
+  $('niveles').innerHTML = '<span class="tenue rotulo">Nivel</span>' + Object.keys(NIVELES)
+    .filter((n) => cuenta.has(n))
+    .map((n) => `<button class="chip ${estado.nivel === n ? 'activa' : ''}" data-nivel="${n}" title="${esc(NIVELES[n][1])}">${esc(NIVELES[n][0])} <span class="tenue">${cuenta.get(n)}</span></button>`)
     .join('');
 }
 
@@ -306,11 +353,13 @@ function casosVisibles() {
     if (estado.ids && !estado.ids.has(caso.id)) return false;
     if (estado.clase && caso.clase !== estado.clase) return false;
     if (estado.capa && caso.capa !== estado.capa) return false;
+    if (estado.nivel && caso.nivel !== estado.nivel) return false;
 
     const rojo = caso.estado === 'fallo' || caso.estado === 'error';
     if (estado.resultado === 'pasan' && caso.estado !== 'verde') return false;
     if (estado.resultado === 'rojo' && !rojo) return false;
     if (estado.resultado === 'omitidos' && caso.estado !== 'omitido') return false;
+    if (estado.resultado === 'sinEjecutar' && caso.estado !== 'sinEjecutar') return false;
 
     for (const etiqueta of estado.etiquetas) {
       if (!caso.etiquetas.includes(etiqueta)) return false;
@@ -360,14 +409,16 @@ function pintarLista() {
   $('lista').innerHTML = visibles
     .map((caso) => {
       const rojo = caso.estado === 'fallo' || caso.estado === 'error';
+      const sinEjecutar = caso.estado === 'sinEjecutar';
       const marcas = [];
+      if (sinEjecutar) marcas.push('sin ejecutar');
       if (caso.avisos) marcas.push('⚠ aviso');
       if (caso.capa) marcas.push(CAPAS[caso.capa] ? CAPAS[caso.capa][0].toLowerCase() : caso.capa);
       if (caso.avisosPhp) marcas.push(`${caso.avisosPhp} avisos de PHP`);
       if (caso.consultas) marcas.push(`${caso.consultas} consultas`);
       if (caso.declara) marcas.push(`declara ${caso.declara}`);
 
-      return `<a class="fila ${rojo ? 'rojo' : 'verde'}" href="#/caso/${caso.id}">
+      return `<a class="fila ${sinEjecutar ? 'sin-ejecutar' : rojo ? 'rojo' : 'verde'}" href="#/caso/${caso.id}">
         <span class="frase">${esc(caso.frase)}</span>
         <span class="meta"><span>${esc(caso.clase)}</span><span>${(caso.tiempo * 1000).toFixed(0)} ms</span></span>
         ${marcas.length ? `<span class="marcas">${esc(marcas.join(' · '))}</span>` : ''}
@@ -385,6 +436,7 @@ async function vistaCaso(id) {
 
   const caso = await (await fetch(`datos/casos/${id}.json`)).json();
   const rojo = caso.estado === 'fallo' || caso.estado === 'error';
+  const sinEjecutar = caso.estado === 'sinEjecutar';
 
   const clase = caso.clase.split('\\').pop();
 
@@ -395,7 +447,9 @@ async function vistaCaso(id) {
   ]);
 
   let html = `<article class="ficha">
-    <h2>${esc(caso.frase)} <span class="estado ${rojo ? 'rojo' : 'verde'}">${rojo ? caso.estado : 'pasa'}</span></h2>
+    <h2>${esc(caso.frase)} <span class="estado ${sinEjecutar ? 'sin-ejecutar' : rojo ? 'rojo' : 'verde'}">${
+      sinEjecutar ? 'sin ejecutar' : rojo ? caso.estado : 'pasa'
+    }</span></h2>
     <p class="metodo">${esc(caso.clase)}::${esc(caso.metodo)}</p>
     ${pintarHistoria(historiaDe(id), rojo)}
     <p>${caso.etiquetas.map((e) => `<span class="etiqueta">@${esc(e)}</span>`).join('')}</p>`;
@@ -407,9 +461,16 @@ async function vistaCaso(id) {
   html += pintarAnotaciones(caso);
   if (caso.mensaje) html += `<h3>Por qué falla</h3><pre class="mensaje">${esc(caso.mensaje.slice(0, 2000))}</pre>`;
 
+  if (sinEjecutar) {
+    html += `<div class="aviso-caja">Este recorrido consta en la suite pero no se ha ejecutado:
+      lo que se ve es lo que declara, no lo que ocurrió. Ejecuta <code>npm run test:e2e</code>
+      —con la aplicación en marcha— para que el informe traiga su resultado.</div>`;
+  }
+
   html += pintarAvisosDePhp(caso.flujo);
+  html += pintarPantallas(caso);
   html += pintarCamino(caso.flujo);
-  html += pintarFlujo(caso.flujo);
+  html += pintarFlujo(caso.flujo, caso.nivel);
   html += pintarArbol(caso.flujo);
   html += pintarCobertura(caso, caso.flujo);
   html += '</article>';
@@ -552,6 +613,24 @@ function pintarCamino(flujo) {
 }
 
 /**
+ * Por qué pantallas del producto entra un recorrido.
+ *
+ * Para un recorrido es lo más parecido que hay al «código que recorre» de un caso de PHP: no es
+ * una medida, es la puerta por la que entra, declarada en su propio fuente al navegar.
+ */
+function pintarPantallas(caso) {
+  const pantallas = caso.pantallas || [];
+  if (!pantallas.length) return '';
+
+  return `<h3>Por dónde entra — ${pantallas.length} ${pantallas.length === 1 ? 'pantalla' : 'pantallas'}</h3>
+    <ol class="camino">${pantallas
+      .map((p) => `<li class="tramo fase-ejercicio"><span class="nombre">${esc(cortar(p))}</span></li>`)
+      .join('')}</ol>
+    <p class="tenue">Las URL a las que navega su fuente. Lo que la pantalla llame después por AJAX
+    no está aquí.</p>`;
+}
+
+/**
  * Por qué puerta entró la prueba, y de dónde llega el producto a esa misma puerta.
  *
  * Un recorrido que empieza en un ayudante interno es cierto como ejecución y engañoso como
@@ -682,7 +761,15 @@ function ramas(llamadas) {
  * Las consultas que lanza un constructor van aparte: son montaje, no trabajo del caso. Sin
  * separarlas, un caso que no llega a hacer nada aparenta haber consultado cinco tablas.
  */
-function pintarFlujo(flujo) {
+function pintarFlujo(flujo, nivel) {
+  // Un recorrido sí toca la base —entra por el navegador y la aplicación consulta—; lo que pasa
+  // es que aquí no se instrumenta. Decir «no consulta la base» sería sencillamente falso.
+  if (nivel === 'e2e') {
+    return `<h3>Qué hizo el dato</h3><p class="tenue">El recorrido se ejecuta en un navegador real
+      contra la aplicación, y su flujo no se instrumenta desde aquí. La evidencia de lo que hizo
+      —traza, vídeo y capturas— la deja Playwright en su propio informe.</p>`;
+  }
+
   if (!flujo || (!flujo.pasos.length && !flujo.llamadas.length)) {
     return '<h3>Flujo del dato</h3><p class="tenue">Este caso no consulta la base: lo que hace es cálculo, y su recorrido está en la cadena de llamadas.</p>';
   }
