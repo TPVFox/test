@@ -9,36 +9,21 @@
 <body>
 
 <header>
-  <h1>Pruebas unitarias y de integración</h1>
+  <h1><a href="#/">Pruebas unitarias y de integración</a></h1>
   <p id="resumen" class="tenue">Cargando…</p>
 </header>
 
 <section class="tarjetas" id="tarjetas"></section>
 
 <nav class="pestanas" id="pestanas">
-  <button class="pestana activa" data-panel="casos">Casos</button>
-  <button class="pestana" data-panel="codigo">Código</button>
-  <button class="pestana" data-panel="datos">Datos</button>
+  <a class="pestana" href="#/" data-seccion="casos">Casos</a>
+  <a class="pestana" href="#/codigo" data-seccion="codigo">Código</a>
+  <a class="pestana" href="#/datos" data-seccion="datos">Datos</a>
 </nav>
 
-<div id="panel-casos">
-<section class="filtros">
-  <input type="search" id="buscador" placeholder="Buscar por nombre, frase, fichero o etiqueta…" autocomplete="off">
-  <div id="resultados" class="chips resultados"></div>
-  <div id="etiquetas" class="chips"></div>
-  <p id="cuenta" class="tenue"></p>
-</section>
+<nav id="migas" class="migas"></nav>
 
-<main>
-  <aside id="lista" class="lista"></aside>
-  <article id="ficha" class="ficha">
-    <p class="tenue vacio">Elige un caso de la lista para ver qué valida, qué código recorre y qué hizo el dato.</p>
-  </article>
-</main>
-</div>
-
-<div id="panel-codigo" class="oculto"></div>
-<div id="panel-datos" class="oculto"></div>
+<main id="vista"><p class="tenue">Cargando…</p></main>
 
 <script src="app.js"></script>
 </body>

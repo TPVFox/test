@@ -309,6 +309,11 @@ La salida de PHPUnit son puntos en un terminal. Este informe cuenta, por cada ca
 valida**, **qué código de TPVFox recorre** y **qué hizo el dato**, y se consulta como el de
 Playwright: con buscador, filtros por etiqueta y el fuente del producto a la vista.
 
+Se navega por páginas, no por paneles: cada vista tiene su dirección —`#/`, `#/codigo`,
+`#/caso/<id>`—, con migas para volver y el botón de atrás del navegador funcionando. Un caso
+concreto se puede enlazar, y una sección nueva es una ruta nueva en lugar de otra cosa apilada
+en el mismo panel.
+
 ```bash
 npm run informe:pruebas     # genera en informe-pruebas/ (unos 50 s)
 npm run informe:ver         # lo sirve en http://127.0.0.1:8081
@@ -402,15 +407,70 @@ servir.
 La cobertura pinta un fichero medio verde y no dice **por qué serie de entradas** se llegó
 hasta ahí. Por eso la ficha trae dos vistas del recorrido, una encima de la otra:
 
-- **Por dónde pasó** — el camino fichero a fichero, en orden y sin repetir:
-  `albaranesVentas.php → ClaseVentas.php → ClaseArticulosStocks.php → claseModeloP.php`. Solo
-  nombra ficheros del producto; lo que es preparación o comprobación se pliega en un tramo, que
-  es lo que evita que la siembra meta decenas de saltos por sus propias escrituras. **Existe
-  siempre**, con traza o sin ella: sin traza sale de los emisores de las propias consultas.
+- **Por dónde pasó** — el camino fichero a fichero, en orden:
+  `tareas.php → ClaseIncidencia.php → tareas.php → pedidosVentas.php → …`. Cada llamada aporta
+  dos sitios, de dónde salió y dónde está declarado lo que llamó, porque si no se pierde el
+  punto de entrada: un despacho como `tareas.php` no declara ninguna clase y desaparecería del
+  camino justo el fichero por el que el caso entra. Un tramo que **solo construye** un objeto se
+  dice: el dato no pasa por ahí, se monta por estar en la cabecera del fichero. Lo que es
+  preparación o comprobación se pliega en un tramo, que es lo que evita que la siembra meta
+  decenas de saltos por sus propias escrituras. **Existe siempre**, con traza o sin ella.
 - **Pasos, uno a uno** — la cadena de llamadas como árbol, con su profundidad, sus argumentos,
-  su valor de retorno y su duración. Se pierde con `--sin-traza`.
+  su valor de retorno y su duración. **Solo TPVFox**: el andamiaje de la prueba va aparte y
+  plegado, y las tripas de PHPUnit y el propio instrumento no se guardan. Medido en un caso de
+  despacho, de 249 marcos de traza 17 eran del producto; leerlos mezclados hacía pasar por
+  recorrido lo que era el montaje de la prueba. Se pierde con `--sin-traza`.
 
 El camino dice por dónde; el árbol, cómo.
+
+### El fuente, por tramos
+
+Abrir un fichero enseña **los tramos que el caso ejecutó, con tres líneas de contexto**, y entre
+ellos cuánto se salta. Medido sobre la suite: pintarlos enteros son **10.817 líneas para enseñar
+1.819 ejecutadas, el 17 %**; en `PosstockQueryRepository.php` son 114 de 1.891, el 6 %. El
+fichero entero sigue a un clic.
+
+**Las ramas de `switch` descartadas se cuentan aparte, no se pintan como recorrido.** PHP evalúa
+cada `case` hasta dar con el que coincide, y la cobertura marca esas líneas como ejecutadas. Sin
+distinguirlas, un caso que entra en `case 'buscarPedido'` aparenta haber pasado también por
+`abririncidencia`, `anhadirTemporal` y `buscarClientes`, en las que no entró.
+
+### Las consultas del montaje, separadas de las del caso
+
+Un despacho construye en su cabecera los objetos que quizá use después, y varios de esos
+constructores lanzan un `SELECT count(*)` nada más nacer. Contadas con las demás, un caso que no
+llega a hacer nada aparenta haber consultado cinco tablas. El informe las separa por su origen
+—una consulta pedida desde un constructor es montaje— y lo dice con todas las letras cuando la
+tarea en sí no consultó nada.
+
+### Lo que PHP avisó, que en la ejecución normal no se ve
+
+El despacho de tareas instala `set_error_handler(fn () => true)` para que un aviso de PHP no
+tumbe el caso a mitad. Eso silencia los avisos del producto: no salen por pantalla, no llegan a
+ningún registro y no dejan rastro en la cobertura. La traza sí los conserva, porque cada aviso
+es una llamada a ese manejador con su mensaje, su fichero y su línea. El informe los vuelve a
+sacar a la luz.
+
+Medido: **208 avisos en 32 casos**, 157 distintos —47 avisos y 110 usos de algo obsoleto—.
+Includes que fallan, propiedades dinámicas creadas al vuelo, pérdida de precisión al pasar de
+float a entero, variables no definidas.
+
+Es lo que explica un caso como *«buscarPedido: apunta a un fichero borrado»*. Su cobertura dice
+que pasó por `tareas.php` y no nombra `BuscarPedido.php`, y eso descoloca hasta que se ve por
+qué: un `include_once` que falla no ejecuta nada, de modo que no hay nada que medir. El aviso sí
+lo cuenta, y de paso aparecen las dos líneas que rematan el defecto:
+
+```
+tareas.php:77   include_once(…/mod_venta/tareas/BuscarPedido.php): Failed to open stream
+                → el fichero no existe
+tareas.php:198  Undefined variable $respuesta
+tareas.php:199  Undefined variable $respuesta
+```
+
+Cuando el aviso nombra un fichero, el informe comprueba si existe, y así distingue el defecto
+del producto del artefacto del andamiaje: en ese mismo caso `./../../inicial.php` también falla,
+pero por ser una ruta relativa al directorio de trabajo, que el andamiaje cambia. Ese fichero
+existe, y el informe lo dice en vez de sumarlo a la cuenta de lo que está roto.
 
 ### Un límite medido: los casos que terminan en error no dejan cobertura
 

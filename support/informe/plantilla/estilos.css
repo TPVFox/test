@@ -1,4 +1,4 @@
-/* Informe de pruebas: dos columnas, lista a la izquierda y ficha a la derecha. */
+/* Informe de pruebas: una pagina por vista, con migas para volver. */
 
 :root {
   --fondo: #fff;
@@ -60,14 +60,13 @@ h1 { font-size: 22px; margin: 0 0 4px; }
 .chip:hover { border-color: var(--tenue); }
 .chip.activa { background: var(--texto); color: var(--fondo); border-color: var(--texto); }
 
-main { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 18px; align-items: start; }
-@media (max-width: 880px) { main { grid-template-columns: 1fr; } }
+main { display: block; }
 
-.lista { max-height: 72vh; overflow-y: auto; border: 1px solid var(--borde); border-radius: 8px; }
+.lista { border: 1px solid var(--borde); border-radius: 8px; overflow: hidden; }
 .fila {
   display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--borde);
   padding: 9px 12px; background: transparent; color: inherit; cursor: pointer; font: inherit;
-  border-left: 3px solid transparent;
+  border-left: 3px solid transparent; text-decoration: none;
 }
 .fila:hover { background: var(--panel); }
 .fila.abierta { background: var(--panel); border-left-color: var(--texto); }
@@ -196,3 +195,56 @@ details.paso-codigo + details.paso-codigo { border-top: 1px dashed var(--borde);
 
 /* Modulo y tipo de fichero, para que la ubicacion no se adivine. */
 .ubicacion { font-size: 10.5px; color: var(--tenue); border: 1px solid var(--borde); border-radius: 4px; padding: 0 5px; margin-left: 6px; }
+
+
+/* ── Migas: donde estoy y como vuelvo ─────────────────────────────────────────────────── */
+
+header h1 a { color: inherit; text-decoration: none; }
+header h1 a:hover { text-decoration: underline; }
+
+.migas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 14px; font-size: 13px; }
+.miga { color: var(--tenue); text-decoration: none; }
+.miga:hover { color: var(--texto); text-decoration: underline; }
+.miga.actual { color: var(--texto); font-weight: 600; }
+.migas .separador { color: var(--borde); }
+
+/* Las pestanas son enlaces, no botones. */
+a.pestana { text-decoration: none; display: inline-block; }
+
+/* ── Lo que PHP aviso, que el andamiaje silencia ──────────────────────────────────────── */
+
+.aviso-php {
+  border-left: 3px solid var(--aviso); background: var(--marca);
+  padding: 6px 10px; margin: 6px 0; border-radius: 0 4px 4px 0;
+}
+.aviso-php code { font-size: 12.5px; word-break: break-word; }
+.aviso-php .quien { display: block; font-size: 11.5px; color: var(--tenue); margin-top: 2px; }
+.aviso-php.nivel-obsoleto { border-left-color: var(--borde); background: transparent; }
+.aviso-php.nivel-apunte { border-left-color: var(--borde); background: transparent; }
+.aviso-php b.rojo { color: var(--rojo); }
+
+/* ── El fuente por tramos ─────────────────────────────────────────────────────────────── */
+
+.cuerpo-fuente { padding-top: 4px; }
+p.salto {
+  font-size: 11.5px; color: var(--tenue); margin: 0; padding: 3px 0 3px 46px;
+  border-left: 1px dashed var(--borde);
+}
+p.nota-ramas {
+  font-size: 12px; color: var(--tenue); margin: 4px 0 8px;
+  border-left: 3px solid var(--borde); padding-left: 10px;
+}
+table.fuente tr.rama { background: rgba(230, 81, 0, .10); }
+table.fuente tr.rama td { color: var(--tenue); }
+button.ver-entero { margin-left: 4px; }
+
+/* ── El montaje, separado del trabajo del caso ────────────────────────────────────────── */
+
+details.montaje { margin: 6px 0 10px; }
+details.montaje > summary { color: var(--tenue); font-size: 12.5px; }
+details.montaje > div { border-left: 2px dashed var(--borde); margin-left: 4px; padding-left: 8px; }
+
+ol.camino .tramo.solo-construye { opacity: .62; border-left-style: dashed; }
+
+details.arbol.andamiaje > summary { color: var(--tenue); font-size: 12.5px; }
+details.arbol.andamiaje li { opacity: .72; }
