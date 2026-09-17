@@ -132,6 +132,11 @@ final class Datos
             <=> [self::ORDEN_GRAVEDAD[$a['gravedad']] ?? 0, $a['vivo']]);
         file_put_contents($base . '/defectos.json', self::json(['defectos' => $defectos]));
 
+        // La historia vive fuera del informe emitido: el informe se genera donde le digan y atar
+        // el registro a la carpeta de salida haria que cada copia arrancase el suyo desde cero.
+        $historia = Historia::registrar(dirname(__DIR__, 2) . '/.historia-pruebas', $indice);
+        file_put_contents($base . '/historia.json', self::json($historia));
+
         // El cruce con los recorridos de navegador: quien cubre cada fichero del producto.
         $raizPruebas = dirname(__DIR__, 2);
         $porPantalla = Recorridos::porFichero($raizPruebas . '/E2E/specs');
@@ -159,6 +164,11 @@ final class Datos
             'defectos' => count($defectos),
             'defectosVivos' => count(array_filter($defectos, static fn(array $d): bool => $d['vivo'])),
             'cruce' => $cruce['resumen'],
+            'ejecuciones' => $historia['guardadas'],
+            'intermitentes' => count(array_filter(
+                $historia['porCaso'],
+                static fn(array $c): bool => $c['intermitente']
+            )),
         ];
     }
 
