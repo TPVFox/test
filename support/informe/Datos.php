@@ -48,6 +48,10 @@ final class Datos
         $conFlujo = 0;
         $codigo = new Codigo();
 
+        $raizPruebas = dirname(__DIR__, 2);
+        $porPantalla = Recorridos::porFichero($raizPruebas . '/E2E/specs');
+        $pantallasDe = self::pantallasPorRecorrido($porPantalla);
+
         foreach ($casos as $id => $caso) {
             $hash = Identidad::hash($id);
             $flujo = self::flujoDe($id, $hash, $dirFlujo);
@@ -76,6 +80,7 @@ final class Datos
                 'llamadas' => $flujo === null ? 0 : count($flujo['llamadas']),
                 'avisosPhp' => $flujo === null ? 0 : count($flujo['avisos'] ?? []),
                 'capa' => $flujo['entrada']['capa'] ?? null,
+                'nivel' => $caso['nivel'] ?? 'otro',
                 'ficheros' => array_map(
                     static fn(string $f): string => basename($f),
                     array_keys($caso['cobertura'] ?? [])
@@ -100,6 +105,8 @@ final class Datos
                     'avisos' => $caso['avisos'] ?? [],
                     'cobertura' => self::coberturaDe($caso, $ficheros),
                     'medido' => $caso['medido'] ?? true,
+                    'nivel' => $caso['nivel'] ?? 'otro',
+                    'pantallas' => $pantallasDe[(string) $caso['clase']] ?? [],
                     'flujo' => $flujo,
                 ])
             );
@@ -138,8 +145,6 @@ final class Datos
         file_put_contents($base . '/historia.json', self::json($historia));
 
         // El cruce con los recorridos de navegador: quien cubre cada fichero del producto.
-        $raizPruebas = dirname(__DIR__, 2);
-        $porPantalla = Recorridos::porFichero($raizPruebas . '/E2E/specs');
         $cruce = Cobertura::componer(
             $raizPruebas . '/phpunit.xml',
             $ficheros,
@@ -190,22 +195,27 @@ final class Datos
     {
         $metodo = (string) ($caso['metodo'] ?? '');
         $declarado = $caso['estadoDeclarado'] ?? null;
+        $anotaciones = $caso['anotaciones'] ?? [];
 
+        // La cuarta senal vale para los tres niveles: un caso que declara sintoma y causa raiz
+        // esta documentando un defecto, se llame como se llame y lo ejecute quien lo ejecute.
+        // Es lo que mete en el registro a los 42 recorridos de navegador que documentan uno.
         $esDefecto = str_starts_with($metodo, 'test_defecto_')
             || in_array('defecto', $etiquetas, true)
-            || $declarado === 'rojo';
+            || $declarado === 'rojo'
+            || ($anotaciones['que-ocurre-hoy'] ?? '') !== '';
 
         if (!$esDefecto) {
             return null;
         }
 
-        $anotaciones = $caso['anotaciones'] ?? [];
         $enRojo = in_array($caso['estado'], ['fallo', 'error'], true);
 
         return [
             'id' => $hash,
             'clase' => Vocabulario::nombreCorto($caso['clase']),
             'metodo' => $metodo,
+            'nivel' => $caso['nivel'] ?? 'otro',
             'frase' => self::fraseDe($caso),
             'estado' => $caso['estado'],
             'declara' => $declarado,
@@ -221,6 +231,33 @@ final class Datos
             'codigo' => $caso['declarado'] ?? [],
             'avisos' => $caso['avisos'] ?? [],
         ];
+    }
+
+    /**
+     * Por que pantallas del producto entra cada recorrido.
+     *
+     * Es el inverso del mapa que usa la vista de cobertura. Para un recorrido es lo mas parecido
+     * que hay al «codigo que recorre» de un caso de PHP: no es una medida, es la puerta por la
+     * que entra, que es justo lo que su fuente declara al navegar.
+     *
+     * @param array<string, list<array{spec:string, veces:int}>> $porPantalla
+     * @return array<string, list<string>>
+     */
+    private static function pantallasPorRecorrido(array $porPantalla): array
+    {
+        $porRecorrido = [];
+
+        foreach ($porPantalla as $pantalla => $specs) {
+            foreach ($specs as $spec) {
+                $porRecorrido[$spec['spec']][] = $pantalla;
+            }
+        }
+
+        foreach ($porRecorrido as $spec => $pantallas) {
+            $porRecorrido[$spec] = array_values(array_unique($pantallas));
+        }
+
+        return $porRecorrido;
     }
 
     /** Orden de lectura de un registro de defectos: lo grave primero. */

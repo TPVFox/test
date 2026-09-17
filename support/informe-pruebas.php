@@ -100,7 +100,13 @@ if ($conJs) {
     $casos += leerResultadosJest($tmp . '/jest.json');
 }
 
+// Los recorridos de navegador entran del volcado que Playwright deja al ejecutarse. Es la unica
+// fuente que no se genera aqui: levantar la aplicacion es otra cosa. Si no hay volcado, el
+// informe sale con los otros dos niveles y lo dice.
+$casos += leerRecorridos(__DIR__ . '/../E2E/resultados.json');
+
 $casos = enriquecerConDocblocks($casos);
+$casos = conSuNivel($casos);
 $citas = buscarCodigosDeCalidad(__DIR__ . '/..');
 
 foreach ($casos as $id => $caso) {
@@ -262,6 +268,138 @@ function leerResultadosJest(string $ruta): array
                 'medido' => false,
             ];
         }
+    }
+
+    return $casos;
+}
+
+/**
+ * Los recorridos de navegador, en la misma forma que los casos de PHP y de JS.
+ *
+ * No hace falta leer el fuente de ningun recorrido: Playwright declara etiquetas y anotaciones
+ * en la propia llamada a `test()` y su volcado JSON las emite enteras, con el mismo vocabulario
+ * de seis anotaciones que usan los otros dos niveles. Medido: 102 recorridos, 96 con etiquetas y
+ * 96 con anotaciones tipadas.
+ *
+ * **Un recorrido listado no es un recorrido ejecutado.** `playwright test --list` deja el mismo
+ * fichero, con todos los casos en `skipped` y sin un solo resultado. Esos entran al informe como
+ * `sin ejecutar`, que no es lo mismo que omitido ni que verde.
+ */
+function leerRecorridos(string $ruta): array
+{
+    if (!is_file($ruta)) {
+        return [];
+    }
+
+    $datos = json_decode((string) file_get_contents($ruta), true);
+
+    if (!is_array($datos) || !isset($datos['suites'])) {
+        return [];
+    }
+
+    $casos = [];
+    recorrerSuitesDeRecorridos($datos['suites'], $casos);
+
+    return $casos;
+}
+
+/**
+ * Baja por el arbol de suites de Playwright convirtiendo cada recorrido en un caso.
+ *
+ * Las suites anidan y solo la de arriba lleva el nombre del fichero, de modo que se arrastra.
+ */
+function recorrerSuitesDeRecorridos(array $suites, array &$casos, string $fichero = ''): void
+{
+    // Las anotaciones de un recorrido llegan con su nombre escrito para leerse; aqui se vuelven
+    // la misma clave que usan los docblocks de PHP, para que la ficha no distinga niveles.
+    static $porNombre = null;
+    $porNombre ??= array_flip(ANOTACIONES);
+
+    foreach ($suites as $suite) {
+        $suyo = (string) ($suite['file'] ?? $fichero);
+
+        foreach ($suite['specs'] ?? [] as $spec) {
+            foreach ($spec['tests'] ?? [] as $prueba) {
+                $resultados = $prueba['results'] ?? [];
+
+                $estado = $resultados === [] ? 'sinEjecutar' : match ((string) ($prueba['status'] ?? '')) {
+                    'expected' => 'verde',
+                    'unexpected' => 'fallo',
+                    'flaky' => 'fallo',
+                    'skipped' => 'omitido',
+                    default => 'omitido',
+                };
+
+                $anotaciones = [];
+
+                foreach ($prueba['annotations'] ?? [] as $anotacion) {
+                    $clave = $porNombre[(string) ($anotacion['type'] ?? '')] ?? null;
+                    if ($clave !== null) {
+                        $anotaciones[$clave] = (string) ($anotacion['description'] ?? '');
+                    }
+                }
+
+                $casos[$suyo . '::' . $spec['title']] = [
+                    'clase' => $suyo,
+                    'metodo' => (string) $spec['title'],
+                    'fichero' => (string) ($spec['file'] ?? $suyo),
+                    'linea' => (int) ($spec['line'] ?? 0),
+                    'estado' => $estado,
+                    'mensaje' => mensajeDelRecorrido($resultados),
+                    'tiempo' => ((int) ($resultados[0]['duration'] ?? 0)) / 1000,
+                    'prosa' => '',
+                    'declarado' => [],
+                    // Un recorrido no declara su estado con `@estado`: su vocabulario son las
+                    // etiquetas. Traducir una cosa en la otra es una decision que no esta tomada,
+                    // y sin ella el contraste diria de 102 recorridos que no declaran nada.
+                    'estadoDeclarado' => null,
+                    'anotaciones' => $anotaciones,
+                    'etiquetas' => array_values($spec['tags'] ?? []),
+                    'cobertura' => [],
+                    'medido' => false,
+                ];
+            }
+        }
+
+        if (($suite['suites'] ?? []) !== []) {
+            recorrerSuitesDeRecorridos($suite['suites'], $casos, $suyo);
+        }
+    }
+}
+
+/** El error de un recorrido que no paso, si lo hubo. */
+function mensajeDelRecorrido(array $resultados): string
+{
+    $partes = [];
+
+    foreach ($resultados as $resultado) {
+        foreach ($resultado['errors'] ?? [] as $error) {
+            $partes[] = trim((string) ($error['message'] ?? ''));
+        }
+    }
+
+    return trim(implode("\n", array_filter($partes)));
+}
+
+/**
+ * A que nivel pertenece cada caso, deducido de donde vive.
+ *
+ * El informe lleva los tres niveles en una sola lista, y el nivel es lo que permite mirarlos por
+ * separado sin tener tres informes. Sale del espacio de nombres o de la extension, sin que nadie
+ * lo declare.
+ */
+function conSuNivel(array $casos): array
+{
+    foreach ($casos as $id => $caso) {
+        $clase = (string) $caso['clase'];
+
+        $casos[$id]['nivel'] = match (true) {
+            str_ends_with($clase, '.spec.js') => 'e2e',
+            str_ends_with($clase, '.test.js') => 'js',
+            str_contains($clase, '\\Unit\\') => 'unitario',
+            str_contains($clase, '\\Integration\\') => 'integracion',
+            default => 'otro',
+        };
     }
 
     return $casos;
@@ -568,7 +706,10 @@ function contrastar(array $caso): array
     if (($caso['estadoDeclarado'] ?? null) === 'verde' && $enRojo) {
         $avisos[] = 'Declara pasar y esta en rojo.';
     }
-    if ($enRojo && ($caso['estadoDeclarado'] ?? null) === null) {
+    // Los recorridos de navegador quedan fuera de este contraste: no declaran su estado con
+    // `@estado` sino con su vocabulario de etiquetas, y traducir una cosa en la otra es una
+    // decision que no esta tomada. Aplicarlo diria de todos ellos que no declaran nada.
+    if ($enRojo && ($caso['estadoDeclarado'] ?? null) === null && ($caso['nivel'] ?? '') !== 'e2e') {
         $avisos[] = 'Esta en rojo y no lo declara.';
     }
 
