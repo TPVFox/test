@@ -493,6 +493,41 @@ ejecución: 45 recorridos con sus 102 casos, todos en `skipped` y sin un solo re
 solo se cuenta si trae resultados, de modo que listar no puede declarar en verde algo que nunca
 corrió.
 
+### Desde cuándo
+
+Cada generación apuntaba antes lo suyo y pisaba lo anterior, de modo que el informe solo sabía
+hablar en presente. Un defecto que lleva en rojo desde agosto y uno que se puso en rojo esta
+mañana no son el mismo asunto, y llevar el registro **mientras esperan corrección** exige la otra
+mitad: desde cuándo.
+
+Cada pasada deja una línea por caso —identificador, estado y milisegundos— con su fecha y los
+commits de TPVFox y de la suite que la produjeron. Con 551 casos son unos 17 KB por ejecución, en
+`.historia-pruebas/`, que no entra en el repositorio.
+
+```bash
+Historia: 2 ejecuciones registradas
+```
+
+**Vive fuera del informe emitido.** El informe se genera donde le digan —`--salida` sirve
+justamente para conservar copias— y atar la historia a la carpeta de salida haría que cada copia
+arrancase su propio registro desde cero mientras el de verdad se queda en otra parte.
+
+**No se borra nada.** Para componer la vista se leen las últimas 60 ejecuciones, que es otra cosa:
+el fichero viejo sigue ahí aunque esa vista no lo mire. Un registro que se poda deja de servir
+justo para lo que se guardó.
+
+Con eso, tres sitios dicen algo que antes no podían:
+
+- **La ficha de un caso**: «en rojo desde el 3 de septiembre · 2 de 4 ejecuciones». Si en toda la
+  ventana estuvo igual no se inventa una fecha —dice «en las N ejecuciones registradas»—, porque
+  puede venir de antes de lo que hay guardado.
+- **El registro de defectos**: lo mismo, y el Markdown que se copia lo lleva.
+- **La lista de casos**: cómo viene la suite, `en rojo: 16 → 16`. No es un gráfico, es una línea
+  de números; con eso se ve si algo se torció entre dos generaciones.
+
+**Intermitente** es un caso que cambió de color **sin que cambiara el commit del producto**. En una
+suite determinista no debería ocurrir; cuando ocurre, lo que falla es la prueba. Hoy son 0.
+
 ### El registro de defectos
 
 `#/defectos` reúne lo que la suite documenta como defecto: **123 casos, 16 vivos**. Un defecto se

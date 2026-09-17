@@ -306,3 +306,11 @@ table.cruce tr.quien-php td.marca { color: var(--verde); }
 table.cruce tr.quien-recorrido td.marca { color: var(--aviso); }
 table.cruce tr.quien-nadie td { opacity: .6; }
 table.cruce tr:last-child td { border-bottom: 0; }
+
+/* ── Desde cuándo está un caso como está ──────────────────────────────────────────────── */
+
+p.historia { font-size: 12px; color: var(--tenue); margin: 2px 0 6px; }
+.intermitente {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--aviso); border: 1px solid var(--aviso); border-radius: 4px; padding: 0 5px;
+}

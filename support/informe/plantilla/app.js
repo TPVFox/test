@@ -30,6 +30,7 @@ const estado = {
   vista: null,
   defectos: null,
   cobertura: null,
+  historia: null,
   gravedad: 'todas',
   soloVivos: false,
   capa: null,
@@ -43,6 +44,10 @@ async function init() {
   const datos = await (await fetch('datos/indice.json')).json();
   estado.casos = datos.casos;
   estado.citas = datos.citas || {};
+
+  // La historia la usan tres vistas y son unas decenas de KB: se trae de una vez. Si no existe
+  // —primera generación— el informe funciona igual y calla en vez de inventar un «desde cuándo».
+  estado.historia = await fetch('datos/historia.json').then((r) => (r.ok ? r.json() : null), () => null);
 
   $('resumen').textContent =
     `${datos.casos.length} casos · generado el ${new Date(datos.generado).toLocaleString('es-ES')}`;
@@ -320,14 +325,37 @@ function casosVisibles() {
   });
 }
 
+/**
+ * Cómo viene la suite: los rojos de las últimas ejecuciones, de la más vieja a la de ahora.
+ *
+ * No es un gráfico, es una línea de números. Con esto se ve de un vistazo si algo se torció
+ * entre dos generaciones, que es la pregunta que se hace al abrir el informe.
+ */
+function tendencia() {
+  const pasadas = (estado.historia && estado.historia.pasadas) || [];
+  if (pasadas.length < 2) return '';
+
+  const ultimas = pasadas.slice(-8);
+  const serie = ultimas.map((p) => p.rojos).join(' → ');
+  const primera = ultimas[0];
+  const ultima = ultimas[ultimas.length - 1];
+  const cambio = ultima.rojos - primera.rojos;
+
+  const dice = cambio === 0
+    ? 'sin cambio'
+    : cambio > 0 ? `${cambio} más que hace ${ultimas.length - 1} ejecuciones` : `${-cambio} menos`;
+
+  return ` · en rojo: ${serie} <span class="tenue">(${esc(dice)}, ${estado.historia.guardadas} ejecuciones guardadas)</span>`;
+}
+
 function pintarLista() {
   const visibles = casosVisibles();
 
-  $('cuenta').innerHTML = estado.ids
+  $('cuenta').innerHTML = (estado.ids
     ? `${visibles.length} casos que ejercitan <b>${esc(estado.motivo || '')}</b> · <button class="chip" id="quitar">quitar filtro</button>`
     : estado.clase
       ? `${visibles.length} casos de <b>${esc(estado.clase)}</b> · <a class="chip" href="#/">ver todos</a>`
-      : `${visibles.length} de ${estado.casos.length} casos`;
+      : `${visibles.length} de ${estado.casos.length} casos`) + tendencia();
 
   $('lista').innerHTML = visibles
     .map((caso) => {
@@ -369,6 +397,7 @@ async function vistaCaso(id) {
   let html = `<article class="ficha">
     <h2>${esc(caso.frase)} <span class="estado ${rojo ? 'rojo' : 'verde'}">${rojo ? caso.estado : 'pasa'}</span></h2>
     <p class="metodo">${esc(caso.clase)}::${esc(caso.metodo)}</p>
+    ${pintarHistoria(historiaDe(id), rojo)}
     <p>${caso.etiquetas.map((e) => `<span class="etiqueta">@${esc(e)}</span>`).join('')}</p>`;
 
   for (const aviso of caso.avisos) {
@@ -393,6 +422,17 @@ async function vistaCaso(id) {
   });
 
   window.scrollTo(0, 0);
+}
+
+/** Desde cuándo el caso está como está, y si alguna vez cambió sin cambiar el producto. */
+function pintarHistoria(h, rojo) {
+  if (!h) return '';
+
+  const aviso = h.intermitente
+    ? `<span class="intermitente" title="Cambió de color sin que cambiara el commit del producto">intermitente</span>`
+    : '';
+
+  return `<p class="historia">${esc(desdeCuando(h, rojo ? 'en rojo' : 'en verde'))} ${aviso}</p>`;
 }
 
 /** Los nombres de las seis anotaciones, en el orden en que se leen. */
@@ -557,6 +597,28 @@ function sitios(cuales) {
   return [...porFichero.entries()]
     .map(([fichero, lineas]) => `<code>${esc(cortar(fichero))}:${lineas.join(', ')}</code>`)
     .join(' · ');
+}
+
+/** Lo que la historia sabe de un caso, o null si no hay registro. */
+function historiaDe(id) {
+  return (estado.historia && estado.historia.porCaso && estado.historia.porCaso[id]) || null;
+}
+
+const soloFecha = (iso) => new Date(iso).toLocaleDateString('es-ES');
+
+/**
+ * Desde cuándo está un caso como está, en una frase.
+ *
+ * Si en toda la ventana registrada estuvo igual no se inventa una fecha: se dice en cuántas
+ * ejecuciones lleva así, porque puede venir de antes de lo que hay guardado.
+ */
+function desdeCuando(h, verbo = 'así') {
+  if (!h) return '';
+  if (h.ejecuciones === 1) return 'primera ejecución registrada';
+
+  return h.desde
+    ? `${verbo} desde el ${soloFecha(h.desde)} · ${h.seguidas} de ${h.ejecuciones} ejecuciones`
+    : `${verbo} en las ${h.ejecuciones} ejecuciones registradas`;
 }
 
 /** El ultimo tramo de un nombre de funcion: `Clase->metodo` sin su espacio de nombres. */
@@ -900,6 +962,10 @@ function fichaDeDefecto(d) {
       ${d.documento ? `<span class="etiqueta">${esc(d.documento)}</span>` : ''}
     </h3>
     <p class="metodo">${esc(d.clase)}::${esc(d.metodo)}</p>
+    ${(() => {
+      const h = historiaDe(d.id);
+      return h ? `<p class="historia">${esc(desdeCuando(h, d.vivo ? 'vivo' : 'corregido'))}</p>` : '';
+    })()}
     ${(d.avisos || []).map((a) => `<div class="aviso-caja">⚠ ${esc(a)}</div>`).join('')}
     ${cuerpo}
     ${codigo ? `<p class="tenue">Código afectado: ${codigo}</p>` : ''}
@@ -915,7 +981,8 @@ function defectosEnMarkdown() {
 
   for (const d of visibles) {
     lineas.push(`## ${d.frase}`, '');
-    lineas.push(`- **Estado**: ${d.vivo ? 'vivo' : 'corregido'}${d.gravedad ? ` · ${d.gravedad}` : ''}${d.documento ? ` · ${d.documento}` : ''}`);
+    const h = historiaDe(d.id);
+    lineas.push(`- **Estado**: ${d.vivo ? 'vivo' : 'corregido'}${d.gravedad ? ` · ${d.gravedad}` : ''}${d.documento ? ` · ${d.documento}` : ''}${h ? ` · ${desdeCuando(h, d.vivo ? 'vivo' : 'corregido')}` : ''}`);
     lineas.push(`- **Caso**: \`${d.clase}::${d.metodo}\``);
     for (const [clave, titulo] of CAMPOS_DEFECTO) {
       if (d[clave]) lineas.push(`- **${titulo}**: ${d[clave]}`);
