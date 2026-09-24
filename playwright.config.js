@@ -1,5 +1,10 @@
 const { defineConfig } = require('@playwright/test');
 
+// Las dos mitades de la suite leen su configuración del mismo sitio. Sin esto, PHP leía
+// `test/.env` y Playwright no, de modo que una variable escrita en el fichero hacía fallar
+// la pasada diciendo que faltaba.
+require('./support/entorno').cargarEntorno();
+
 // La base termina siempre en barra. Los recorridos navegan con rutas relativas
 // —«modulos/…», sin barra inicial— y así es como las resuelve URL(): sin la barra
 // final, el último tramo de la base se pierde, de modo que una aplicación servida
@@ -9,7 +14,10 @@ function baseConBarraFinal(url) {
   return url.endsWith('/') ? url : url + '/';
 }
 
-// Requiere la aplicación en marcha. `npm run entorno:up` la levanta con datos sembrados.
+// Requiere la aplicación en marcha, y en dos puertos: el resto de la suite corre contra el
+// despliegue del ejercicio vigente, y los recorridos de `mod_reorganizacion` necesitan además
+// el del anterior en `TPVFOX_URL_ANTERIOR`. `npm run entorno:preparar` deja la configuración
+// puesta; los servidores se levantan aparte (docs/instalacion.md).
 module.exports = defineConfig({
   testDir: './E2E/specs',
   globalSetup: require.resolve('./support/global-setup.js'),

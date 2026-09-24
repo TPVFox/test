@@ -75,6 +75,9 @@ TPVFOX_TEST_DB_ANTERIOR=tpvfox_test_2025
 
 TPVFOX_E2E_USUARIO=<usuario de la aplicación>
 TPVFOX_E2E_CLAVE=<su clave>
+
+TPVFOX_URL=http://localhost:8080/TPVFox/
+TPVFOX_URL_ANTERIOR=http://localhost:8081/TPVFox/
 ```
 
 Las mismas claves valen como variables de entorno, y ahí ganan al fichero: en integración continua
@@ -90,7 +93,7 @@ entera.
 ```bash
 npm run entorno:preparar                          # todo lo de abajo, de una vez
 npm run entorno:preparar -- --rehacer             # tira los objetos y vuelve a cargar
-npm run entorno:preparar -- --ejercicio=anterior  # apunta al despliegue del ejercicio anterior
+npm run entorno:preparar -- --ejercicio=anterior  # el puerto por defecto sirve el anterior
 ```
 
 Hace, en este orden: el esquema de las dos bases, la tienda por la que selecciona el cierre, el
@@ -125,11 +128,30 @@ $usuarioMysql  = 'tpvfox';
 $passwordMysql = '<contraseña>';
 ```
 
-## 6. Los recorridos de navegador
+## 6. Servir la aplicación, en dos puertos
 
-Necesitan la aplicación servida contra una de las dos bases. El usuario de `.env` tiene que existir
-en ella: **ningún guion lo inventa**, `entorno:preparar` lo da de alta con `group_id = 9`
-—administrador, sin permisos fila a fila— y crea su fila en `indices`.
+**Hacen falta los dos ejercicios a la vez.** La mayoría de los recorridos corre contra el ejercicio
+vigente, pero la pantalla de comprobación del anterior solo admite un fichero que declare el
+ejercicio *siguiente* al suyo: con un único despliegue, uno de los dos grupos corre siempre contra
+la base equivocada.
+
+Se sirve **el mismo árbol de ficheros** en dos puertos. `entorno:preparar` deja
+`TPVFox/configuracion.php` eligiendo la base por el puerto de la petición, así que no hay un segundo
+clon que mantener —y, sobre todo, no hay dos copias que puedan quedar en commits distintos sin que
+nadie se entere—:
+
+```bash
+php -S 127.0.0.1:8080 -t ..    # ejercicio vigente   -> TPVFOX_URL
+php -S 127.0.0.1:8081 -t ..    # ejercicio anterior  -> TPVFOX_URL_ANTERIOR
+```
+
+Sin `TPVFOX_URL_ANTERIOR`, los tres recorridos que la necesitan **se saltan solos y dicen por qué**.
+No se quedan en rojo: un rojo ahí se confundiría con un defecto del producto, que es justo lo que
+pasó antes de que esto existiera.
+
+El usuario de `.env` tiene que existir en las dos bases: **ningún guion lo inventa**,
+`entorno:preparar` lo da de alta con `group_id = 9` —administrador, sin permisos fila a fila— y crea
+su fila en `indices`.
 
 ```bash
 npm run test:e2e
@@ -143,8 +165,8 @@ el propio código de emisión:
 php support/generar-fixture-e2e.php <ano-vigente> <idTienda>
 ```
 
-El recorrido del ejercicio anterior corre contra el despliegue de ese ejercicio, con su propio
-usuario y su propia tienda sembrados igual.
+El fichero declara el ejercicio vigente y su tienda; el despliegue del anterior tiene que ser el del
+ejercicio inmediatamente previo, con esa misma tienda.
 
 ## Qué debe salir
 
@@ -153,8 +175,8 @@ usuario y su propia tienda sembrados igual.
 | `npm run test:php` | 96 casos, 2 en rojo |
 | `npm run test:php:int` | 436 casos, 3 errores y 9 fallos |
 | `npm run test:js` | 19 casos, 2 en rojo |
-| `npm run test:e2e` | 102 recorridos, 27 en rojo |
+| `npm run test:e2e` | 102 recorridos, 24 en rojo y 1 omitido |
 
 **Los rojos son deliberados** y están documentados uno a uno: son casos que afirman lo que el
-producto debería hacer y hoy no hace. Ver [escribir-pruebas.md](escribir-pruebas.md#estado-y-código-afectado)
+producto debería hacer y hoy no hace. El omitido es el que espera el segundo usuario de recorrido. Ver [escribir-pruebas.md](escribir-pruebas.md#estado-y-código-afectado)
 y el registro de defectos del [informe](informe.md).

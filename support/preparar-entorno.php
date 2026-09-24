@@ -10,8 +10,14 @@
  * Uso:  php support/preparar-entorno.php [--rehacer] [--ejercicio=vigente|anterior]
  *
  *   --rehacer     tira los objetos de las dos bases y vuelve a cargar el esquema
- *   --ejercicio   a que base apunta el TPVFox desplegado; los recorridos de navegador
- *                 corren contra un despliegue cada vez, y entre los dos se cambia esto
+ *   --ejercicio   a que base apunta el TPVFox desplegado en el puerto por defecto
+ *
+ * **Los dos ejercicios a la vez.** Los recorridos de `mod_reorganizacion` necesitan el
+ * vigente y el anterior en la misma pasada: la pantalla del anterior solo admite un fichero
+ * que declare el ejercicio siguiente al suyo. Con `TPVFOX_URL_ANTERIOR` declarada, este
+ * guion deja la configuracion sirviendo la base del anterior en el puerto de esa URL, del
+ * mismo arbol de ficheros. Un segundo clon serviria igual, pero podria quedar en otro
+ * commit sin que nada lo detectase; el mismo arbol no puede.
  *
  * **Lo que este guion no toca, a proposito.** La copia de `cache/parametros.xml` que
  * `ClaseParametros` antepone al fichero del repositorio, y que es la que gobierna el
@@ -27,6 +33,10 @@ require_once __DIR__ . '/bootstrap.php';
 use TPVFox\Test\Entorno;
 
 const PREFIJO_ADMITIDO = 'tpvfox_test';
+
+/** Delimitan el bloque del despliegue del ejercicio anterior dentro de configuracion.php. */
+const MARCA_INICIO = '// --- despliegue del ejercicio anterior (test/support/preparar-entorno.php) ---';
+const MARCA_FIN = '// --- fin del despliegue del ejercicio anterior ---';
 
 /** La tienda por la que el cierre del ejercicio selecciona los productos. */
 const TIENDA_DEL_CIERRE = 1;
@@ -76,14 +86,17 @@ foreach (['vigente', 'anterior'] as $papel) {
 
 paso('Configuracion del TPVFox desplegado');
 escribirConfiguracion($ejercicio);
+escribirDespliegueDelAnterior();
 
 paso('Escenarios que cruzan de un ejercicio a otro');
 lanzar(__DIR__ . '/sembrar-escenarios.php', []);
 
 paso('Listo');
-echo "  El TPVFox de " . RUTA_TPVFOX . " apunta al ejercicio «{$ejercicio}».\n";
-echo "  Para el otro recorrido de navegador: php support/preparar-entorno.php --ejercicio=" .
-    ($ejercicio === 'vigente' ? 'anterior' : 'vigente') . "\n";
+echo "  El TPVFox de " . RUTA_TPVFOX . " sirve el ejercicio «{$ejercicio}» en su puerto por defecto.\n";
+if (Entorno::valor('TPVFOX_URL_ANTERIOR') !== '') {
+    echo "  Y el anterior en " . Entorno::valor('TPVFOX_URL_ANTERIOR') . ", del mismo arbol.\n";
+    echo "  Hay que levantar los dos servidores: la suite entera necesita los dos ejercicios a la vez.\n";
+}
 echo "  La configuracion del modulo (cache/parametros.xml) no se ha tocado: es la que gobierna\n";
 echo "  el calculo y la cualificacion del entorno registra la que haya.\n";
 
@@ -201,6 +214,95 @@ function escribirConfiguracion(string $ejercicio): void
     }
 
     echo "  ejercicio del despliegue: {$ejercicio} · el resto de la configuracion, intacta\n";
+}
+
+/**
+ * Deja el mismo arbol sirviendo tambien el ejercicio anterior, en otro puerto.
+ *
+ * **Por que el mismo arbol y no un segundo clon.** Los dos despliegues tienen que correr
+ * exactamente el mismo codigo: si divergen, lo que el recorrido compara deja de significar
+ * nada y nada lo delata. Dos clones pueden quedar en commits distintos; unos mismos
+ * ficheros servidos dos veces, no.
+ *
+ * Escribe un bloque delimitado, detras de `$nombrebdMysql`, y no toca nada mas. Es
+ * idempotente: si el bloque ya esta, lo sustituye; si `TPVFOX_URL_ANTERIOR` no esta
+ * declarada, lo retira y el despliegue vuelve a servir un solo ejercicio.
+ */
+function escribirDespliegueDelAnterior(): void
+{
+    $ruta = RUTA_TPVFOX . '/configuracion.php';
+    $actual = file_get_contents($ruta);
+    $sinBloque = retirarBloque($actual);
+
+    $url = Entorno::valor('TPVFOX_URL_ANTERIOR');
+
+    if ($url === '') {
+        if ($sinBloque !== $actual) {
+            file_put_contents($ruta, $sinBloque);
+            echo "  TPVFOX_URL_ANTERIOR no esta declarada: retirado el despliegue del anterior\n";
+
+            return;
+        }
+
+        echo "  sin despliegue del ejercicio anterior (TPVFOX_URL_ANTERIOR no declarada)\n";
+        echo "  los recorridos que lo necesitan se saltan solos y lo dicen\n";
+
+        return;
+    }
+
+    $puerto = puertoDe($url);
+    $base = nombreDeLaBase('anterior');
+
+    $bloque = MARCA_INICIO . "\n"
+        . "// El mismo arbol sirve los dos ejercicios: el puerto decide cual. Lo escribe\n"
+        . "// test/support/preparar-entorno.php desde test/.env; el resto del fichero no lo toca.\n"
+        . "if ((string) (\$_SERVER['SERVER_PORT'] ?? '') === '{$puerto}') {\n"
+        . "    \$nombrebdMysql = '{$base}';\n"
+        . "}\n"
+        . MARCA_FIN . "\n";
+
+    if (!preg_match('/\$nombrebdMysql\s*=\s*[\'"][^\'"]*[\'"]\s*;\n/', $sinBloque, $coincidencia)) {
+        fwrite(STDERR, "  {$ruta} no declara \$nombrebdMysql: no se toca.\n");
+        exit(1);
+    }
+
+    $nuevo = str_replace($coincidencia[0], $coincidencia[0] . "\n" . $bloque, $sinBloque);
+
+    if (file_put_contents($ruta, $nuevo) === false) {
+        fwrite(STDERR, "  No se pudo escribir {$ruta}.\n");
+        exit(1);
+    }
+
+    echo "  puerto {$puerto} -> {$base} (ejercicio anterior), del mismo arbol\n";
+}
+
+/** Quita el bloque del despliegue anterior, si esta, y deja el resto intacto. */
+function retirarBloque(string $contenido): string
+{
+    $patron = '/\n?' . preg_quote(MARCA_INICIO, '/') . '.*?' . preg_quote(MARCA_FIN, '/') . "\n/s";
+
+    return preg_replace($patron, '', $contenido);
+}
+
+/**
+ * El puerto de una URL de despliegue.
+ *
+ * Sin puerto explicito no hay nada que decidir: los dos despliegues compartirian puerto y
+ * el segundo serviria el ejercicio del primero, en silencio.
+ */
+function puertoDe(string $url): string
+{
+    $puerto = parse_url($url, PHP_URL_PORT);
+
+    if ($puerto === null || $puerto === false) {
+        fwrite(STDERR,
+            "  TPVFOX_URL_ANTERIOR («{$url}») no declara puerto.\n" .
+            "  El puerto es lo que distingue los dos despliegues: sin el, el del anterior\n" .
+            "  serviria el ejercicio vigente sin que nada lo dijera.\n");
+        exit(1);
+    }
+
+    return (string) $puerto;
 }
 
 // --- Apoyos ---------------------------------------------------------------
