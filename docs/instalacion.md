@@ -172,8 +172,8 @@ ejercicio inmediatamente previo, con esa misma tienda.
 
 | Orden | Resultado esperado hoy |
 | --- | --- |
-| `npm run test:php` | 116 casos, 2 en rojo |
-| `npm run test:php:int` | 448 casos, 3 errores y 9 fallos |
+| `npm run test:php` | 116 casos, 1 en rojo |
+| `npm run test:php:int` | 448 casos, 3 errores y 8 fallos |
 | `npm run test:js` | 22 casos, 2 en rojo |
 | `npm run test:e2e` | 115 recorridos, 21 en rojo y 1 omitido |
 

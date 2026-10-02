@@ -82,7 +82,6 @@ final class RecalculoTotalesTest extends TestCase
      * para `iva` y `BaseYiva`. Evidencia: este test, en rojo mientras el defecto siga sin
      * corregirse por CC.
      *
-     * @estado rojo
           *
      * @group defecto
      * @group importes
