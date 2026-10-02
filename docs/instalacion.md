@@ -173,9 +173,9 @@ ejercicio inmediatamente previo, con esa misma tienda.
 | Orden | Resultado esperado hoy |
 | --- | --- |
 | `npm run test:php` | 116 casos, 1 en rojo |
-| `npm run test:php:int` | 448 casos, 3 errores y 8 fallos |
+| `npm run test:php:int` | 449 casos, 3 errores y 8 fallos |
 | `npm run test:js` | 22 casos, 2 en rojo |
-| `npm run test:e2e` | 115 recorridos, 21 en rojo y 1 omitido |
+| `npm run test:e2e` | 118 recorridos, 21 en rojo y 1 omitido |
 
 **Los rojos son deliberados** y están documentados uno a uno: son casos que afirman lo que el
 producto debería hacer y hoy no hace. El omitido es el que espera el segundo usuario de recorrido. Ver [escribir-pruebas.md](escribir-pruebas.md#estado-y-código-afectado)

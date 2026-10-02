@@ -155,6 +155,10 @@ $nombresCliente = [
     // cada recorrido compone su albaran, y se limpia con los demas.
     'esperado_retomar_caja'    => [973, PREFIJO . 'Esperado retomar caja de mil'],
     'esperado_retomar_guardar' => [974, PREFIJO . 'Esperado retomar y guardar mil'],
+    // Volver a guardar un documento que creo otro usuario, en otra fecha.
+    'traza_pedido'             => [975, PREFIJO . 'Traza de autoria pedido'],
+    'traza_albaran'            => [976, PREFIJO . 'Traza de autoria albaran'],
+    'traza_factura'            => [977, PREFIJO . 'Traza de autoria factura'],
 ];
 
 $idsCliente = [];
@@ -239,6 +243,9 @@ $clientesEsperado = [
     'esperado_adjunto_factura',
     'esperado_retomar_caja',
     'esperado_retomar_guardar',
+    'traza_pedido',
+    'traza_albaran',
+    'traza_factura',
 ];
 foreach ($clientesEsperado as $clave) {
     borrarDocumentosDeCliente($db, (int) $idsCliente[$clave]);
@@ -1022,6 +1029,36 @@ alinearNumerosDeAlbaranes($db, $idClienteAdjuntoFactura);
 // defecto distinto, y este recorrido fallaria por ese motivo y no por el suyo.
 $db->query("UPDATE clientes SET formasVenci = '{\"vencimiento\":\"0\"}' WHERE idClientes = {$idClienteAdjuntoFactura}");
 echo "Albaran para facturar sembrado (cliente {$idClienteAdjuntoFactura}): id y numero {$idAlbaranDeMil}, 1000 unidades\n";
+
+// --- La traza de autoria: un documento de otro usuario y de otra fecha, por tipo ----------
+//
+// Los crea la siembra, de modo que su creador es el usuario de la siembra y no el de los
+// recorridos. El recorrido los abre, les añade una linea y los guarda: el creador y la fecha
+// de creacion tienen que seguir siendo estos.
+$FECHA_DE_CREACION = '2026-01-15 10:00:00';
+
+$idPedidoTraza = $siembra->pedidoVentaCliente($idsArticulo[0], 1.0, '2026-01-15', [
+    'idTienda' => $siembra->tiendaPorDefecto(), 'estado' => 'Guardado', 'idCliente' => $idsCliente['traza_pedido'],
+]);
+$db->query("UPDATE pedclit SET Numpedcli = id, fechaCreacion = '{$FECHA_DE_CREACION}', fechaModificacion = '{$FECHA_DE_CREACION}' WHERE id = {$idPedidoTraza}");
+$db->query("UPDATE pedclilinea SET Numpedcli = {$idPedidoTraza} WHERE idpedcli = {$idPedidoTraza}");
+$db->query("UPDATE pedcliIva SET Numpedcli = {$idPedidoTraza} WHERE idpedcli = {$idPedidoTraza}");
+
+$idAlbaranTraza = $siembra->ventaAlbaranCliente($idsArticulo[0], 1.0, '2026-01-15', [
+    'idTienda' => $siembra->tiendaPorDefecto(), 'estado' => 'Guardado', 'idCliente' => $idsCliente['traza_albaran'],
+]);
+$db->query("UPDATE albclit SET Numalbcli = id WHERE id = {$idAlbaranTraza}");
+alinearNumerosDeAlbaranes($db, (int) $idsCliente['traza_albaran']);
+
+$idAlbaranDeLaFacturaTraza = $siembra->ventaAlbaranCliente($idsArticulo[0], 1.0, '2026-01-15', [
+    'idTienda' => $siembra->tiendaPorDefecto(), 'estado' => 'Guardado', 'idCliente' => $idsCliente['traza_factura'],
+]);
+$idFacturaTraza = $siembra->facturarAlbaranCliente($idAlbaranDeLaFacturaTraza);
+$db->query("UPDATE facclit SET Numfaccli = id, fechaCreacion = '{$FECHA_DE_CREACION}', fechaModificacion = '{$FECHA_DE_CREACION}' WHERE id = {$idFacturaTraza}");
+$db->query("UPDATE facclilinea SET Numfaccli = {$idFacturaTraza} WHERE idfaccli = {$idFacturaTraza}");
+$db->query("UPDATE faccliIva SET Numfaccli = {$idFacturaTraza} WHERE idfaccli = {$idFacturaTraza}");
+$db->query("UPDATE albclifac SET numFactura = {$idFacturaTraza} WHERE idFactura = {$idFacturaTraza}");
+echo "Documentos de traza sembrados: pedido {$idPedidoTraza}, albaran {$idAlbaranTraza}, factura {$idFacturaTraza}\n";
 
 echo "\nArticulos disponibles para los recorridos: " . implode(', ', $idsArticulo) . "\n";
 foreach ($idsCliente as $clave => $id) {

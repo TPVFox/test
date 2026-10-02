@@ -26,7 +26,10 @@ test.describe('Albaranes — flujo del listado', () => {
       { type: 'Comportamiento', description: 'El listado muestra los albaranes guardados de cada cliente con su estado.' },
     ],
   }, async ({ page }) => {
-    await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php');
+    // Con el buscador del listado, por nombre de cliente: la página enseña 40 albaranes y los
+    // de este cliente son de los primeros sembrados, de modo que sin acotar dejan de estar en
+    // la primera en cuanto la base crece.
+    await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php?buscar=listado');
 
     const filasDelCliente = page.locator('table.table-bordered tbody tr').filter({ hasText: NOMBRE_CLIENTE });
 

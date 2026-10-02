@@ -18,6 +18,12 @@ const { iniciarSesion } = require('../../fixtures/autenticacion');
 const NOMBRE_CLIENTE = '[E2E venta] Cliente albaran entradas';
 
 /** La fila del listado que corresponde al albarán de este recorrido. */
+// El listado enseña una página de 40 albaranes, ordenados por número de mayor a menor. El
+// albarán de este cliente es de los primeros que se sembraron, así que en cuanto la base pasa
+// de esas filas deja de estar en la primera página. Se llega a él con el buscador del propio
+// listado, que acota por nombre de cliente: el recorrido no depende de cuántos albaranes haya.
+const LISTADO_DEL_CLIENTE = 'modulos/mod_venta/albaranesListado.php?buscar=entradas';
+
 function filaDelAlbaran(page) {
   return page.locator('table tbody tr').filter({ hasText: NOMBRE_CLIENTE }).first();
 }
@@ -45,7 +51,7 @@ test.describe('Albarán — estados de entrada de la pantalla', () => {
       { type: 'Comportamiento', description: 'Desde el enlace de ver del listado, el albarán se abre en solo lectura: sin fila de entrada, sin Guardar y con el cliente bloqueado.' },
     ],
   }, async ({ page }) => {
-    await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php');
+    await iniciarSesion(page, LISTADO_DEL_CLIENTE);
 
     await filaDelAlbaran(page).locator('a[title="Ver albarán"]').click();
 
@@ -69,7 +75,7 @@ test.describe('Albarán — estados de entrada de la pantalla', () => {
       { type: 'Comportamiento', description: 'El enlace de ver envía un parámetro que la pantalla no lee: el albarán acaba en modo ver porque ese es el modo por defecto, no por el parámetro.' },
     ],
   }, async ({ page }) => {
-    await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php');
+    await iniciarSesion(page, LISTADO_DEL_CLIENTE);
 
     const enlace = filaDelAlbaran(page).locator('a[title="Ver albarán"]');
 
@@ -83,7 +89,7 @@ test.describe('Albarán — estados de entrada de la pantalla', () => {
       { type: 'Comportamiento', description: 'Desde el enlace de editar se abre la fila de entrada, pero Guardar y Cancelar no aparecen hasta que la primera modificación crea el documento en curso.' },
     ],
   }, async ({ page }) => {
-    await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php');
+    await iniciarSesion(page, LISTADO_DEL_CLIENTE);
 
     await filaDelAlbaran(page).locator('a[title="Editar albarán"]').click();
 

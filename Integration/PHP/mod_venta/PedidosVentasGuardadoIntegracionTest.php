@@ -530,44 +530,61 @@ final class PedidosVentasGuardadoIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * Defecto: no se puede saber quien creo un pedido, ni quien lo modifico, ni cuando.
+     * @group estado-actual
+     * @group pedido
+     * @group guardado
      *
-     * Sintoma: `pedclit` declara `fechaCreacion` y `fechaModificacion` y el guardado no
-     * escribe ninguna de las dos; y `idUsuario` se rellena con el usuario de la sesion que
-     * guarda, de modo que reguardar un documento sustituye a su creador. Causa raiz: la
-     * insercion enumera nueve columnas y las tres de traza no estan entre ellas. Correccion
-     * propuesta: escribir las dos fechas, y conservar el creador separandolo de quien
-     * modifica. Las columnas ya existen: la correccion no toca el esquema. Evidencia: este
-     * test.
+     * @comportamiento El guardado de un pedido escribe cuando se creo y cuando se guardo por
+     *   ultima vez. Antes las dos columnas existian en la tabla y ninguna escritura las tocaba.
      */
-    public function test_defecto_elGuardadoNoDejaTrazaDeQuienCreoNiDeQuienModifico(): void
+    public function test_elGuardadoEscribeLaFechaDeCreacionYLaDeModificacion(): void
     {
-        $idArticulo = $this->siembra->articulo('Producto sin traza de autoria');
+        $idArticulo = $this->siembra->articulo('Producto con traza de autoria');
 
         $this->pedidos->AddPedidoGuardado($this->datosDeGuardado([$this->linea($idArticulo)]), 0);
+
+        $traza = $this->trazaDe($this->idDelUltimoPedido());
+        self::assertNotNull($traza['fechaCreacion']);
+        self::assertNotNull($traza['fechaModificacion']);
+    }
+
+    /**
+     * La clase no puede saber quien creo el pedido: cuando recibe el guardado, el pedido
+     * anterior ya esta borrado. Lo decide la pantalla, que lo lee antes de borrar, y la clase
+     * escribe lo que recibe. Que la pantalla lo haga se comprueba en su recorrido.
+     *
+     * @group estado-actual
+     * @group pedido
+     * @group guardado
+     *
+     * @comportamiento Al volver a guardar un pedido, la clase conserva el creador y la fecha de
+     *   creacion que se le entregan, y escribe una fecha de modificacion distinta.
+     */
+    public function test_reguardarEscribeElCreadorYLaFechaDeCreacionQueRecibe(): void
+    {
+        $idArticulo = $this->siembra->articulo('Producto de un pedido que se reguarda');
+        $datos = $this->datosDeGuardado([$this->linea($idArticulo)]);
+        $this->pedidos->AddPedidoGuardado($datos, 0);
         $idPedido = $this->idDelUltimoPedido();
 
-        $traza = $this->db
-            ->query("SELECT fechaCreacion, fechaModificacion FROM pedclit WHERE id=$idPedido")
-            ->fetch_assoc();
-
-        self::assertNull($traza['fechaCreacion'], 'La columna existe en el esquema y nadie la escribe.');
-        self::assertNull($traza['fechaModificacion']);
-
-        // Y el usuario que consta es el de quien guarda, no el de quien creo: al reguardar
-        // con otro, el original desaparece sin dejar rastro.
-        $otroUsuario = (int) $this->db->query('SELECT id FROM usuarios ORDER BY id DESC LIMIT 1')
-            ->fetch_assoc()['id'];
-        $datos = $this->datosDeGuardado([$this->linea($idArticulo)]);
-        $datos['idUsuario'] = $otroUsuario;
         $this->pedidos->eliminarPedidoTablas($idPedido);
-        $this->pedidos->AddPedidoGuardado($datos, $idPedido);
+        $this->pedidos->AddPedidoGuardado($datos + [
+            'fechaCreacion'     => '2026-01-15 10:00:00',
+            'fechaModificacion' => '2026-02-20 12:30:00',
+        ], $idPedido);
 
-        self::assertSame(
-            $otroUsuario,
-            (int) $this->pedidos->datosPedido($idPedido)['idUsuario'],
-            'El creador se sustituye por quien reguarda, y no queda constancia de que hubo otro.'
-        );
+        $traza = $this->trazaDe($idPedido);
+        self::assertSame((string) $datos['idUsuario'], (string) $traza['idUsuario']);
+        self::assertSame('2026-01-15 10:00:00', $traza['fechaCreacion']);
+        self::assertSame('2026-02-20 12:30:00', $traza['fechaModificacion']);
+    }
+
+    /** @return array{idUsuario:string,fechaCreacion:?string,fechaModificacion:?string} */
+    private function trazaDe(int $idPedido): array
+    {
+        return $this->db
+            ->query("SELECT idUsuario, fechaCreacion, fechaModificacion FROM pedclit WHERE id=$idPedido")
+            ->fetch_assoc();
     }
 
     // --- Apoyos ------------------------------------------------------------------
