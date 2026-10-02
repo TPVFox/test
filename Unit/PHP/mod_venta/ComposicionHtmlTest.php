@@ -190,4 +190,100 @@ final class ComposicionHtmlTest extends TestCase
         self::assertStringContainsString('value="No resuelto"', $html);
         self::assertStringContainsString('hola', $html);
     }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_venta/funciones.php:469-490
+     *
+     * @group esperado
+     * @group busqueda
+     * @group importes
+     * @group critico
+     *
+     * @que-ocurre-hoy Si entre las coincidencias de una busqueda de producto hay un articulo de
+     *   mil o mas, el listado no llega a componerse: la peticion muere y la pantalla no enseña
+     *   nada, tampoco los demas articulos encontrados.
+     * @que-deberia-ocurrir Que el listado se componga con todos los articulos, tambien ese.
+     * @por-que-ocurre El precio se formatea con separador de miles y despues se vuelve a
+     *   formatear ese texto, que ya no es un numero.
+     * @como-deberia-funcionar Formatear el precio una sola vez, al presentarlo.
+     *
+     * @dataProvider articulosDeMilOMas
+     *
+     * @param array<string,mixed> $precios
+     */
+    public function test_defecto_htmlListadoProductos_conUnArticuloDeMilOMasComponeElListado(array $precios): void
+    {
+        self::cargar();
+
+        $html = null;
+        try {
+            $html = \htmlListadoProductos(
+                [self::coincidencia(1, 'Articulo corriente', ['pvpCiva' => 1.82]), self::coincidencia(2, 'Camara frigorifica', $precios)],
+                'Descripcion',
+                'a.articulo_name',
+                'a',
+                'pedido',
+                null,
+                5
+            )['html'];
+        } catch (\TypeError $e) {
+            // El caso falla por su asercion, no por el error de tipo.
+        }
+
+        self::assertNotNull($html, 'El listado tiene que componerse aunque haya un articulo de mil o mas.');
+        self::assertSame(2, substr_count($html, 'class="FilaModal"'));
+    }
+
+    /** @return array<string,array{array<string,mixed>}> */
+    public static function articulosDeMilOMas(): array
+    {
+        return [
+            'precio de catalogo'          => [['pvpCiva' => 1815.00]],
+            'precio de tarifa del cliente' => [['pvpCiva' => 900.00, 'pvpCivaCLI' => 1500.00]],
+        ];
+    }
+
+    /**
+     * @group control
+     * @group busqueda
+     *
+     * @para-que-sirve Acota el defecto del listado: con todos los precios por debajo de mil se
+     *   compone, y tiene que seguir componiendose cuando se corrija.
+     */
+    public function test_htmlListadoProductos_conPreciosPorDebajoDeMilComponeElListado(): void
+    {
+        self::cargar();
+
+        $html = \htmlListadoProductos(
+            [self::coincidencia(1, 'Articulo corriente', ['pvpCiva' => 1.82]), self::coincidencia(2, 'Articulo casi de mil', ['pvpCiva' => 999.99])],
+            'Descripcion',
+            'a.articulo_name',
+            'a',
+            'pedido',
+            null,
+            5
+        )['html'];
+
+        self::assertSame(2, substr_count($html, 'class="FilaModal"'));
+    }
+
+    /**
+     * Una coincidencia tal como la devuelve la busqueda de productos.
+     *
+     * @param array<string,mixed> $precios
+     * @return array<string,mixed>
+     */
+    private static function coincidencia(int $idArticulo, string $nombre, array $precios): array
+    {
+        return array_merge([
+            'idArticulo'    => $idArticulo,
+            'articulo_name' => $nombre,
+            'crefTienda'    => 'REF' . $idArticulo,
+            'codBarras'     => '',
+            'iva'           => 21.00,
+            'pvpCiva'       => 1.00,
+            'pvpCivaCLI'    => null,
+        ], $precios);
+    }
 }

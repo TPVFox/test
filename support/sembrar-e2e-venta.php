@@ -144,6 +144,13 @@ $nombresCliente = [
     'esperado_numeracion'      => [966, PREFIJO . 'Esperado numeracion factura'],
     // Impreso: una factura con dos albaranes, uno con lineas y otro sin ninguna.
     'esperado_impreso'         => [967, PREFIJO . 'Esperado impreso cabeceras'],
+    // Adjuntar un documento cuya linea lleva una cantidad o un precio de mil o mas. Un cliente
+    // por recorrido: cada uno consume su propio documento de origen al adjuntarlo.
+    'esperado_adjunto_mil'     => [968, PREFIJO . 'Esperado adjunto mil unidades'],
+    'esperado_adjunto_recarga' => [969, PREFIJO . 'Esperado adjunto se recarga'],
+    'esperado_adjunto_precio'  => [970, PREFIJO . 'Esperado adjunto precio mil'],
+    'esperado_adjunto_control' => [971, PREFIJO . 'Esperado adjunto control 999'],
+    'esperado_adjunto_factura' => [972, PREFIJO . 'Esperado adjunto albaran mil'],
 ];
 
 $idsCliente = [];
@@ -199,6 +206,11 @@ $clientesEsperado = [
     'esperado_atomico_ped',
     'esperado_atomico_alb',
     'esperado_atomico_fac',
+    'esperado_adjunto_mil',
+    'esperado_adjunto_recarga',
+    'esperado_adjunto_precio',
+    'esperado_adjunto_control',
+    'esperado_adjunto_factura',
 ];
 foreach ($clientesEsperado as $clave) {
     borrarDocumentosDeCliente($db, (int) $idsCliente[$clave]);
@@ -928,6 +940,60 @@ if ($yaHayImpreso > 0) {
     echo "Factura de impreso sembrada (cliente {$idClienteImpreso}): factura id={$idFacturaImpreso}"
         . " con albaran con lineas id={$albaranConLineas} y albaran vacio id={$albaranVacio}\n";
 }
+
+// --- Comportamiento esperado: adjuntar un documento con cantidad o precio de mil o mas ----
+//
+// Al traer las lineas de un pedido a un albaran, o de un albaran a una factura, el producto
+// formatea la cantidad y el precio con separador de miles. El valor vuelve asi al guardar y
+// rompe la sentencia de la linea. Cada recorrido parte de un documento de origen 'Guardado'
+// recien sembrado, porque adjuntarlo lo consume: su cliente se limpia mas arriba, con los
+// demas de comportamiento esperado, y aqui se vuelve a sembrar.
+//
+// El numero del documento se iguala a su identificador. El navegador pide el cambio de
+// estado del adjunto por numero y el servidor lo aplica por identificador: con numeros
+// distintos el cambio caeria en otro documento, y el recorrido mediria esa otra cosa.
+$ID_ARTICULO_CARO = 14682;
+$nombreCaro = PREFIJO . 'Camara frigorifica';
+if ($db->query("SELECT 1 FROM articulos WHERE idArticulo = {$ID_ARTICULO_CARO}")->num_rows === 0) {
+    $siembra->articulo($nombreCaro, ['id' => $ID_ARTICULO_CARO, 'ultimoCoste' => 1500.0, 'beneficio' => 0, 'iva' => 21]);
+    // Sin fila de precio: el pedido lleva el suyo en la linea, y es el que viaja al albaran.
+    echo "Articulo de precio alto sembrado: {$nombreCaro} (id {$ID_ARTICULO_CARO})\n";
+}
+// Sin precio de catalogo, a proposito: un articulo de mil o mas hace que el listado de
+// coincidencias de la busqueda responda 500, y lo haria en los recorridos de busqueda que
+// nada tienen que ver con este. El pedido lleva su precio en la linea, que es el que viaja.
+$db->query("DELETE FROM articulosPrecios WHERE idArticulo = {$ID_ARTICULO_CARO}");
+
+$pedidosParaAdjuntar = [
+    'esperado_adjunto_mil'     => [$idsArticulo[0], 1000.0],
+    'esperado_adjunto_recarga' => [$idsArticulo[0], 1000.0],
+    'esperado_adjunto_precio'  => [$ID_ARTICULO_CARO, 1.0],
+    'esperado_adjunto_control' => [$idsArticulo[0], 999.0],
+];
+foreach ($pedidosParaAdjuntar as $clave => [$idArticuloDelPedido, $unidades]) {
+    $idPedido = $siembra->pedidoVentaCliente($idArticuloDelPedido, $unidades, date('Y-m-d'), [
+        'idTienda'  => $siembra->tiendaPorDefecto(),
+        'estado'    => 'Guardado',
+        'idCliente' => $idsCliente[$clave],
+    ]);
+    $db->query("UPDATE pedclit SET Numpedcli = id WHERE id = {$idPedido}");
+    $db->query("UPDATE pedclilinea SET Numpedcli = {$idPedido} WHERE idpedcli = {$idPedido}");
+    $db->query("UPDATE pedcliIva SET Numpedcli = {$idPedido} WHERE idpedcli = {$idPedido}");
+    echo "Pedido para adjuntar sembrado ({$clave}): id y numero {$idPedido}, {$unidades} unidades\n";
+}
+
+$idClienteAdjuntoFactura = (int) $idsCliente['esperado_adjunto_factura'];
+$idAlbaranDeMil = $siembra->ventaAlbaranCliente($idsArticulo[0], 1000.0, date('Y-m-d'), [
+    'idTienda'  => $siembra->tiendaPorDefecto(),
+    'estado'    => 'Guardado',
+    'idCliente' => $idClienteAdjuntoFactura,
+]);
+$db->query("UPDATE albclit SET Numalbcli = id WHERE id = {$idAlbaranDeMil}");
+alinearNumerosDeAlbaranes($db, $idClienteAdjuntoFactura);
+// Con forma de vencimiento: sin ella la pantalla de la factura guardada responde 500 por un
+// defecto distinto, y este recorrido fallaria por ese motivo y no por el suyo.
+$db->query("UPDATE clientes SET formasVenci = '{\"vencimiento\":\"0\"}' WHERE idClientes = {$idClienteAdjuntoFactura}");
+echo "Albaran para facturar sembrado (cliente {$idClienteAdjuntoFactura}): id y numero {$idAlbaranDeMil}, 1000 unidades\n";
 
 echo "\nArticulos disponibles para los recorridos: " . implode(', ', $idsArticulo) . "\n";
 foreach ($idsCliente as $clave => $id) {
