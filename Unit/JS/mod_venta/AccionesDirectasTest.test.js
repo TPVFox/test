@@ -25,6 +25,21 @@ describe('comprobarNumero', () => {
   });
 
   /**
+   * @etiquetas estado-actual entrada validacion
+   *
+   * @comportamiento Un numero con separador de miles se rechaza. Es lo correcto para una caja
+   *   de entrada, y es el eslabon por el que una linea de mil o mas unidades no se puede
+   *   recalcular: el servidor pinta esa caja como «1,000.00» y esta comprobacion la devuelve.
+   */
+  test.each([
+    ['1,000.00'],
+    ['2,500.50'],
+    ['-1,000.00'],
+  ])('comprobarNumero(%j) rechaza un valor con separador de miles', (valor) => {
+    expect(ctx.comprobarNumero(valor)).toBe(false);
+  });
+
+  /**
    * Defecto: un "0" suelto, o cualquier cadena que empiece por "0" sin punto decimal
    * justo detrás, se rechaza como numero invalido.
    *

@@ -37,8 +37,8 @@ git clone <url-de-TPVFox> TPVFox     # repositorio hermano, al lado de test/
 cd test && composer install && npm install
 npx playwright install               # añade --with-deps si faltan librerías del sistema
 
-npm run test:php                     # 112 casos, 14 en rojo — no necesitan base de datos
-npm run test:js                      # 19 casos, 2 en rojo
+npm run test:php                     # 116 casos, 17 en rojo — no necesitan base de datos
+npm run test:js                      # 22 casos, 2 en rojo
 ```
 
 **Esos rojos son deliberados**: son casos que afirman lo que el producto debería hacer y hoy no
@@ -59,7 +59,7 @@ Los otros dos niveles necesitan base de datos y un usuario de la aplicación.
 | `npm run test:e2e:ui` | Lo mismo, con la interfaz de Playwright para depurar |
 | `npm run cobertura -- <ámbito>` | Cobertura sobre el ámbito que se declare |
 | `npm run informe:pruebas` | Genera el informe consultable de los tres niveles |
-| `npm run informe:ver` | Lo sirve en `http://127.0.0.1:8081` |
+| `npm run informe:ver` | Lo sirve en `http://127.0.0.1:8090` |
 | `npm run entorno:preparar` | Deja la máquina lista de una vez: esquema, tienda, usuario y siembra |
 | `npm run bases:preparar` | Solo el esquema de las dos bases |
 | `npm run escenarios:sembrar` | Siembra persistente de los escenarios que cruzan de un ejercicio a otro |

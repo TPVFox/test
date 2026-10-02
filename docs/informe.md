@@ -5,7 +5,7 @@ La salida de PHPUnit son puntos en un terminal. Este informe cuenta, por cada ca
 
 ```bash
 npm run informe:pruebas     # genera en informe-pruebas/ (~1 min)
-npm run informe:ver         # lo sirve en http://127.0.0.1:8081
+npm run informe:ver         # lo sirve en http://127.0.0.1:8090
 ```
 
 Hace falta servirlo: el navegador bloquea las peticiones de datos desde `file://`. Para conservar
@@ -13,7 +13,7 @@ una copia, genérala aparte y sirve esa carpeta:
 
 ```bash
 php support/informe-pruebas.php --salida=$HOME/informes/$(date +%F)
-php -S 127.0.0.1:8081 -t $HOME/informes/$(date +%F)
+php -S 127.0.0.1:8090 -t $HOME/informes/$(date +%F)
 ```
 
 | Opción | Para qué |

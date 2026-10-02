@@ -151,6 +151,10 @@ $nombresCliente = [
     'esperado_adjunto_precio'  => [970, PREFIJO . 'Esperado adjunto precio mil'],
     'esperado_adjunto_control' => [971, PREFIJO . 'Esperado adjunto control 999'],
     'esperado_adjunto_factura' => [972, PREFIJO . 'Esperado adjunto albaran mil'],
+    // Retomar un documento en curso con una linea de mil unidades. No parten de nada sembrado:
+    // cada recorrido compone su albaran, y se limpia con los demas.
+    'esperado_retomar_caja'    => [973, PREFIJO . 'Esperado retomar caja de mil'],
+    'esperado_retomar_guardar' => [974, PREFIJO . 'Esperado retomar y guardar mil'],
 ];
 
 $idsCliente = [];
@@ -211,6 +215,8 @@ $clientesEsperado = [
     'esperado_adjunto_precio',
     'esperado_adjunto_control',
     'esperado_adjunto_factura',
+    'esperado_retomar_caja',
+    'esperado_retomar_guardar',
 ];
 foreach ($clientesEsperado as $clave) {
     borrarDocumentosDeCliente($db, (int) $idsCliente[$clave]);
