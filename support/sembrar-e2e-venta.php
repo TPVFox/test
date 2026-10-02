@@ -191,6 +191,28 @@ borrarDocumentosDeCliente($db, (int) $idsCliente['factura_guardar']);
 echo 'Documentos de los recorridos de guardado retirados (clientes '
     . "{$idsCliente['albaran_guardar']}, {$idsCliente['pedido_guardar']}, {$idsCliente['factura_guardar']})\n";
 
+// --- Los pedidos que el recorrido de entradas deja en cada pasada ------------------------
+//
+// Ese recorrido deja un pedido nuevo sin guardar cada vez, y nada lo retiraba. El listado de
+// pedidos enseña una pagina: al pasar de sus filas, los dos pedidos sembrados de este cliente
+// —los mas antiguos— dejaron de aparecer y los recorridos que los buscan ahi dejaron de
+// encontrarlos. Se conservan sus dos primeros pedidos, que son los sembrados.
+$idClienteEntradasPed = (int) $idsCliente['pedido_entradas'];
+$sobrantes = [];
+$r = $db->query("SELECT id FROM pedclit WHERE idCliente = {$idClienteEntradasPed} ORDER BY id LIMIT 2, 100000");
+while ($fila = $r->fetch_assoc()) {
+    $sobrantes[] = (int) $fila['id'];
+}
+if ($sobrantes !== []) {
+    $lista = implode(',', $sobrantes);
+    $db->query("DELETE FROM pedcliltemporales WHERE Numpedcli IN ({$lista})");
+    $db->query("DELETE FROM pedcliAlb WHERE idPedido IN ({$lista})");
+    $db->query("DELETE FROM pedclilinea WHERE idpedcli IN ({$lista})");
+    $db->query("DELETE FROM pedcliIva WHERE idpedcli IN ({$lista})");
+    $db->query("DELETE FROM pedclit WHERE id IN ({$lista})");
+    echo 'Pedidos acumulados del recorrido de entradas retirados: ' . count($sobrantes) . "\n";
+}
+
 // --- Lo mismo para los recorridos de comportamiento esperado -----------------------------
 //
 // Son los que afirman el comportamiento correcto y hoy fallan. Fallar no les impide dejar

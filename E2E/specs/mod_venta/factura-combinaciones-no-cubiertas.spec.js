@@ -41,16 +41,13 @@ test.describe('Factura — combinaciones que el resto de recorridos no cubría',
   /**
    * Las dos condiciones que este componente tiene y ningún otro,
    * combinadas: entrar desde el listado de albaranes, sobre un cliente sin forma de
-   * vencimiento. La pantalla no llega a montarse, de modo que la acción no lleva a ningún
-   * sitio y el operador no recibe explicación.
+   * vencimiento. La pantalla se monta con el vencimiento por defecto. Antes respondía 500 y
+   * la acción no llevaba a ningún sitio; este caso documentaba ese 500.
    */
-  test('T2 crear factura desde albarán de un cliente sin vencimiento no llega a la pantalla', {
-    tag: ['@estado-actual', '@defecto', '@factura', '@albaran', '@vencimiento', '@critico'],
+  test('T2 crear factura desde albarán de un cliente sin vencimiento llega a la pantalla', {
+    tag: ['@estado-actual', '@factura', '@albaran', '@vencimiento'],
     annotation: [
-      { type: 'Qué ocurre hoy', description: '«Crear factura desde albarán» sobre un cliente sin forma de vencimiento no llega a ninguna pantalla: responde con error de servidor.' },
-      { type: 'Qué debería ocurrir', description: 'Que la factura se abra con el albarán y un vencimiento por defecto.' },
-      { type: 'Por qué ocurre', description: 'Al poner el cliente, la pantalla lee su forma de vencimiento sin comprobar que exista, igual que al abrir una factura ya emitida.' },
-      { type: 'Cómo debería funcionar', description: 'Aplicar el vencimiento por defecto que la propia pantalla ya usa para una factura nueva.' },
+      { type: 'Comportamiento', description: '«Crear factura desde albarán» sobre un cliente sin forma de vencimiento abre la pantalla de la factura, con el vencimiento por defecto.' },
     ],
   }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/albaranesListado.php');
@@ -67,12 +64,8 @@ test.describe('Factura — combinaciones que el resto de recorridos no cubría',
       fila.locator('a[title="Crear factura desde albarán"]').click(),
     ]);
 
-    // La acción no lleva a ninguna pantalla: la carga muere al recomponer el vencimiento
-    // del cliente, igual que al abrir una factura suya ya emitida. La factura nueva por sí
-    // sola sí se abre —lleva un vencimiento por defecto escrito—, de modo que lo que la
-    // rompe es haber puesto el cliente.
-    expect(respuesta.status()).toBe(500);
-    await expect(page.locator('#id_cliente')).toHaveCount(0);
+    expect(respuesta.status()).toBe(200);
+    await expect(page.locator('input[name="fechaVencimiento"]')).not.toHaveValue('');
   });
 
   /**

@@ -1,15 +1,11 @@
 /**
- * Una factura de un cliente cuya ficha no tiene forma de vencimiento no se puede abrir: la
- * pantalla responde 500.
+ * Una factura de un cliente cuya ficha no tiene forma de vencimiento se abre.
  *
- * `factura.php` decodifica `formasVenci` del cliente y lee la propiedad `vencimiento` de lo
- * que salga. La columna admite nulo y nada obliga a rellenarla, de modo que para un cliente
- * recién creado se decodifica nulo, se consulta el catálogo de vencimientos con un valor
- * vacío y la sentencia resultante no es válida. La factura existe, está en el listado y es
- * inalcanzable desde su propia pantalla.
- *
- * Es la misma familia que el pedido inaccesible del componente 3 (issue TPVFox #155), aquí
- * sobre el documento fiscal.
+ * La columna `formasVenci` del cliente admite nulo y nada obliga a rellenarla. `factura.php`
+ * le da entonces la forma de vencimiento por defecto, la misma que usa para una factura
+ * nueva. Antes no lo hacía: consultaba el catálogo de vencimientos con un valor vacío, la
+ * sentencia no era válida y la pantalla respondía 500, de modo que la factura estaba en el
+ * listado y era inalcanzable. Este caso documentaba ese 500; ahora fija que se abre.
  */
 
 const { test, expect } = require('@playwright/test');
@@ -18,13 +14,10 @@ const { iniciarSesion } = require('../../fixtures/autenticacion');
 const NOMBRE_CLIENTE = '[E2E venta] Cliente factura sin vencimiento';
 
 test.describe('Factura — abrir una factura de cliente sin forma de vencimiento', () => {
-  test('T1 la factura está en el listado y su propia pantalla responde 500', {
-    tag: ['@estado-actual', '@defecto', '@factura', '@entrada', '@vencimiento', '@critico'],
+  test('T1 la factura está en el listado y su propia pantalla se abre', {
+    tag: ['@estado-actual', '@factura', '@entrada', '@vencimiento'],
     annotation: [
-      { type: 'Qué ocurre hoy', description: 'La factura de un cliente cuya ficha no tiene forma de vencimiento está en el listado, pero su pantalla responde con error de servidor.' },
-      { type: 'Qué debería ocurrir', description: 'Que la factura se abra con un vencimiento por defecto.' },
-      { type: 'Por qué ocurre', description: 'La pantalla lee la forma de vencimiento de la ficha del cliente sin comprobar que exista, y la columna admite nulo.' },
-      { type: 'Cómo debería funcionar', description: 'Aplicar el vencimiento por defecto que la propia pantalla ya usa para una factura nueva.' },
+      { type: 'Comportamiento', description: 'La factura de un cliente cuya ficha no tiene forma de vencimiento se abre desde el listado, con el vencimiento por defecto.' },
     ],
   }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
@@ -40,6 +33,7 @@ test.describe('Factura — abrir una factura de cliente sin forma de vencimiento
 
     const respuesta = await page.goto(`modulos/mod_venta/factura.php?id=${idFactura}&accion=ver`);
 
-    expect(respuesta.status()).toBe(500);
+    expect(respuesta.status()).toBe(200);
+    await expect(page.locator('input[name="fechaVencimiento"]')).not.toHaveValue('');
   });
 });

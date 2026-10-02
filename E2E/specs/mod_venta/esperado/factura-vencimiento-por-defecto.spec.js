@@ -71,6 +71,9 @@ test.describe('Factura — cliente sin forma de vencimiento', () => {
 
     // No se fija cuál debe ser el vencimiento —eso lo decide la corrección—, solo que la
     // pantalla resuelve alguno en vez de morir por no tener ninguno.
-    await expect(page.locator('#fechaVencimiento')).not.toHaveValue('', { timeout: 3000 });
+    // Por nombre y no por identificador: la pantalla repite `id="fechaVencimiento"` en la caja
+    // y en el bloque que la contiene. Mientras la pantalla respondía 500 este paso nunca llegó
+    // a ejecutarse, y el selector ambiguo no se veía.
+    await expect(page.locator('input[name="fechaVencimiento"]')).not.toHaveValue('', { timeout: 3000 });
   });
 });
