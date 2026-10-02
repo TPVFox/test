@@ -50,7 +50,6 @@ final class TareasDefectosIntegracionTest extends CasoIntegracion
      * `switch ($dedonde)`). Evidencia: este test, en rojo mientras el defecto siga sin
      * corregirse por CC.
      *
-     * @estado rojo
      * @group defecto
      * @group pedido
      * @group albaran

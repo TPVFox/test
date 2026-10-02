@@ -12,7 +12,8 @@
  * - una fecha imposible pasa el filtro del campo y llega al servidor, que en vez de guardar
  *   crea un segundo borrador, avisa como error grave y deja la pantalla a medio pintar;
  * - si otro documento con el mismo identificador cambia de estado mientras el borrador sigue
- *   vivo, la factura pierde la marca y el borrador tampoco se puede cerrar.
+ *   vivo, la factura no se entera: conserva su marca. Antes la perdia, porque el cambio de
+ *   estado se aplicaba a los tres tipos de documento a la vez.
  *
  * Cada recorrido usa su propia factura, con identificador fijo, y la deja alterada: la
  * siembra rehace el escenario antes de cada ejecución.
@@ -195,15 +196,12 @@ test.describe('Factura emitida — cómo termina su borrador', () => {
    * El despacho compartido aplica cualquier cambio de estado a los tres tipos de documento
    * que compartan identificador. Aquí otro documento, de otro cliente, incorpora un albarán
    * cuyo número es el identificador de esta factura: el cambio de estado que pide ese
-   * albarán alcanza a la factura, que pierde la marca con el borrador todavía vivo.
+   * albarán ya no alcanza a la factura.
    */
-  test('T6 si otro documento cambia el estado de la factura, su borrador ya no se puede cerrar', {
-    tag: ['@estado-actual', '@defecto', '@factura', '@borrador', '@estados', '@critico'],
+  test('T6 si otro documento incorpora un albarán con ese identificador, la factura no cambia de estado', {
+    tag: ['@estado-actual', '@factura', '@borrador', '@estados'],
     annotation: [
-      { type: 'Qué ocurre hoy', description: 'Si otro documento, de otro cliente, incorpora un albarán cuyo número coincide con el identificador de esta factura, la factura pasa a «Procesado» y su borrador ya no se puede cerrar.' },
-      { type: 'Qué debería ocurrir', description: 'Que la factura no cambie: no participa en esa operación.' },
-      { type: 'Por qué ocurre', description: 'El despacho de cambio de estado distingue el tipo de documento con asignación en vez de comparación, así que aplica el cambio a pedido, albarán y factura con ese identificador a la vez.' },
-      { type: 'Cómo debería funcionar', description: 'Comparar en vez de asignar en las tres condiciones del despacho.' },
+      { type: 'Comportamiento', description: 'Que otro documento, de otro cliente, incorpore un albarán cuyo número coincide con el identificador de esta factura no la toca: sigue «Sin guardar», con su borrador.' },
     ],
   }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/facturasListado.php');
@@ -218,7 +216,10 @@ test.describe('Factura emitida — cómo termina su borrador', () => {
       page.locator('#numAdjunto').press('Enter'),
     ]);
 
-    expect(await estadoDeLaFactura(page, FACTURA_ESTADO)).toBe('Procesado');
-    await comprobarBorradorSinSalida(page, idTemporal);
+    // El cambio de estado que pide ese albarán alcanza solo al albarán. Antes alcanzaba también
+    // a la factura con el mismo identificador, que perdía la marca con el borrador todavía vivo;
+    // este caso documentaba ese contagio.
+    expect(await estadoDeLaFactura(page, FACTURA_ESTADO)).toBe('Sin guardar');
+    expect(idTemporal).toBeTruthy();
   });
 });
