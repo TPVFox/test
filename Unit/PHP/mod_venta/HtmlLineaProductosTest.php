@@ -98,7 +98,6 @@ final class HtmlLineaProductosTest extends TestCase
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/funciones.php:340-403
      *
      * @group esperado

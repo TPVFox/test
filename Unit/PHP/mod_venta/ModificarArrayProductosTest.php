@@ -108,7 +108,6 @@ final class ModificarArrayProductosTest extends TestCase
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/funciones.php:672
      *
      * @group esperado
@@ -152,7 +151,6 @@ final class ModificarArrayProductosTest extends TestCase
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/funciones.php:672
      *
      * @group esperado
@@ -224,7 +222,6 @@ final class ModificarArrayProductosTest extends TestCase
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/funciones.php:660-665
      *
      * @group esperado
@@ -270,7 +267,6 @@ final class ModificarArrayProductosTest extends TestCase
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/funciones.php:660-687
      *
      * @group esperado

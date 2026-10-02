@@ -8,9 +8,12 @@
  * el navegador espera, y el navegador las devuelve tal cual al guardar el documento nuevo.
  * Aqui se recorre sin navegador, con las mismas tres piezas y en el mismo orden.
  *
- * Lo que estos casos fijan es que una cantidad o un precio de mil o mas no sobrevive a ese
- * viaje: sale con separador de miles, y el guardado lo escribe sin comillas en la sentencia.
- * Y que una cantidad con decimales tampoco: llega redondeada a entero.
+ * Lo que estos casos fijan es que una cantidad o un precio de mil o mas sobrevive a ese
+ * viaje, y una cantidad con decimales tambien. No lo hacian: salian con separador de miles o
+ * redondeadas a entero, y el guardado escribia ese texto sin comillas en la sentencia.
+ *
+ * Dos casos documentan lo que sigue pasando cuando el guardado falla por cualquier otra causa:
+ * el documento nuevo queda a medias y el de origen, consumido.
  */
 
 declare(strict_types=1);
@@ -24,6 +27,13 @@ use TPVFox\Test\Siembra\Siembra;
 final class ImportarAdjuntoCantidadesIntegracionTest extends CasoIntegracion
 {
     protected bool $compartirConexionConElProducto = true;
+
+    /**
+     * La descripcion de la linea se escribe entre comillas dobles sin escapar: un nombre con
+     * comilla rompe esa sentencia. Es el vector de los casos que necesitan un guardado que
+     * falle, ahora que una cantidad de mil ya no lo hace fallar.
+     */
+    private const NOMBRE_QUE_ROMPE_LA_LINEA = 'Pera 5" premium';
 
     private \AlbaranesVentas $albaranes;
     private \PedidosVentas $pedidos;
@@ -44,7 +54,6 @@ final class ImportarAdjuntoCantidadesIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/funciones.php:672
      *
      * @group esperado
@@ -85,8 +94,9 @@ final class ImportarAdjuntoCantidadesIntegracionTest extends CasoIntegracion
      * @group guardado
      * @group critico
      *
-     * @que-ocurre-hoy Cuando el guardado falla por la linea de mil unidades, el albaran ya esta
-     *   escrito: queda una cabecera con su numero y su importe, y ninguna linea.
+     * @que-ocurre-hoy Cuando el guardado del albaran falla en la linea que trae del pedido, el
+     *   albaran ya esta escrito: queda una cabecera con su numero y su importe, y ninguna
+     *   linea. Aqui la linea falla porque el nombre del articulo lleva una comilla doble.
      * @que-deberia-ocurrir Que un guardado que no termina no deje nada escrito.
      * @por-que-ocurre La cabecera se escribe antes que las lineas y el guardado no tiene
      *   transaccion que la deshaga.
@@ -94,20 +104,21 @@ final class ImportarAdjuntoCantidadesIntegracionTest extends CasoIntegracion
      */
     public function test_defecto_elAlbaranQueFallaAlImportarQuedaConCabeceraYSinLineas(): void
     {
-        $idArticulo = $this->siembra->articulo('Platano que deja el albaran a medias');
-        $idPedido = $this->siembra->pedidoVentaCliente($idArticulo, 1000.0, '2026-02-10');
+        $idArticulo = $this->siembra->articulo(self::NOMBRE_QUE_ROMPE_LA_LINEA);
+        $idPedido = $this->siembra->pedidoVentaCliente($idArticulo, 5.0, '2026-02-10');
         $antes = $this->numeroDeAlbaranes();
 
         $lanzada = $this->guardarAlbaranCon($this->lineasTraidasDelPedido($idPedido));
 
-        self::assertNotNull($lanzada, 'La linea de mil unidades rompe la insercion.');
+        self::assertNotNull($lanzada, 'La comilla del nombre rompe la insercion de la linea.');
         self::assertSame($antes + 1, $this->numeroDeAlbaranes(), 'La cabecera queda escrita.');
         self::assertCount(0, $this->lineasDelUltimoAlbaran(), 'Y no tiene ninguna linea.');
     }
 
     /**
      * El navegador marca el pedido como procesado en cuanto recibe sus lineas, antes de pedir
-     * ningun guardado (`funciones.js`, al incorporar el adjunto). Aqui se reproduce ese orden.
+     * ningun guardado (`funciones.js`, al incorporar el adjunto). Aqui se reproduce ese orden,
+     * con un guardado que falla porque el nombre del articulo lleva una comilla doble.
      *
      * @codigo-afectado modulos/mod_venta/clases/pedidosVentas.php:176-196
      *
@@ -130,8 +141,8 @@ final class ImportarAdjuntoCantidadesIntegracionTest extends CasoIntegracion
      */
     public function test_defecto_elPedidoQuedaProcesadoYDejaDeOfrecerseAunqueElAlbaranFalle(): void
     {
-        $idArticulo = $this->siembra->articulo('Platano de un pedido que se pierde');
-        $idPedido = $this->siembra->pedidoVentaCliente($idArticulo, 1000.0, '2026-02-10');
+        $idArticulo = $this->siembra->articulo(self::NOMBRE_QUE_ROMPE_LA_LINEA);
+        $idPedido = $this->siembra->pedidoVentaCliente($idArticulo, 5.0, '2026-02-10');
         $numero = (int) $this->db->query("SELECT Numpedcli FROM pedclit WHERE id=$idPedido")->fetch_assoc()['Numpedcli'];
         $idCliente = $this->siembra->clientePorDefecto();
 
@@ -150,7 +161,6 @@ final class ImportarAdjuntoCantidadesIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/funciones.php:672
      *
      * @group esperado
@@ -182,7 +192,6 @@ final class ImportarAdjuntoCantidadesIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/funciones.php:660-665
      *
      * @group esperado
@@ -213,7 +222,6 @@ final class ImportarAdjuntoCantidadesIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/funciones.php:672
      *
      * @group esperado

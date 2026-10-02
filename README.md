@@ -37,7 +37,7 @@ git clone <url-de-TPVFox> TPVFox     # repositorio hermano, al lado de test/
 cd test && composer install && npm install
 npx playwright install               # añade --with-deps si faltan librerías del sistema
 
-npm run test:php                     # 116 casos, 17 en rojo — no necesitan base de datos
+npm run test:php                     # 116 casos, 2 en rojo — no necesitan base de datos
 npm run test:js                      # 22 casos, 2 en rojo
 ```
 

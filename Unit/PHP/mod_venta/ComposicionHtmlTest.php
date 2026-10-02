@@ -192,7 +192,6 @@ final class ComposicionHtmlTest extends TestCase
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/funciones.php:469-490
      *
      * @group esperado

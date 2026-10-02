@@ -46,7 +46,6 @@ final class ReguardarCantidadesDeMilIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/funciones.php:672
      *
      * @group esperado
@@ -81,7 +80,6 @@ final class ReguardarCantidadesDeMilIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/funciones.php:672
      *
      * @group esperado
@@ -113,7 +111,6 @@ final class ReguardarCantidadesDeMilIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/funciones.php:672
      *
      * @group esperado
@@ -151,7 +148,6 @@ final class ReguardarCantidadesDeMilIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/funciones.php:672
      *
      * @group esperado
