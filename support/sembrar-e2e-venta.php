@@ -159,6 +159,15 @@ $nombresCliente = [
     'traza_pedido'             => [975, PREFIJO . 'Traza de autoria pedido'],
     'traza_albaran'            => [976, PREFIJO . 'Traza de autoria albaran'],
     'traza_factura'            => [977, PREFIJO . 'Traza de autoria factura'],
+    // Lo que el servidor hace con una peticion que llega sin sesion, o con la sesion de un
+    // usuario sin permiso. Un documento por recorrido: cada uno lo deja cambiado o borrado.
+    'sesion_albaran'           => [978, PREFIJO . 'Guardar albaran sin sesion'],
+    'sesion_pedido'            => [979, PREFIJO . 'Guardar pedido sin sesion'],
+    'sesion_estado'            => [980, PREFIJO . 'Cambiar estado sin sesion'],
+    'permiso_estado'           => [981, PREFIJO . 'Cambiar estado sin permiso'],
+    // Abrir un documento guardado para editarlo, cambiarlo y cancelar.
+    'cancelar_albaran'         => [982, PREFIJO . 'Cancelar edicion albaran'],
+    'cancelar_pedido'          => [983, PREFIJO . 'Cancelar edicion pedido'],
 ];
 
 $idsCliente = [];
@@ -246,10 +255,21 @@ $clientesEsperado = [
     'traza_pedido',
     'traza_albaran',
     'traza_factura',
+    'sesion_albaran',
+    'sesion_pedido',
+    'sesion_estado',
+    'permiso_estado',
+    'cancelar_albaran',
+    'cancelar_pedido',
 ];
 foreach ($clientesEsperado as $clave) {
     borrarDocumentosDeCliente($db, (int) $idsCliente[$clave]);
     borrarPedidosDeCliente($db, (int) $idsCliente[$clave]);
+}
+// Guardar sin sesion borra el albaran y deja vivo su borrador, que `borrarDocumentosDeCliente`
+// no alcanza: ese borra los de factura, no los de albaran.
+foreach (['sesion_albaran', 'sesion_estado', 'permiso_estado', 'cancelar_albaran'] as $clave) {
+    $db->query('DELETE FROM albcliltemporales WHERE idCliente = ' . (int) $idsCliente[$clave]);
 }
 echo 'Documentos de los recorridos de comportamiento esperado retirados (clientes 955-965)' . "\n";
 
@@ -1059,6 +1079,68 @@ $db->query("UPDATE facclilinea SET Numfaccli = {$idFacturaTraza} WHERE idfaccli 
 $db->query("UPDATE faccliIva SET Numfaccli = {$idFacturaTraza} WHERE idfaccli = {$idFacturaTraza}");
 $db->query("UPDATE albclifac SET numFactura = {$idFacturaTraza} WHERE idFactura = {$idFacturaTraza}");
 echo "Documentos de traza sembrados: pedido {$idPedidoTraza}, albaran {$idAlbaranTraza}, factura {$idFacturaTraza}\n";
+
+// --- Sin sesion y sin permiso: un documento guardado por recorrido -------------------------
+//
+// Cada recorrido deja su documento cambiado de estado o borrado, de modo que se rehacen en cada
+// pasada. Numero igual al identificador, como los que crea la pantalla.
+$albaranGuardadoDe = function (string $clave) use ($db, $siembra, $idsArticulo, $idsCliente): int {
+    $idAlbaran = $siembra->ventaAlbaranCliente($idsArticulo[0], 1.0, '2026-01-20', [
+        'idTienda' => $siembra->tiendaPorDefecto(), 'estado' => 'Guardado', 'idCliente' => $idsCliente[$clave],
+    ]);
+    $db->query("UPDATE albclit SET Numalbcli = id WHERE id = {$idAlbaran}");
+    alinearNumerosDeAlbaranes($db, (int) $idsCliente[$clave]);
+
+    return $idAlbaran;
+};
+$idAlbaranSinSesion = $albaranGuardadoDe('sesion_albaran');
+$idAlbaranEstadoSinSesion = $albaranGuardadoDe('sesion_estado');
+$idAlbaranEstadoSinPermiso = $albaranGuardadoDe('permiso_estado');
+$idAlbaranCancelado = $albaranGuardadoDe('cancelar_albaran');
+
+$pedidoGuardadoDe = function (string $clave) use ($db, $siembra, $idsArticulo, $idsCliente): int {
+    $idPedido = $siembra->pedidoVentaCliente($idsArticulo[0], 1.0, '2026-01-20', [
+        'idTienda' => $siembra->tiendaPorDefecto(), 'estado' => 'Guardado', 'idCliente' => $idsCliente[$clave],
+    ]);
+    $db->query("UPDATE pedclit SET Numpedcli = id WHERE id = {$idPedido}");
+    $db->query("UPDATE pedclilinea SET Numpedcli = {$idPedido} WHERE idpedcli = {$idPedido}");
+    $db->query("UPDATE pedcliIva SET Numpedcli = {$idPedido} WHERE idpedcli = {$idPedido}");
+
+    return $idPedido;
+};
+$idPedidoSinSesion = $pedidoGuardadoDe('sesion_pedido');
+$idPedidoCancelado = $pedidoGuardadoDe('cancelar_pedido');
+echo "Documentos sin sesion, sin permiso y de edicion cancelada sembrados: albaranes {$idAlbaranSinSesion},"
+    . " {$idAlbaranEstadoSinSesion}, {$idAlbaranEstadoSinPermiso}, {$idAlbaranCancelado};"
+    . " pedidos {$idPedidoSinSesion}, {$idPedidoCancelado}\n";
+
+// Un usuario que no es administrador. Entra con la misma clave que el de los recorridos, y sus
+// permisos se borran para que el producto los cree de nuevo al entrar, con los valores por
+// defecto de `acces.xml`: sin permiso para cambiar el estado de un albaran ni para su pantalla.
+$usuarioSinPermisos = 'e2e_sin_permisos';
+$claveSinPermisos = md5(Entorno::valor('TPVFOX_E2E_CLAVE'));
+$existe = $db->prepare('SELECT id FROM usuarios WHERE username = ? LIMIT 1');
+$existe->bind_param('s', $usuarioSinPermisos);
+$existe->execute();
+$fila = $existe->get_result()->fetch_row();
+if ($fila === null) {
+    $alta = $db->prepare(
+        "INSERT INTO usuarios (username, password, fecha, group_id, estado, nombre) VALUES (?, ?, CURDATE(), 1, 'activo', ?)"
+    );
+    $nombreSinPermisos = PREFIJO . 'Usuario sin permisos';
+    $alta->bind_param('sss', $usuarioSinPermisos, $claveSinPermisos, $nombreSinPermisos);
+    $alta->execute();
+    $idUsuarioSinPermisos = $db->insert_id;
+} else {
+    $idUsuarioSinPermisos = (int) $fila[0];
+    $db->query("UPDATE usuarios SET password = '{$claveSinPermisos}', group_id = 1, estado = 'activo' WHERE id = {$idUsuarioSinPermisos}");
+}
+// El acceso exige exactamente una fila de indice: con ninguna o con dos, la sesion no se abre.
+$db->query("DELETE FROM indices WHERE idUsuario = {$idUsuarioSinPermisos}");
+$db->query('INSERT INTO indices (idTienda, idUsuario, numticket, tempticket) VALUES ('
+    . $siembra->tiendaPorDefecto() . ", {$idUsuarioSinPermisos}, 0, 0)");
+$db->query("DELETE FROM permisos WHERE idUsuario = {$idUsuarioSinPermisos}");
+echo "Usuario sin permisos: {$usuarioSinPermisos} (id {$idUsuarioSinPermisos})\n";
 
 echo "\nArticulos disponibles para los recorridos: " . implode(', ', $idsArticulo) . "\n";
 foreach ($idsCliente as $clave => $id) {

@@ -1,15 +1,18 @@
 <?php
 /**
- * Lee de la base quien consta como creador de un documento de venta y sus dos fechas.
+ * Lee de la base quien consta como creador de un documento de venta, sus dos fechas y su
+ * estado, y cuantos borradores quedan de ese cliente.
  *
- * Existe para un recorrido de navegador: la pantalla no enseña ni el creador ni las fechas de
- * creacion y de modificacion, de modo que lo que la pantalla escribe solo se puede comprobar
+ * Existe para los recorridos de navegador: la pantalla no ensena ni el creador ni las fechas de
+ * creacion y de modificacion, y lo que una peticion deja escrito sin respuesta visible —un
+ * cambio de estado, un documento borrado, un borrador que sobrevive— solo se puede comprobar
  * leyendolo de la base. Solo lee, y solo de la base de pruebas.
  *
  * Uso:  php support/leer-traza-de-documento.php <pedido|albaran|factura> <idCliente>
  *
- * Devuelve en JSON el ultimo documento de ese cliente, y el identificador del usuario con el
- * que entran los recorridos, para poder decir si el creador es otro.
+ * Devuelve en JSON el ultimo documento de ese cliente con su numero de lineas —`null` si no le
+ * queda ninguno—, el numero de borradores de ese tipo que tiene abiertos, y el identificador del
+ * usuario con el que entran los recorridos, para poder decir si el creador es otro.
  */
 
 declare(strict_types=1);
@@ -19,9 +22,9 @@ require_once __DIR__ . '/bootstrap.php';
 use TPVFox\Test\Entorno;
 
 const TABLAS = [
-    'pedido'  => ['pedclit', 'idUsuario, fechaCreacion, fechaModificacion'],
-    'albaran' => ['albclit', 'idUsuario'],
-    'factura' => ['facclit', 'idUsuario, fechaCreacion, fechaModificacion'],
+    'pedido'  => ['pedclit', 'idUsuario, estado, fechaCreacion, fechaModificacion', 'pedcliltemporales', 'pedclilinea', 'idpedcli'],
+    'albaran' => ['albclit', 'idUsuario, estado', 'albcliltemporales', 'albclilinea', 'idalbcli'],
+    'factura' => ['facclit', 'idUsuario, estado, fechaCreacion, fechaModificacion', 'faccliltemporales', 'facclilinea', 'idfaccli'],
 ];
 
 $documento = $argv[1] ?? '';
@@ -45,9 +48,15 @@ $db = new mysqli(
     $base
 );
 
-[$tabla, $columnas] = TABLAS[$documento];
+[$tabla, $columnas, $tablaDeBorradores, $tablaDeLineas, $columnaDelDocumento] = TABLAS[$documento];
 $fila = $db->query("SELECT id, {$columnas} FROM {$tabla} WHERE idCliente = {$idCliente} ORDER BY id DESC LIMIT 1")
     ->fetch_assoc();
+if ($fila !== null) {
+    $fila['lineas'] = (int) $db->query("SELECT COUNT(*) FROM {$tablaDeLineas} WHERE {$columnaDelDocumento} = {$fila['id']}")
+        ->fetch_row()[0];
+}
+$borradores = (int) $db->query("SELECT COUNT(*) FROM {$tablaDeBorradores} WHERE idCliente = {$idCliente}")
+    ->fetch_row()[0];
 
 $sentencia = $db->prepare('SELECT id FROM usuarios WHERE username = ? LIMIT 1');
 $usuario = Entorno::valor('TPVFOX_E2E_USUARIO');
@@ -57,5 +66,6 @@ $recorrido = $sentencia->get_result()->fetch_row();
 
 echo json_encode([
     'documento'          => $fila,
+    'borradores'         => $borradores,
     'usuarioDeRecorrido' => $recorrido === null ? null : (int) $recorrido[0],
 ]) . "\n";

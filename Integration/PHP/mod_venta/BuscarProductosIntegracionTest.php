@@ -16,6 +16,10 @@ use TPVFox\Test\Siembra\Siembra;
 
 final class BuscarProductosIntegracionTest extends CasoIntegracion
 {
+    /** Los dos estados de una fila de tarifa (`K_TARIFACLIENTE_ESTADO_*`, `modulos/claseModeloP.php`). */
+    private const TARIFA_ACTIVA = '1';
+    private const TARIFA_BORRADA = '2';
+
     private Siembra $siembra;
     private int $idCliente;
 
@@ -111,5 +115,85 @@ final class BuscarProductosIntegracionTest extends CasoIntegracion
             $resultado,
             'Nitems=1 deberia venir siempre acompanado de un Estado, sea Correcto o el que corresponda'
         );
+    }
+
+    // --- La tarifa del cliente ---------------------------------------------------
+
+    /**
+     * Un producto con tarifa activa para el cliente se ofrece a su precio de tarifa: es el
+     * precio que la venta pone a la linea.
+     *
+     * @group control
+     * @group busqueda
+     * @group importes
+     *
+     * @para-que-sirve Acompana al caso de la tarifa borrada: demuestra que la tarifa activa se
+     *   aplica, de modo que lo que aquel caso mide es solo el estado de la fila.
+     */
+    public function test_unProductoConTarifaActivaSeOfreceAlPrecioDeTarifa(): void
+    {
+        $idArticulo = $this->articuloConTarifa('ZumaqueTarifaActiva', self::TARIFA_ACTIVA);
+
+        $resultado = \BuscarProductos('idArticulo', 'a.articulo_name', 'ZumaqueTarifaActiva', $this->db, $this->idCliente);
+
+        self::assertSame($idArticulo, (int) $resultado['datos'][0]['idArticulo']);
+        self::assertEqualsWithDelta(7.0, (float) $resultado['datos'][0]['pvpCivaCLI'], 0.000001);
+    }
+
+    /**
+     * Quitar un producto de la tarifa de un cliente no lo quita de la venta.
+     *
+     * El modulo de clientes no elimina la fila de la tarifa: la marca como borrada
+     * (`mod_cliente/tareas/borrarArticuloCliente.php:25`), y su propio listado solo ensena las
+     * activas (`claseTarifaCliente.php:29`). La busqueda de productos de la venta une la
+     * tarifa del cliente sin mirar ese estado, de modo que el producto quitado se sigue
+     * ofreciendo, y vendiendo, al precio de tarifa. La pantalla de la tarifa dice que ya no lo
+     * tiene; el albaran y la factura se lo cobran.
+     *
+     * @group defecto
+     * @group busqueda
+     * @group importes
+     * @group alto
+     *
+     * @que-ocurre-hoy Un producto que se ha quitado de la tarifa de un cliente se le sigue
+     *   vendiendo al precio de esa tarifa, aunque la pantalla de la tarifa ya no lo muestre.
+     * @que-deberia-ocurrir Que la venta solo aplique las filas activas de la tarifa, y que el
+     *   producto quitado se venda a su precio normal.
+     * @por-que-ocurre Quitar un producto de la tarifa marca la fila como borrada en vez de
+     *   eliminarla, y la busqueda de la venta une la tarifa por cliente y articulo sin
+     *   comprobar el estado de la fila.
+     * @como-deberia-funcionar Unir solo las filas de tarifa activas, como ya hace el listado
+     *   de la tarifa en el modulo de clientes.
+     *
+     * @codigo-afectado modulos/mod_venta/funciones.php:45-50
+     */
+    public function test_defecto_unProductoQuitadoDeLaTarifaDelClienteSeSigueVendiendoAlPrecioDeTarifa(): void
+    {
+        $this->articuloConTarifa('ZumaqueTarifaBorrada', self::TARIFA_BORRADA);
+
+        $resultado = \BuscarProductos('idArticulo', 'a.articulo_name', 'ZumaqueTarifaBorrada', $this->db, $this->idCliente);
+
+        self::assertEqualsWithDelta(
+            7.0,
+            (float) $resultado['datos'][0]['pvpCivaCLI'],
+            0.000001,
+            'La fila borrada de la tarifa sigue dando el precio de la venta'
+        );
+    }
+
+    /** Un articulo de precio 10 con tarifa de 7 para el cliente, en el estado indicado. */
+    private function articuloConTarifa(string $nombre, string $estado): int
+    {
+        $idArticulo = $this->siembra->articulo($nombre);
+        $this->siembra->precioYTienda($idArticulo, 10.0, 10.0);
+
+        $sentencia = $this->db->prepare(
+            'INSERT INTO articulosClientes (idArticulo, idClientes, pvpSiva, pvpCiva, fechaActualizacion, estado)'
+            . ' VALUES (?, ?, 7, 7, NOW(), ?)'
+        );
+        $sentencia->bind_param('iis', $idArticulo, $this->idCliente, $estado);
+        $sentencia->execute();
+
+        return $idArticulo;
     }
 }

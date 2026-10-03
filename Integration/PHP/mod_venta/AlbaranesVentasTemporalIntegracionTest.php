@@ -253,6 +253,51 @@ final class AlbaranesVentasTemporalIntegracionTest extends CasoIntegracion
 
     // --- Apoyos del caso ------------------------------------------------------
 
+    /**
+     * El borrador del albaran se crea con el cliente que reciba, sin comprobar que sea alguno.
+     *
+     * Es el mismo caso que el de la factura: el unico control de que haya cliente esta en el
+     * navegador —`AccionesDirectas.js` no pide el borrador si el cliente no esta puesto—, y el
+     * servidor escribe lo que le llegue. La tabla del borrador del albaran no tiene clave ajena
+     * contra el cliente, asi que nada lo rechaza; la del pedido si la tiene, y ahi la base lo
+     * rechaza al crear el borrador. El borrador sin cliente aparece entre los albaranes
+     * abiertos, y al pulsar Guardar es la base quien lo rechaza, con el error crudo.
+     *
+     * @group defecto
+     * @group albaran
+     * @group borrador
+     * @group validacion
+     * @group alto
+     *
+     * @que-ocurre-hoy Si la peticion llega sin cliente, el borrador del albaran se crea igual y
+     *   aparece entre los albaranes abiertos sin cliente.
+     * @que-deberia-ocurrir Que el servidor rechace un borrador sin cliente con un mensaje del
+     *   sistema.
+     * @por-que-ocurre La comprobacion de que hay cliente solo existe en el navegador, y la tabla
+     *   del borrador del albaran no tiene clave ajena contra el cliente que la sustituya.
+     * @como-deberia-funcionar Comprobar en el servidor, donde se escribe, que el cliente existe.
+     *
+     * @codigo-afectado modulos/mod_venta/clases/albaranesVentas.php:422-447
+     */
+    public function test_defecto_elBorradorSeCreaSinClienteSiEsLoQueRecibe(): void
+    {
+        $respuesta = $this->albaranes->insertarDatosTemporal(
+            $this->siembra->usuarioPorDefecto(),
+            $this->siembra->tiendaPorDefecto(),
+            '2026-02-15',
+            [],
+            [],
+            0
+        );
+
+        self::assertSame(0, (int) $this->albaranes->buscarDatosTemporal((int) $respuesta['id'])['idCliente']);
+        self::assertContains(
+            (int) $respuesta['id'],
+            array_map('intval', array_column($this->albaranes->TodosTemporal(), 'id')),
+            'Y aparece entre los albaranes abiertos.'
+        );
+    }
+
     /** Un temporal creado por el propio producto, con los parametros en su orden real. */
     private function insertarTemporal(array $productos, array $pedidos = []): array
     {

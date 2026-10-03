@@ -270,6 +270,34 @@ final class PedidosVentasTemporalIntegracionTest extends CasoIntegracion
         self::assertCount(1, $this->pedidos->TodosTemporal($idPedido), 'Y se sigue ofreciendo como abierto.');
     }
 
+    /**
+     * El borrador del pedido no se puede crear sin cliente: su tabla tiene clave ajena contra
+     * el cliente y la base lo rechaza. Es lo que distingue al pedido del albaran y de la
+     * factura, cuyos borradores se crean sin cliente si es lo que llega. El rechazo sale como
+     * excepcion de la base, no como mensaje del sistema.
+     *
+     * @group pedido
+     * @group borrador
+     * @group validacion
+     *
+     * @comportamiento La base rechaza el borrador de pedido sin cliente al crearlo, con una
+     *   excepcion de clave ajena.
+     */
+    public function test_elBorradorSinClienteLoRechazaLaBaseAlCrearlo(): void
+    {
+        $this->expectException(\mysqli_sql_exception::class);
+        $this->expectExceptionMessageMatches('/foreign key constraint fails/i');
+
+        $this->pedidos->insertarDatosTemporal(
+            $this->siembra->usuarioPorDefecto(),
+            $this->siembra->tiendaPorDefecto(),
+            '2026-02-15',
+            [],
+            [],
+            0
+        );
+    }
+
     // --- Apoyos ----------------------------------------------------------------------
 
     /** Un borrador creado por la via real de la clase, no por la siembra. */

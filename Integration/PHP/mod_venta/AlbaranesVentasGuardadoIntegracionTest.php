@@ -296,6 +296,129 @@ final class AlbaranesVentasGuardadoIntegracionTest extends CasoIntegracion
         self::assertSame(12.0, $this->existenciasDe($idArticulo), 'Y el stock quedo devuelto sin documento que lo justifique.');
     }
 
+    /**
+     * Si la base rechaza la cabecera reescrita, el albaran desaparece entero.
+     *
+     * Es la otra salida del caso anterior: alli la reescritura falla en una linea y la cabecera
+     * vuelve a existir sin ellas; aqui falla en la propia cabecera, y del albaran no queda nada.
+     * Las lineas, el desglose y la relacion con sus pedidos ya se habian borrado, y las
+     * existencias ya se habian devuelto. Solo sobrevive el borrador, que la pantalla borra
+     * despues de guardar y aqui no llega a borrar.
+     *
+     * Es el mecanismo del issue TPVFox #164 —el albaran se borra si la sesion ha caducado—. Sin
+     * sesion, el usuario es el invitado, de identificador 0, y hasta que la pantalla paso a
+     * conservar al creador del documento era ese 0 el que se escribia como creador: la clave
+     * ajena contra los usuarios rechazaba la cabecera. Hoy la sesion caducada ya no llega aqui,
+     * porque el creador se toma del albaran que existe; cualquier otro rechazo de la cabecera, si.
+     *
+     * @group defecto
+     * @group albaran
+     * @group guardado
+     * @group critico
+     *
+     * @que-ocurre-hoy Si la base rechaza la cabecera al volver a guardar un albaran, el albaran
+     *   desaparece del listado con sus lineas, y las existencias quedan devueltas.
+     * @que-deberia-ocurrir Que el albaran quede como estaba si su reescritura no se completa.
+     * @por-que-ocurre Guardar un albaran que existe lo borra entero y despues lo vuelve a
+     *   escribir, sin transaccion que deshaga el borrado si la escritura falla.
+     * @como-deberia-funcionar No borrar el albaran hasta tener asegurada su reescritura, dentro
+     *   de una misma transaccion.
+     *
+     * @codigo-afectado modulos/mod_venta/clases/albaranesVentas.php:33-38
+     */
+    public function test_defecto_siLaBaseRechazaLaCabeceraReescritaElAlbaranDesapareceEntero(): void
+    {
+        $idArticulo = $this->siembra->articulo('Producto de albaran con cabecera rechazada');
+        $this->siembra->existenciaRegistrada($idArticulo, 10.0);
+        $idAlbaran = $this->siembra->ventaAlbaranCliente($idArticulo, 2.0, '2026-01-10');
+
+        $this->albaranes->eliminarAlbaranTablas($idAlbaran);
+        $lanzada = null;
+        try {
+            // El usuario 0 es el invitado: el que la pantalla escribia como creador sin sesion.
+            $this->albaranes->AddAlbaranGuardado(
+                ['idUsuario' => 0] + $this->datosDeGuardado([$this->linea($idArticulo)]),
+                $idAlbaran
+            );
+        } catch (\mysqli_sql_exception $e) {
+            $lanzada = $e;
+        }
+
+        self::assertNotNull($lanzada, 'La base rechaza la cabecera...');
+        self::assertStringContainsStringIgnoringCase('foreign key', $lanzada->getMessage(), '... por la clave ajena del usuario...');
+        self::assertSame([], $this->albaranes->datosAlbaran($idAlbaran), '... y el albaran ya no existe...');
+        self::assertSame([], $this->albaranes->ProductosAlbaran($idAlbaran), '... ni sus lineas...');
+        self::assertSame(12.0, $this->existenciasDe($idArticulo), '... y las existencias quedaron devueltas.');
+    }
+
+    /**
+     * Un albaran sin cliente lo rechaza la base al guardarlo, no la pantalla antes.
+     *
+     * Es el final del borrador sin cliente (`AlbaranesVentasTemporalIntegracionTest`): la
+     * pantalla lo abre y ofrece guardarlo, y al pulsar Guardar la cabecera choca con la clave
+     * ajena de `albclit` contra el cliente. Lo que el operador recibe es la excepcion de la
+     * base. Mismo caso que el de la factura.
+     *
+     * @group defecto
+     * @group albaran
+     * @group guardado
+     * @group validacion
+     * @group alto
+     *
+     * @que-ocurre-hoy Guardar un albaran sin cliente termina en un error de la base, despues de
+     *   que la pantalla haya ofrecido guardarlo.
+     * @que-deberia-ocurrir Que la pantalla no ofrezca guardar un albaran sin cliente, o que el
+     *   servidor lo rechace con un mensaje del sistema antes de escribir.
+     * @por-que-ocurre Ninguna comprobacion del producto mira que haya cliente antes de escribir
+     *   la cabecera: lo hace la clave ajena de la tabla, al final.
+     * @como-deberia-funcionar Comprobar el cliente antes de escribir y responder con un mensaje.
+     *
+     * @codigo-afectado modulos/mod_venta/clases/albaranesVentas.php:47-52
+     */
+    public function test_defecto_unAlbaranSinClienteLoRechazaLaBaseAlGuardarloNoLaPantallaAntes(): void
+    {
+        $idArticulo = $this->siembra->articulo('Producto de albaran sin cliente');
+        $datos = ['idCliente' => 0] + $this->datosDeGuardado([$this->linea($idArticulo)]);
+
+        $this->expectException(\mysqli_sql_exception::class);
+        $this->expectExceptionMessageMatches('/foreign key constraint fails/i');
+
+        $this->albaranes->AddAlbaranGuardado($datos, 0);
+    }
+
+    /**
+     * El albaran no tiene donde registrar cuando se creo ni cuando se modifico.
+     *
+     * De un documento de venta interesa saber quien lo creo, quien lo modifico y cuando. Volver
+     * a guardar un albaran ya conserva a su creador; las fechas no se pueden escribir, porque
+     * `albclit` no declara las columnas que `pedclit` y `facclit` si tienen (issue TPVFox #167).
+     * Solo queda `Fecha`, que es la fecha del documento y la cambia el operador.
+     *
+     * @group defecto
+     * @group albaran
+     * @group guardado
+     * @group alto
+     *
+     * @que-ocurre-hoy De un albaran no se puede saber cuando se creo ni cuando se modifico por
+     *   ultima vez.
+     * @que-deberia-ocurrir Que el albaran registre las dos fechas, como el pedido y la factura.
+     * @por-que-ocurre La tabla del albaran no tiene columnas para ellas.
+     * @como-deberia-funcionar Anadir las dos columnas a la tabla por el sistema de migraciones y
+     *   escribirlas al guardar, como ya se hace en el pedido.
+     */
+    public function test_defecto_elAlbaranNoTieneDondeRegistrarCuandoSeCreoNiCuandoSeModifico(): void
+    {
+        $columnas = fn (string $tabla): array => array_column(
+            $this->db->query("SHOW COLUMNS FROM {$tabla}")->fetch_all(MYSQLI_ASSOC),
+            'Field'
+        );
+
+        self::assertContains('fechaCreacion', $columnas('pedclit'), 'El pedido las tiene...');
+        self::assertContains('fechaModificacion', $columnas('facclit'), '... y la factura tambien...');
+        self::assertNotContains('fechaCreacion', $columnas('albclit'), '... pero el albaran no tiene la de creacion...');
+        self::assertNotContains('fechaModificacion', $columnas('albclit'), '... ni la de modificacion.');
+    }
+
     // --- Apoyos del caso ------------------------------------------------------
 
     /** Los datos de guardado con la forma exacta que `albaran.php` monta al pulsar Guardar. */
