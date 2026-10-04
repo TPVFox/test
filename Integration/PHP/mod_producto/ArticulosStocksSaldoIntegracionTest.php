@@ -56,8 +56,7 @@ final class ArticulosStocksSaldoIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @estado rojo
-     * @codigo-afectado modulos/mod_producto/clases/ClaseArticulosStocks.php:115-130
+     * @codigo-afectado modulos/mod_producto/clases/ClaseArticulosStocks.php:115-133
      *
      * @group esperado
      * @group existencias

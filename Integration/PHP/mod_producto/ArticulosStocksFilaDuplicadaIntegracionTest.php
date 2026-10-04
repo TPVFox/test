@@ -76,7 +76,7 @@ final class ArticulosStocksFilaDuplicadaIntegracionTest extends CasoIntegracion
      *   con «al menos una».
      *
      * @codigo-afectado modulos/mod_producto/clases/ClaseArticulosStocks.php:40-50
-     * @codigo-afectado modulos/mod_producto/clases/ClaseArticulosStocks.php:132-144
+     * @codigo-afectado modulos/mod_producto/clases/ClaseArticulosStocks.php:135-153
      */
     public function test_defecto_conDosFilasDeSaldoCadaMovimientoCreaOtraFila(): void
     {
