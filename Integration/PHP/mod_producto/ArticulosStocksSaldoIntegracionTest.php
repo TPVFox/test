@@ -116,6 +116,50 @@ final class ArticulosStocksSaldoIntegracionTest extends CasoIntegracion
      * @group control
      * @group existencias
      *
+     * @para-que-sirve La venta y las compras pasan la cantidad tal como la devuelve la base: texto
+     *   con seis decimales. Restar y sumar con esa cantidad dan el mismo saldo que con un numero.
+     *   Tiene que seguir siendo asi cuando la cantidad se escriba dentro de la sentencia.
+     */
+    public function test_unaCantidadEnTextoComoLaDevuelveLaBaseDaElSaldoEsperado(): void
+    {
+        [$idArticulo, $idTienda, $idStock] = $this->articuloConSaldo(10.0);
+
+        \alArticulosStocks::actualizarStock($idArticulo, $idTienda, '2.500000', K_STOCKARTICULO_RESTA);
+        \alArticulosStocks::actualizarStock($idArticulo, $idTienda, '0.420000', K_STOCKARTICULO_SUMA);
+
+        self::assertEqualsWithDelta(7.920, $this->saldoVistoPorLaCaja($idStock), 0.000001);
+    }
+
+    /**
+     * @group control
+     * @group existencias
+     *
+     * @para-que-sirve Una cantidad que no es un numero no llega al saldo. Hoy lo impide el propio
+     *   calculo en PHP, que falla con ese valor; si la cantidad pasa a escribirse en la sentencia
+     *   convertida a numero, se aplicaria como 0 sin aviso, y el rechazo tiene que hacerse antes.
+     */
+    public function test_unaCantidadNoNumericaNoMueveElSaldo(): void
+    {
+        [$idArticulo, $idTienda, $idStock] = $this->articuloConSaldo(10.0);
+
+        try {
+            \alArticulosStocks::actualizarStock($idArticulo, $idTienda, 'abc', K_STOCKARTICULO_RESTA);
+        } catch (\Throwable) {
+            // Fallar es una forma valida de rechazarla: lo que se comprueba es el saldo.
+        }
+
+        self::assertEqualsWithDelta(10.0, $this->saldoVistoPorLaCaja($idStock), 0.000001);
+        self::assertNull(
+            $this->caja()->query("SELECT fechaRegularizacion FROM articulosStocks WHERE id = $idStock")
+                ->fetch_assoc()['fechaRegularizacion'],
+            'Rechazar la cantidad es no escribir el movimiento, tampoco su fecha.'
+        );
+    }
+
+    /**
+     * @group control
+     * @group existencias
+     *
      * @para-que-sirve Regularizar fija el saldo al valor indicado, no lo suma. Es la otra rama de la
      *   misma funcion y no debe cambiar.
      */
