@@ -72,7 +72,6 @@ final class AlbaranesVentasConexionDelStockIntegracionTest extends CasoIntegraci
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/clases/albaranesVentas.php:98
      *
      * @group defecto
@@ -106,7 +105,6 @@ final class AlbaranesVentasConexionDelStockIntegracionTest extends CasoIntegraci
     }
 
     /**
-     * @estado rojo
      * @codigo-afectado modulos/mod_venta/clases/albaranesVentas.php:404
      *
      * @group defecto
