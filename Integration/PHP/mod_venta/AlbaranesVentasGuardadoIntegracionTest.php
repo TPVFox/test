@@ -170,6 +170,11 @@ final class AlbaranesVentasGuardadoIntegracionTest extends CasoIntegracion
      * un defecto por si mismo: la sentencia se arma concatenando el texto entre comillas
      * dobles sin escaparlo, asi que un producto llamado —por ejemplo— `Cable 1" macho`
      * rompe la insercion de su linea. No hace falta una entrada rebuscada para llegar aqui.
+     *
+     * Corregido donde el operador lo sufria: `albaran.php` envuelve ahora el guardado entero en una
+     * transaccion, que deshace lo escrito si algo falla. Este caso llama a los metodos de la
+     * clase directamente, sin la pantalla, y sigue comprobando que por si solos no deshacen
+     * nada: quien los llame fuera de ella tiene que abrir su propia transaccion.
      */
     public function test_defecto_addAlbaranGuardado_fallaEnLaSegundaLineaYConfirmaLaPrimera(): void
     {
@@ -268,6 +273,11 @@ final class AlbaranesVentasGuardadoIntegracionTest extends CasoIntegracion
      * Correccion propuesta: la misma transaccion envolvente que el caso anterior, extendida
      * a la secuencia completa —borrado incluido—, y no borrar hasta tener la reescritura
      * confirmada. Evidencia: este test.
+     *
+     * Corregido donde el operador lo sufria: `albaran.php` envuelve ahora el guardado entero en una
+     * transaccion, que deshace lo escrito si algo falla. Este caso llama a los metodos de la
+     * clase directamente, sin la pantalla, y sigue comprobando que por si solos no deshacen
+     * nada: quien los llame fuera de ella tiene que abrir su propia transaccion.
      */
     public function test_defecto_reguardarUnAlbaranQueFallaLoDejaSinLineasConSuImporte(): void
     {

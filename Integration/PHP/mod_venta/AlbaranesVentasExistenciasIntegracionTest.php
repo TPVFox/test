@@ -157,6 +157,11 @@ final class AlbaranesVentasExistenciasIntegracionTest extends CasoIntegracion
      * atadura entre las dos escrituras, no la causa concreta del fallo. Correccion propuesta:
      * que el guardado entero vaya en una transaccion que abarque tambien el inventario.
      * Evidencia: este test.
+     *
+     * Corregido donde el operador lo sufria: `albaran.php` envuelve ahora el guardado entero en una
+     * transaccion, que deshace lo escrito si algo falla. Este caso llama a los metodos de la
+     * clase directamente, sin la pantalla, y sigue comprobando que por si solos no deshacen
+     * nada: quien los llame fuera de ella tiene que abrir su propia transaccion.
      */
     public function test_defecto_siElMovimientoDeExistenciasFallaLaLineaYaQuedoEscrita(): void
     {
