@@ -173,6 +173,12 @@ $nombresCliente = [
     'esperado_reguardado_alb'  => [984, PREFIJO . 'Esperado reguardado atomico albaran'],
     'esperado_reguardado_ped'  => [985, PREFIJO . 'Esperado reguardado atomico pedido'],
     'esperado_stock_falla'     => [987, PREFIJO . 'Esperado albaran con stock que falla'],
+    // Un guardado que falla: lo que ve el operador y lo que queda apuntado en el servidor. Un
+    // cliente por recorrido, porque cada uno deja su documento en curso.
+    'esperado_aviso_alb'       => [988, PREFIJO . 'Esperado aviso de guardado albaran'],
+    'esperado_aviso_ped'       => [989, PREFIJO . 'Esperado aviso de guardado pedido'],
+    'registro_fallo_alb'       => [990, PREFIJO . 'Registro del guardado fallido albaran'],
+    'registro_fallo_ped'       => [991, PREFIJO . 'Registro del guardado fallido pedido'],
 ];
 
 $idsCliente = [];
@@ -269,6 +275,10 @@ $clientesEsperado = [
     'esperado_reguardado_alb',
     'esperado_reguardado_ped',
     'esperado_stock_falla',
+    'esperado_aviso_alb',
+    'esperado_aviso_ped',
+    'registro_fallo_alb',
+    'registro_fallo_ped',
 ];
 foreach ($clientesEsperado as $clave) {
     borrarDocumentosDeCliente($db, (int) $idsCliente[$clave]);
@@ -276,7 +286,7 @@ foreach ($clientesEsperado as $clave) {
 }
 // Guardar sin sesion borra el albaran y deja vivo su borrador, que `borrarDocumentosDeCliente`
 // no alcanza: ese borra los de factura, no los de albaran.
-foreach (['sesion_albaran', 'sesion_estado', 'permiso_estado', 'cancelar_albaran', 'esperado_reguardado_alb', 'esperado_stock_falla'] as $clave) {
+foreach (['sesion_albaran', 'sesion_estado', 'permiso_estado', 'cancelar_albaran', 'esperado_reguardado_alb', 'esperado_stock_falla', 'esperado_aviso_alb', 'registro_fallo_alb'] as $clave) {
     $db->query('DELETE FROM albcliltemporales WHERE idCliente = ' . (int) $idsCliente[$clave]);
 }
 echo 'Documentos de los recorridos de comportamiento esperado retirados (clientes 955-965)' . "\n";

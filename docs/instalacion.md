@@ -78,6 +78,9 @@ TPVFOX_E2E_CLAVE=<su clave>
 
 TPVFOX_URL=http://localhost:8080/TPVFox/
 TPVFOX_URL_ANTERIOR=http://localhost:8081/TPVFox/
+
+# Opcional: el registro de errores de PHP del servidor del ejercicio vigente (sección 6)
+TPVFOX_E2E_LOG=/ruta/al/repositorio/test/entorno/php-vigente.log
 ```
 
 Las mismas claves valen como variables de entorno, y ahí ganan al fichero: en integración continua
@@ -148,6 +151,17 @@ php -S 127.0.0.1:8081 -t ..    # ejercicio anterior  -> TPVFOX_URL_ANTERIOR
 Sin `TPVFOX_URL_ANTERIOR`, los tres recorridos que la necesitan **se saltan solos y dicen por qué**.
 No se quedan en rojo: un rojo ahí se confundiría con un defecto del producto, que es justo lo que
 pasó antes de que esto existiera.
+
+**El registro de errores, en un fichero.** Dos recorridos comprueban que un guardado que falla queda
+apuntado en el registro de errores de PHP, y para leerlo el servidor del ejercicio vigente tiene que
+escribirlo en un fichero. Se arranca así, y `TPVFOX_E2E_LOG` lleva la misma ruta:
+
+```bash
+php -d log_errors=1 -d error_log="$PWD/entorno/php-vigente.log" -S 127.0.0.1:8080 -t ..
+```
+
+Sin `TPVFOX_E2E_LOG`, esos dos recorridos se saltan solos y dicen por qué. El fichero no se
+versiona.
 
 El usuario de `.env` tiene que existir en las dos bases: **ningún guion lo inventa**,
 `entorno:preparar` lo da de alta con `group_id = 9` —administrador, sin permisos fila a fila— y crea
