@@ -168,6 +168,11 @@ $nombresCliente = [
     // Abrir un documento guardado para editarlo, cambiarlo y cancelar.
     'cancelar_albaran'         => [982, PREFIJO . 'Cancelar edicion albaran'],
     'cancelar_pedido'          => [983, PREFIJO . 'Cancelar edicion pedido'],
+    // Volver a guardar un documento con una linea que no se puede escribir, y guardar un albaran
+    // cuyo movimiento de existencias falla. El 986 lo ocupa el cliente de las pruebas de integracion.
+    'esperado_reguardado_alb'  => [984, PREFIJO . 'Esperado reguardado atomico albaran'],
+    'esperado_reguardado_ped'  => [985, PREFIJO . 'Esperado reguardado atomico pedido'],
+    'esperado_stock_falla'     => [987, PREFIJO . 'Esperado albaran con stock que falla'],
 ];
 
 $idsCliente = [];
@@ -261,6 +266,9 @@ $clientesEsperado = [
     'permiso_estado',
     'cancelar_albaran',
     'cancelar_pedido',
+    'esperado_reguardado_alb',
+    'esperado_reguardado_ped',
+    'esperado_stock_falla',
 ];
 foreach ($clientesEsperado as $clave) {
     borrarDocumentosDeCliente($db, (int) $idsCliente[$clave]);
@@ -268,7 +276,7 @@ foreach ($clientesEsperado as $clave) {
 }
 // Guardar sin sesion borra el albaran y deja vivo su borrador, que `borrarDocumentosDeCliente`
 // no alcanza: ese borra los de factura, no los de albaran.
-foreach (['sesion_albaran', 'sesion_estado', 'permiso_estado', 'cancelar_albaran'] as $clave) {
+foreach (['sesion_albaran', 'sesion_estado', 'permiso_estado', 'cancelar_albaran', 'esperado_reguardado_alb', 'esperado_stock_falla'] as $clave) {
     $db->query('DELETE FROM albcliltemporales WHERE idCliente = ' . (int) $idsCliente[$clave]);
 }
 echo 'Documentos de los recorridos de comportamiento esperado retirados (clientes 955-965)' . "\n";
@@ -1069,6 +1077,51 @@ $idAlbaranTraza = $siembra->ventaAlbaranCliente($idsArticulo[0], 1.0, '2026-01-1
 ]);
 $db->query("UPDATE albclit SET Numalbcli = id WHERE id = {$idAlbaranTraza}");
 alinearNumerosDeAlbaranes($db, (int) $idsCliente['traza_albaran']);
+
+// --- Comportamiento esperado: volver a guardar se completa entero o no cambia nada ---------
+//
+// Un albaran y un pedido ya guardados, con una linea. El recorrido los abre para editar, les
+// añade el articulo de la comilla y guarda: la linea nueva no se puede escribir, y para entonces
+// el documento anterior ya se ha borrado y su cabecera se ha reescrito con el importe nuevo.
+$idAlbaranReguardado = $siembra->ventaAlbaranCliente($idsArticulo[0], 1.0, '2026-01-15', [
+    'idTienda' => $siembra->tiendaPorDefecto(), 'estado' => 'Guardado', 'idCliente' => $idsCliente['esperado_reguardado_alb'],
+]);
+$db->query("UPDATE albclit SET Numalbcli = id WHERE id = {$idAlbaranReguardado}");
+alinearNumerosDeAlbaranes($db, (int) $idsCliente['esperado_reguardado_alb']);
+
+$idPedidoReguardado = $siembra->pedidoVentaCliente($idsArticulo[0], 1.0, '2026-01-15', [
+    'idTienda' => $siembra->tiendaPorDefecto(), 'estado' => 'Guardado', 'idCliente' => $idsCliente['esperado_reguardado_ped'],
+]);
+$db->query("UPDATE pedclit SET Numpedcli = id WHERE id = {$idPedidoReguardado}");
+$db->query("UPDATE pedclilinea SET Numpedcli = {$idPedidoReguardado} WHERE idpedcli = {$idPedidoReguardado}");
+$db->query("UPDATE pedcliIva SET Numpedcli = {$idPedidoReguardado} WHERE idpedcli = {$idPedidoReguardado}");
+echo "Documentos para volver a guardar sembrados: albaran {$idAlbaranReguardado}, pedido {$idPedidoReguardado}\n";
+
+// --- Comportamiento esperado: si el movimiento de existencias falla, no queda albaran ------
+//
+// Un articulo con el saldo en el limite inferior de la columna: restarle una unidad lo saca de
+// rango y la base rechaza la sentencia. Falla el movimiento de existencias, no el albaran, que
+// para entonces ya tiene escritas la cabecera y la linea. El saldo se repone en cada pasada.
+$ID_ARTICULO_SALDO_LIMITE = 14683;
+$nombreSaldoLimite = PREFIJO . 'Kiwi con el saldo en el limite';
+if ($db->query("SELECT 1 FROM articulos WHERE idArticulo = {$ID_ARTICULO_SALDO_LIMITE}")->num_rows === 0) {
+    $siembra->articulo($nombreSaldoLimite, [
+        'id'          => $ID_ARTICULO_SALDO_LIMITE,
+        'ultimoCoste' => 1.0,
+        'beneficio'   => 50,
+        'iva'         => 21,
+    ]);
+    echo "Articulo con el saldo en el limite sembrado: {$nombreSaldoLimite} (id {$ID_ARTICULO_SALDO_LIMITE})\n";
+}
+if ((int) $db->query("SELECT COUNT(*) AS n FROM articulosPrecios WHERE idArticulo = {$ID_ARTICULO_SALDO_LIMITE}")->fetch_assoc()['n'] === 0) {
+    $siembra->precioYTienda($ID_ARTICULO_SALDO_LIMITE, 1.82, 1.50);
+    $db->query(
+        'INSERT INTO articulosPrecios (idArticulo, pvpCiva, pvpSiva, idTienda) '
+        . "VALUES ({$ID_ARTICULO_SALDO_LIMITE}, 1.82, 1.50, 1)"
+    );
+}
+$db->query("DELETE FROM articulosStocks WHERE idArticulo = {$ID_ARTICULO_SALDO_LIMITE}");
+$siembra->existenciaRegistrada($ID_ARTICULO_SALDO_LIMITE, -99999999999.0);
 
 $idAlbaranDeLaFacturaTraza = $siembra->ventaAlbaranCliente($idsArticulo[0], 1.0, '2026-01-15', [
     'idTienda' => $siembra->tiendaPorDefecto(), 'estado' => 'Guardado', 'idCliente' => $idsCliente['traza_factura'],

@@ -23,6 +23,9 @@ final class AlbaranesVentasExistenciasIntegracionTest extends CasoIntegracion
 {
     protected bool $compartirConexionConElProducto = true;
 
+    /** El menor valor que admite la columna del saldo: restarle una unidad lo saca de rango. */
+    private const SALDO_MINIMO = -99999999999.0;
+
     private \AlbaranesVentas $albaranes;
     private Siembra $siembra;
 
@@ -144,41 +147,41 @@ final class AlbaranesVentasExistenciasIntegracionTest extends CasoIntegracion
      * Defecto: si el movimiento de existencias no se puede hacer, la linea ya esta escrita y
      * nadie lo deshace.
      *
-     * Sintoma: al guardar un albaran cuya tienda no existe en el catalogo, la linea se
-     * escribe y el movimiento de existencias falla a continuacion; el albaran queda con su
-     * mercancia y sin la salida de inventario que le corresponde. Causa raiz: el movimiento
-     * va despues del `INSERT` de la linea y no comparte transaccion con el; ademas su
-     * resultado no se recoge, de modo que el guardado no puede reaccionar aunque quisiera.
-     * La tienda inexistente es solo el instrumento —la ficha de existencias tiene clave ajena
-     * contra el catalogo de tiendas—; el defecto es la falta de atadura entre las dos
-     * escrituras, no la causa concreta del fallo. Correccion propuesta: comprobar el
-     * resultado del movimiento y abortar la operacion que lo pidio, dentro de una transaccion
-     * que abarque tambien el inventario. Evidencia: este test.
-     *
-     * @estado rojo
+     * Sintoma: al guardar un albaran de un articulo cuyo saldo esta en el limite inferior de la
+     * columna, la cabecera y la linea se escriben y el movimiento de existencias falla a
+     * continuacion; el albaran queda con su mercancia y sin la salida de inventario que le
+     * corresponde. Causa raiz: el movimiento va despues del `INSERT` de la linea y no comparte
+     * transaccion con el; ademas su resultado no se recoge, de modo que el guardado no puede
+     * reaccionar aunque quisiera. El saldo en el limite es solo el instrumento —restar una
+     * unidad lo saca de rango y la base rechaza la sentencia—; el defecto es la falta de
+     * atadura entre las dos escrituras, no la causa concreta del fallo. Correccion propuesta:
+     * que el guardado entero vaya en una transaccion que abarque tambien el inventario.
+     * Evidencia: este test.
      */
     public function test_defecto_siElMovimientoDeExistenciasFallaLaLineaYaQuedoEscrita(): void
     {
-        $idArticulo = $this->siembra->articulo('Producto de tienda inexistente');
-        $datos = $this->datosDeGuardado([$this->linea($idArticulo)]);
-        $datos['idTienda'] = 999999999;
+        $idArticulo = $this->siembra->articulo('Producto con el saldo en el limite');
+        $this->siembra->existenciaRegistrada($idArticulo, self::SALDO_MINIMO);
+        $ultimoPrevio = (int) $this->db->query('SELECT COALESCE(MAX(id), 0) m FROM albclit')->fetch_assoc()['m'];
 
         $lanzada = null;
         try {
-            $this->albaranes->AddAlbaranGuardado($datos, 0);
+            $this->albaranes->AddAlbaranGuardado($this->datosDeGuardado([$this->linea($idArticulo)]), 0);
         } catch (\mysqli_sql_exception $e) {
             $lanzada = $e;
         }
 
         self::assertNotNull($lanzada, 'El movimiento debe fallar para llegar al estado que este caso documenta.');
-        $idAlbaran = (int) $this->db
-            ->query('SELECT id FROM albclit ORDER BY id DESC LIMIT 1')
-            ->fetch_assoc()['id'];
+        self::assertStringContainsString('stockOn', $lanzada->getMessage(), 'Lo que falla es el movimiento de existencias, no el albaran.');
+
+        $escritos = $this->db->query("SELECT id FROM albclit WHERE id > $ultimoPrevio")->fetch_all(MYSQLI_ASSOC);
+        self::assertCount(1, $escritos, 'La cabecera del albaran quedo escrita.');
         self::assertCount(
             1,
-            $this->albaranes->ProductosAlbaran($idAlbaran),
+            $this->albaranes->ProductosAlbaran((int) $escritos[0]['id']),
             'La linea quedo escrita aunque su salida de inventario no llego a hacerse.'
         );
+        self::assertSame(self::SALDO_MINIMO, $this->existenciasDe($idArticulo), 'Y el saldo no se movio.');
     }
 
     // --- Anular lo que no se puede borrar entero ------------------------------

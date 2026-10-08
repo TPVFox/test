@@ -1,7 +1,7 @@
 <?php
 /**
- * Lee de la base quien consta como creador de un documento de venta, sus dos fechas y su
- * estado, y cuantos borradores quedan de ese cliente.
+ * Lee de la base quien consta como creador de un documento de venta, sus dos fechas, su estado
+ * y su importe, y cuantos borradores quedan de ese cliente.
  *
  * Existe para los recorridos de navegador: la pantalla no ensena ni el creador ni las fechas de
  * creacion y de modificacion, y lo que una peticion deja escrito sin respuesta visible —un
@@ -10,8 +10,8 @@
  *
  * Uso:  php support/leer-traza-de-documento.php <pedido|albaran|factura> <idCliente>
  *
- * Devuelve en JSON el ultimo documento de ese cliente con su numero de lineas —`null` si no le
- * queda ninguno—, el numero de borradores de ese tipo que tiene abiertos, y el identificador del
+ * Devuelve en JSON el ultimo documento de ese cliente con su numero de lineas y de tramos de su
+ * desglose de impuestos —`null` si no le queda ninguno—, el numero de borradores de ese tipo que tiene abiertos, y el identificador del
  * usuario con el que entran los recorridos, para poder decir si el creador es otro.
  */
 
@@ -22,9 +22,9 @@ require_once __DIR__ . '/bootstrap.php';
 use TPVFox\Test\Entorno;
 
 const TABLAS = [
-    'pedido'  => ['pedclit', 'idUsuario, estado, fechaCreacion, fechaModificacion', 'pedcliltemporales', 'pedclilinea', 'idpedcli'],
-    'albaran' => ['albclit', 'idUsuario, estado', 'albcliltemporales', 'albclilinea', 'idalbcli'],
-    'factura' => ['facclit', 'idUsuario, estado, fechaCreacion, fechaModificacion', 'faccliltemporales', 'facclilinea', 'idfaccli'],
+    'pedido'  => ['pedclit', 'idUsuario, estado, total, fechaCreacion, fechaModificacion', 'pedcliltemporales', 'pedclilinea', 'idpedcli', 'pedcliIva'],
+    'albaran' => ['albclit', 'idUsuario, estado, total', 'albcliltemporales', 'albclilinea', 'idalbcli', 'albcliIva'],
+    'factura' => ['facclit', 'idUsuario, estado, total, fechaCreacion, fechaModificacion', 'faccliltemporales', 'facclilinea', 'idfaccli', 'faccliIva'],
 ];
 
 $documento = $argv[1] ?? '';
@@ -48,11 +48,13 @@ $db = new mysqli(
     $base
 );
 
-[$tabla, $columnas, $tablaDeBorradores, $tablaDeLineas, $columnaDelDocumento] = TABLAS[$documento];
+[$tabla, $columnas, $tablaDeBorradores, $tablaDeLineas, $columnaDelDocumento, $tablaDeImpuestos] = TABLAS[$documento];
 $fila = $db->query("SELECT id, {$columnas} FROM {$tabla} WHERE idCliente = {$idCliente} ORDER BY id DESC LIMIT 1")
     ->fetch_assoc();
 if ($fila !== null) {
     $fila['lineas'] = (int) $db->query("SELECT COUNT(*) FROM {$tablaDeLineas} WHERE {$columnaDelDocumento} = {$fila['id']}")
+        ->fetch_row()[0];
+    $fila['desglose'] = (int) $db->query("SELECT COUNT(*) FROM {$tablaDeImpuestos} WHERE {$columnaDelDocumento} = {$fila['id']}")
         ->fetch_row()[0];
 }
 $borradores = (int) $db->query("SELECT COUNT(*) FROM {$tablaDeBorradores} WHERE idCliente = {$idCliente}")
