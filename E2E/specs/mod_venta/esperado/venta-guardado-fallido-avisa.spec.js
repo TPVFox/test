@@ -98,6 +98,7 @@ for (const caso of DOCUMENTOS) {
         page.locator('#tabla tr[id^="Row"]:not(#Row0)'),
         'El documento sigue en pantalla con su línea'
       ).toHaveCount(1);
+      await expect(page.locator('#Guardar'), 'Y se puede volver a guardar sin salir de la pantalla').toBeVisible();
 
       const despues = traza(caso.documento, caso.clienteDelAviso);
       expect(despues.documento, 'No queda documento escrito').toBeNull();

@@ -15,6 +15,8 @@
  * una unidad a un saldo en el límite lo saca de rango y la base rechaza la sentencia. El artículo
  * lo deja la siembra, que repone el saldo en cada pasada. Se teclea como cualquier otro.
  *
+ * El guardado fallido se reconoce por el aviso que la pantalla da al operador.
+ *
  * **Se conserva en rojo** hasta que el guardado vaya en una transacción.
  */
 
@@ -61,13 +63,13 @@ test.describe('Venta — el albarán y su salida de existencias van juntos', () 
     ]);
 
     await expect(page.locator('#Guardar')).toBeVisible({ timeout: 10000 });
-    const [respuesta] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes('albaran.php') && r.request().method() === 'POST'),
-      page.locator('#Guardar').click(),
-    ]);
+    await page.locator('#Guardar').click();
     await page.waitForLoadState('load');
 
-    expect(respuesta.status(), 'El guardado tiene que fallar para llegar al estado que este recorrido comprueba').toBe(500);
+    await expect(
+      page.locator('.alert-danger'),
+      'El guardado tiene que fallar, y la pantalla decirlo, para llegar al estado que este recorrido comprueba'
+    ).toContainText('No se ha podido guardar');
 
     const despues = traza();
     expect(despues.documento, 'El albarán no puede quedar escrito sin su salida de existencias').toBeNull();
