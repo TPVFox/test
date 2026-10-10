@@ -121,43 +121,39 @@ test.describe('Pedido — estados discrepantes', () => {
 
   /**
    * La discrepancia en el sentido contrario —un pedido enlazado a un albarán que sigue en
-   * `Guardado`— **no llega a avisar: revienta la pantalla**.
+   * `Guardado`— también avisa y deja el pedido en solo lectura.
    *
-   * `pedido.php` compone ese aviso invocando un método sobre una variable que en ese
-   * fichero no se define en ningún sitio. La rama nunca se había ejecutado porque hace
-   * falta llegar a la discrepancia para entrar en ella; al hacerlo, el servidor responde
-   * 500 con el cuerpo vacío y el pedido deja de ser abrible por completo — ni para ver, ni
-   * para editar.
-   *
-   * Y es el estado que T1 acaba de producir: el pedido que realmente se sirvió se queda
-   * `Guardado` y con su relación escrita, de modo que servir un pedido puede dejarlo
-   * inaccesible.
+   * Es el estado que T1 acaba de producir: el pedido que realmente se sirvió se queda
+   * `Guardado` y con su relación escrita. La pantalla lo abre, dice que su estado no concuerda
+   * con tener albarán y no deja editarlo. Antes no llegaba a avisar: componía el aviso con un
+   * objeto que la pantalla no tiene, respondía con error de servidor y el pedido no se podía
+   * abrir.
    */
-  test('T3 un pedido guardado con albarán no avisa: la pantalla responde 500', {
-    tag: ['@estado-actual', '@defecto', '@pedido', '@estados', '@critico'],
+  test('T3 un pedido guardado con albarán avisa y queda en solo lectura', {
+    tag: ['@estado-actual', '@pedido', '@estados'],
     annotation: [
-      { type: 'Qué ocurre hoy', description: 'Un pedido «Guardado» que ya tiene albarán no se puede abrir: la pantalla responde con error de servidor y el cuerpo vacío, ni para ver ni para editar.' },
-      { type: 'Qué debería ocurrir', description: 'Que se abra y avise de que su estado no concuerda con tener albarán.' },
-      { type: 'Por qué ocurre', description: 'La pantalla compone ese aviso llamando a un método sobre una variable que no está definida en ningún sitio del fichero.' },
-      { type: 'Cómo debería funcionar', description: 'Componer el aviso con el objeto del pedido, como ya hace el aviso del caso contrario.' },
+      { type: 'Comportamiento', description: 'Un pedido «Guardado» que ya tiene albarán se abre, avisa de que su estado debería ser «Procesado» y queda en solo lectura.' },
     ],
   }, async ({ page }) => {
     await iniciarSesion(page, 'modulos/mod_venta/pedidosListado.php');
 
     const pedidos = await pedidosDelCliente(page);
     const guardados = pedidos.filter((p) => p.estado.includes('Guardado'));
-    const respuestas = [];
+    const conAviso = [];
 
     for (const pedido of guardados) {
       const respuesta = await page.goto(`modulos/mod_venta/pedido.php?id=${pedido.id}&accion=editar`);
-      respuestas.push({ id: pedido.id, estado: respuesta.status() });
+      expect(respuesta.status(), `El pedido ${pedido.id} se abre`).toBe(200);
+      if ((await page.locator('body').innerText()).includes('cuando debería ser PROCESADO')) {
+        conAviso.push(pedido.id);
+      }
     }
 
-    const rotas = respuestas.filter((r) => r.estado >= 500);
-    expect(rotas.length, `Alguno de los pedidos guardados tiene albarán y su pantalla revienta: ${JSON.stringify(respuestas)}`).toBeGreaterThan(0);
+    expect(conAviso.length, 'Alguno de los pedidos guardados tiene albarán, y su pantalla lo dice').toBeGreaterThan(0);
 
-    // Y lo que llega es una página vacía, sin ningún mensaje que oriente al operador.
-    await page.goto(`modulos/mod_venta/pedido.php?id=${rotas[0].id}&accion=editar`);
-    await expect(page.locator('body')).toBeEmpty();
+    await page.goto(`modulos/mod_venta/pedido.php?id=${conAviso[0]}&accion=editar`);
+    await expect(page.locator('body')).toContainText('cuando debería ser PROCESADO');
+    await expect(page.locator('#Row0')).toBeHidden();
+    await expect(page.locator('#Guardar')).toBeHidden();
   });
 });
