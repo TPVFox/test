@@ -44,6 +44,7 @@ final class Vocabulario
         'incidencia' => 'una incidencia',
         'regularizacion' => 'una regularizacion de existencias',
         'historicoPrecio' => 'un historico de precios',
+        'tipoDeRelacion' => 'un tipo de relacion entre productos',
     ];
 
     /** Trozos del nombre de la clase que revelan sobre que documento trabaja el caso. */
