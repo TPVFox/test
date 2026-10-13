@@ -149,9 +149,13 @@ clon que mantener —y, sobre todo, no hay dos copias que puedan quedar en commi
 nadie se entere—:
 
 ```bash
+cd test                        # siempre desde test/: -t .. sirve la carpeta de arriba
 php -S 127.0.0.1:8080 -t ..    # ejercicio vigente   -> TPVFOX_URL
 php -S 127.0.0.1:8081 -t ..    # ejercicio anterior  -> TPVFOX_URL_ANTERIOR
 ```
+
+Cada servidor ocupa su terminal. Lanzados desde otra carpeta sirven otra cosa: si al lado hay otro
+TPVFox, abren ese, con su base de datos, y los usuarios de los recorridos no entran.
 
 Sin `TPVFOX_URL_ANTERIOR`, los tres recorridos que la necesitan **se saltan solos y dicen por qué**.
 No se quedan en rojo: un rojo ahí se confundiría con un defecto del producto, que es justo lo que

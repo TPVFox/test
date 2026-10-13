@@ -51,15 +51,23 @@ Los otros dos niveles necesitan base de datos y un usuario de la aplicación.
 
 Los recorridos de navegador necesitan TPVFox servido en dos puertos, uno por ejercicio. Es el
 mismo árbol de ficheros: `configuracion.php` elige la base por el puerto de la petición. Con el
-entorno ya preparado (`npm run entorno:preparar`), desde `test/` y cada orden en su terminal:
+entorno ya preparado (`npm run entorno:preparar`), cada servidor en su terminal:
 
 ```bash
 # Ejercicio vigente (TPVFOX_URL). Escribe los errores de PHP en un fichero, que dos recorridos leen.
+cd test
 php -d log_errors=1 -d error_log="$PWD/entorno/php-vigente.log" -S 127.0.0.1:8080 -t ..
+```
 
+```bash
 # Ejercicio anterior (TPVFOX_URL_ANTERIOR)
+cd test
 php -S 127.0.0.1:8081 -t ..
 ```
+
+**Hay que lanzarlos desde `test/`.** `-t ..` sirve la carpeta de arriba, que desde `test/` es la que
+contiene a `TPVFox/`. Desde cualquier otra carpeta se sirve otra cosa: si al lado hay otro TPVFox,
+abre ese, con su base de datos, y los usuarios de los recorridos no entran.
 
 Quedan en `http://localhost:8080/TPVFox/` y `http://localhost:8081/TPVFox/`, y se paran con
 `Ctrl+C`. Sin el segundo, los recorridos que lo necesitan se saltan solos y dicen por qué. El
