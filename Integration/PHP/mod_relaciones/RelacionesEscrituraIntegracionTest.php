@@ -439,6 +439,24 @@ final class RelacionesEscrituraIntegracionTest extends CasoIntegracion
         }
     }
 
+    public function test_T25_elNombreLaDescripcionYLaVidaUtilSeLeenComoSeGuardaronYSonOpcionales(): void
+    {
+        $elaboracion = $this->escenario->tipoDeRelacion('Elaboración', 'N:1');
+        $datos = ['nombre' => 'Hamburguesa mixta', 'descripcion' => 'Picar, mezclar y formar', 'diasViabilidad' => 3];
+
+        $conDatos = $this->relaciones()->alta($elaboracion, $datos, [$this->linea('cerdo picado', 'entrada', 0.4), $this->linea('hamburguesa', 'salida', 1)], $this->usuario);
+        $sinDatos = $this->relaciones()->alta($elaboracion, [], [$this->linea('vacuno picado', 'entrada', 1), $this->linea('criollo', 'salida', 1)], $this->usuario);
+
+        $guardada = $this->fila($conDatos['datos']['id']);
+        self::assertSame('Hamburguesa mixta', $guardada['nombre']);
+        self::assertSame('Picar, mezclar y formar', $guardada['descripcion']);
+        self::assertSame(3, (int) $guardada['diasViabilidad']);
+        $vacia = $this->fila($sinDatos['datos']['id']);
+        self::assertNull($vacia['nombre']);
+        self::assertNull($vacia['descripcion']);
+        self::assertNull($vacia['diasViabilidad']);
+    }
+
     /**
      * La clase del módulo con sus operaciones internas a la vista, y la posibilidad de
      * hacer fallar la consulta que se le indique. El código del producto no lleva nada
