@@ -408,16 +408,54 @@ final class RelacionesHistorialIntegracionTest extends CasoIntegracion
     }
 
     /** La clase del módulo, con la posibilidad de hacer fallar la escritura que activa el borrador. */
+    /**
+     * @comportamiento Si mientras se activa un cambio otra escritura ya sustituyó la versión
+     *   que regía, esta no sigue adelante: se deshace entera y lo dice. Sin esa comprobación
+     *   quedarían dos versiones rigiendo a la vez.
+     */
+    public function test_T26_siOtraEscrituraSeAdelantaLaActivacionSeDeshaceYLoDice(): void
+    {
+        $vigente = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $id = $this->borradorConCantidad($vigente['numRelacion'], 'pechuga', 1.5);
+        $relaciones = $this->relaciones();
+        $relaciones->otraEscrituraSeAdelanta = true;
+
+        $respuesta = $relaciones->activarBorrador($id, $this->usuario, 'Pesada');
+
+        self::assertStringContainsString('ya no es la vigente', $respuesta['error']['mensaje']);
+        self::assertSame('Borrador', $this->fila($id)['estado']);
+        self::assertSame('Activo', $this->fila($vigente['id'])['estado']);
+    }
+
+    public function test_T27_siOtraEscrituraSeAdelantaLaBajaSeDeshaceYLoDice(): void
+    {
+        $vigente = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $relaciones = $this->relaciones();
+        $relaciones->otraEscrituraSeAdelanta = true;
+
+        $respuesta = $relaciones->darDeBaja($vigente['numRelacion'], $this->usuario);
+
+        self::assertStringContainsString('ya no es la vigente', $respuesta['error']['mensaje']);
+        self::assertSame('Activo', $this->fila($vigente['id'])['estado']);
+        self::assertSame(1, (int) $this->db->query("SELECT COUNT(*) AS n FROM relaciones WHERE numRelacion = {$vigente['numRelacion']}")->fetch_assoc()['n']);
+    }
+
     private function relaciones(): object
     {
         return new class extends \Relaciones {
             public bool $fallarAlEscribirElBorrador = false;
             public bool $fallarAlInsertarLaBaja = false;
+            /** Otra escritura sustituye la versión que rige justo antes de que lo haga esta. */
+            public bool $otraEscrituraSeAdelanta = false;
 
             protected function consultaPreparada($sql, $valores = array())
             {
                 if ($this->fallarAlEscribirElBorrador && str_contains($sql, "estado = 'Activo' WHERE id = ? AND estado = 'Borrador'")) {
                     return ['error' => $this->montarAdvertencia('danger', 'Fallo provocado por la prueba'), 'consulta' => $sql];
+                }
+
+                if ($this->otraEscrituraSeAdelanta && str_contains($sql, "SET estado = 'Sustituido'")) {
+                    parent::consultaPreparada("UPDATE relaciones SET estado = 'Sustituido' WHERE id = ?", $valores);
                 }
 
                 if ($this->fallarAlInsertarLaBaja && str_contains($sql, "'baja'")) {
