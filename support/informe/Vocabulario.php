@@ -45,6 +45,7 @@ final class Vocabulario
         'regularizacion' => 'una regularizacion de existencias',
         'historicoPrecio' => 'un historico de precios',
         'tipoDeRelacion' => 'un tipo de relacion entre productos',
+        'relacionVigente' => 'una relacion entre productos que ya rige',
     ];
 
     /** Trozos del nombre de la clase que revelan sobre que documento trabaja el caso. */
