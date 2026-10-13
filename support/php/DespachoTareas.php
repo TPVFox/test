@@ -47,9 +47,14 @@ final class DespachoTareas
      * es la propia evidencia de ese defecto — forzar aqui un tipo `array` la enmascararia
      * con un `TypeError` ajeno.
      *
+     * `$variables` son las que `inicial.php` dejaria definidas y el caso necesita, como los
+     * permisos del usuario de la sesion (`ClasePermisos`): se declaran con su nombre en el
+     * ambito en que corre `tareas.php`.
+     *
      * @param array<string,mixed> $post
+     * @param array<string,mixed> $variables
      */
-    public static function invocar(string $rutaAbsolutaTareasPhp, \mysqli $conexion, array $post): mixed
+    public static function invocar(string $rutaAbsolutaTareasPhp, \mysqli $conexion, array $post, array $variables = []): mixed
     {
         // require dentro de un metodo ejecuta el fichero en el ambito local del metodo, no
         // en el global: sin declararlas aqui, $RutaServidor/$HostNombre/$URLCom (fijadas
@@ -63,6 +68,7 @@ final class DespachoTareas
         require RUTA_TPVFOX . '/configuracion.php';
 
         $_POST = $post;
+        extract($variables);
 
         $cwdOriginal = getcwd();
         chdir(sys_get_temp_dir());

@@ -37,7 +37,7 @@ git clone <url-de-TPVFox> TPVFox     # repositorio hermano, al lado de test/
 cd test && composer install && npm install
 npx playwright install               # añade --with-deps si faltan librerías del sistema
 
-npm run test:php                     # 174 casos, 1 en rojo — no necesitan base de datos
+npm run test:php                     # 161 casos, 1 en rojo — no necesitan base de datos
 npm run test:js                      # 22 casos, 2 en rojo
 ```
 
@@ -46,6 +46,24 @@ hace. La suite no está verde a propósito, y cada rojo está documentado.
 
 Los otros dos niveles necesitan base de datos y un usuario de la aplicación.
 **→ [docs/instalacion.md](docs/instalacion.md)**
+
+### Levantar la aplicación para los recorridos
+
+Los recorridos de navegador necesitan TPVFox servido en dos puertos, uno por ejercicio. Es el
+mismo árbol de ficheros: `configuracion.php` elige la base por el puerto de la petición. Con el
+entorno ya preparado (`npm run entorno:preparar`), desde `test/` y cada orden en su terminal:
+
+```bash
+# Ejercicio vigente (TPVFOX_URL). Escribe los errores de PHP en un fichero, que dos recorridos leen.
+php -d log_errors=1 -d error_log="$PWD/entorno/php-vigente.log" -S 127.0.0.1:8080 -t ..
+
+# Ejercicio anterior (TPVFOX_URL_ANTERIOR)
+php -S 127.0.0.1:8081 -t ..
+```
+
+Quedan en `http://localhost:8080/TPVFox/` y `http://localhost:8081/TPVFox/`, y se paran con
+`Ctrl+C`. Sin el segundo, los recorridos que lo necesitan se saltan solos y dicen por qué. El
+detalle, en la sección 6 de [docs/instalacion.md](docs/instalacion.md).
 
 ## Órdenes
 

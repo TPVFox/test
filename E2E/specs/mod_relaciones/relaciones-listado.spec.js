@@ -3,9 +3,7 @@
  * la búsqueda, el filtro por tipo, el orden y las páginas.
  *
  * Parte de la siembra de `support/sembrar-e2e-relaciones.php`: cuarenta y cinco relaciones en
- * dos páginas, una relación dada de baja y otra que solo tiene un borrador. Los últimos
- * recorridos cambian el estado de las tablas —sin relaciones, sin tipos, sin instalar— y lo
- * devuelven al terminar, por eso el fichero corre en serie.
+ * dos páginas, una relación dada de baja y otra que solo tiene un borrador.
  */
 
 const { test, expect } = require('@playwright/test');
@@ -16,17 +14,19 @@ const { iniciarSesion } = require('../../fixtures/autenticacion');
 const VISTA = 'modulos/mod_relaciones/ListaRelaciones.php';
 const FILAS = '#tablaRelaciones tbody tr';
 
-function dejarLasTablas(estado) {
-  execFileSync('php', [path.resolve(__dirname, '../../../support/sembrar-e2e-relaciones.php'), estado], { stdio: 'pipe' });
+const URL_ANTERIOR = process.env.TPVFOX_URL_ANTERIOR;
+
+function conBarraFinal(url) {
+  return url.endsWith('/') ? url : url + '/';
+}
+
+function dejarLasTablas(estado, ejercicio) {
+  execFileSync('php', [path.resolve(__dirname, '../../../support/sembrar-e2e-relaciones.php'), estado, ejercicio], { stdio: 'pipe' });
 }
 
 test.describe.configure({ mode: 'serial' });
 
 test.describe('Productos relacionados — listado', () => {
-  test.afterAll(() => {
-    dejarLasTablas('completo');
-  });
-
   test('T1 cada relación ocupa una fila con su número, nombre, tipo, versión, fecha y productos', {
     tag: ['@estado-actual', '@relaciones', '@listado'],
     annotation: [
@@ -208,15 +208,32 @@ test.describe('Productos relacionados — listado', () => {
     await expect(page.locator(FILAS)).toHaveCount(2);
     await expect(page.locator(FILAS).last()).toContainText('Lote 42');
   });
+});
+
+// Los tres estados sin datos se piden sobre el despliegue del ejercicio anterior: es el mismo
+// código con otra base, que ningún otro recorrido usa para las relaciones. Sobre el vigente,
+// vaciar las tablas se las quitaría a los recorridos que corren a la vez.
+test.describe('Productos relacionados — listado sin datos', () => {
+  const vistaEnElAnterior = () => new URL(VISTA, conBarraFinal(URL_ANTERIOR)).toString();
+
+  test.beforeEach(() => {
+    test.skip(!URL_ANTERIOR, 'El entorno no declara TPVFOX_URL_ANTERIOR.');
+  });
+
+  test.afterAll(() => {
+    if (URL_ANTERIOR) {
+      dejarLasTablas('sinTipos', 'anterior');
+    }
+  });
 
   test('T10 sin relaciones el listado sale sin filas y lo dice', {
     tag: ['@estado-actual', '@relaciones', '@listado', '@instalacion'],
     annotation: [
-      { type: 'Comportamiento', description: 'Es el estado en que el módulo llega a una tienda: con sus tablas vacías se presenta un listado sin filas y un aviso, no un error.' },
+      { type: 'Comportamiento', description: 'Con tipos creados y ninguna relación se presenta un listado sin filas y un aviso, no un error.' },
     ],
   }, async ({ page }) => {
-    dejarLasTablas('sinRelaciones');
-    await iniciarSesion(page, VISTA);
+    dejarLasTablas('sinRelaciones', 'anterior');
+    await iniciarSesion(page, vistaEnElAnterior());
 
     await expect(page.locator(FILAS)).toHaveCount(0);
     await expect(page.locator('.alert-info')).toContainText('No hay ninguna relación entre productos');
@@ -224,9 +241,12 @@ test.describe('Productos relacionados — listado', () => {
 
   test('T11 sin ningún tipo de relación creado, el listado lo indica', {
     tag: ['@estado-actual', '@relaciones', '@listado', '@instalacion'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Es el estado en que el módulo llega a una tienda: sus tablas vacías. El listado dice que faltan los tipos y dónde se crean.' },
+    ],
   }, async ({ page }) => {
-    dejarLasTablas('sinTipos');
-    await iniciarSesion(page, VISTA);
+    dejarLasTablas('sinTipos', 'anterior');
+    await iniciarSesion(page, vistaEnElAnterior());
 
     await expect(page.locator(FILAS)).toHaveCount(0);
     await expect(page.locator('.alert-info')).toContainText('Todavía no hay ningún tipo de relación');
@@ -238,9 +258,9 @@ test.describe('Productos relacionados — listado', () => {
       { type: 'Comportamiento', description: 'El código puede llegar a una instalación antes que sus tablas. La vista lo detecta y lo dice, en lugar de terminar en un error de la base.' },
     ],
   }, async ({ page }) => {
-    dejarLasTablas('sinEstructura');
-    await iniciarSesion(page, VISTA);
-    const respuesta = await page.goto(VISTA);
+    dejarLasTablas('sinEstructura', 'anterior');
+    await iniciarSesion(page, vistaEnElAnterior());
+    const respuesta = await page.goto(vistaEnElAnterior());
 
     expect(respuesta.status()).toBe(200);
     await expect(page.locator('.alert-warning')).toContainText('no están instaladas');

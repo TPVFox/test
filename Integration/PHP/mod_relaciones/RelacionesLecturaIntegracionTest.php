@@ -357,6 +357,153 @@ final class RelacionesLecturaIntegracionTest extends CasoIntegracion
         self::assertSame('danger', $relaciones->comprobarVersiones()['error']['tipo']);
     }
 
+    public function test_T25_elListadoTraeUnaFilaPorRelacionConSuNumeroTipoVersionFechaYProductos(): void
+    {
+        $pollo = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo(), ['nombre' => 'Pollo entero', 'fecha' => '2026-03-01 09:00:00']);
+        $this->escenario->relacionVigente($this->elaboracion, $this->lineasDeLaHamburguesa());
+
+        $listado = $this->relaciones()->listado('', '', '', 1, 40)['datos'];
+
+        self::assertSame(2, $listado['total']);
+        self::assertSame(1, $listado['pagina']);
+        self::assertSame(
+            ['numRelacion' => $pollo['numRelacion'], 'relacion' => 'Pollo entero', 'tipo' => 'Despiece', 'version' => '1.0', 'fecha' => '2026-03-01 09:00:00', 'numProductos' => 3],
+            $listado['filas'][0]
+        );
+    }
+
+    /**
+     * @comportamiento Una relación sin nombre se presenta con el del producto que está solo
+     *   en su lado: el que se despieza, o el que se elabora.
+     */
+    public function test_T26_unaRelacionSinNombreSeLlamaComoElProductoQueEstaSoloEnSuLado(): void
+    {
+        $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $this->escenario->relacionVigente($this->elaboracion, $this->lineasDeLaHamburguesa(), ['nombre' => '']);
+
+        $filas = $this->relaciones()->listado('', '', '', 1, 40)['datos']['filas'];
+
+        self::assertSame(['Prueba de relaciones: pollo', 'Prueba de relaciones: hamburguesa'], array_column($filas, 'relacion'));
+    }
+
+    /**
+     * @comportamiento Buscar un producto devuelve las relaciones en las que está, entre o
+     *   salga, aunque no figure en su nombre. Es como se sabe desde el listado qué
+     *   relaciones tiene un producto que solo es ingrediente.
+     */
+    public function test_T27_laBusquedaCasaConElNombreDeLaRelacionOConElDeCualquieraDeSusProductos(): void
+    {
+        $pollo = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo(), ['nombre' => 'Despiece de ave']);
+        $hamburguesa = $this->escenario->relacionVigente($this->elaboracion, $this->lineasDeLaHamburguesa(), ['nombre' => 'Mixta']);
+        $numeros = fn(string $buscar) => array_column($this->relaciones()->listado($buscar, '', '', 1, 40)['datos']['filas'], 'numRelacion');
+
+        self::assertSame([$pollo['numRelacion']], $numeros('DESPIECE'));
+        self::assertSame([$hamburguesa['numRelacion']], $numeros('cerdo picado'));
+        self::assertSame([$hamburguesa['numRelacion']], $numeros('mixta vacuno'));
+        self::assertSame([$pollo['numRelacion'], $hamburguesa['numRelacion']], $numeros('relaciones'));
+        self::assertSame([], $numeros('pechuga ternera'));
+    }
+
+    public function test_T28_elFiltroPorTipoYLaBusquedaAcotanALaVez(): void
+    {
+        $pollo = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $this->escenario->relacionVigente($this->elaboracion, $this->lineasDeLaHamburguesa());
+        $listado = fn(string $buscar, string $tipo) => $this->relaciones()->listado($buscar, $tipo, '', 1, 40)['datos'];
+
+        self::assertSame([$pollo['numRelacion']], array_column($listado('', 'Despiece')['filas'], 'numRelacion'));
+        self::assertSame(1, $listado('relaciones', 'Elaboración')['total']);
+        self::assertSame(0, $listado('pechuga', 'Elaboración')['total']);
+        self::assertSame(0, $listado('', 'Un tipo que no existe')['total']);
+    }
+
+    public function test_T29_seOrdenaPorNumeroDeRelacionOPorFechaEnLosDosSentidos(): void
+    {
+        $uno = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo(), ['fecha' => '2026-03-01 09:00:00'])['numRelacion'];
+        $dos = $this->escenario->relacionVigente($this->elaboracion, $this->lineasDeLaHamburguesa(), ['fecha' => '2026-01-10 09:00:00'])['numRelacion'];
+        $numeros = fn(string $orden) => array_column($this->relaciones()->listado('', '', $orden, 1, 40)['datos']['filas'], 'numRelacion');
+
+        self::assertSame([$uno, $dos], $numeros(''));
+        self::assertSame([$dos, $uno], $numeros('numRelacion:DESC'));
+        self::assertSame([$dos, $uno], $numeros('fecha:ASC'));
+        self::assertSame([$uno, $dos], $numeros('fecha:DESC'));
+        self::assertSame([$uno, $dos], $numeros('r.id; DROP TABLE relaciones'));
+    }
+
+    /**
+     * @comportamiento De la base solo se leen las filas de la página pedida, y el total es
+     *   el de todas las que casan. Entre todas las páginas están todas, una sola vez; una
+     *   página que ya no existe devuelve la última que hay.
+     */
+    public function test_T30_cadaPaginaTraeSoloSusFilasYEntreTodasEstanTodasUnaVez(): void
+    {
+        $sembradas = [];
+        foreach (['pollo', 'pechuga', 'alas', 'criollo', 'hamburguesa'] as $nombre) {
+            $sembradas[] = $this->escenario->relacionVigente($this->despiece, [$this->linea($nombre, 'entrada'), $this->linea('cerdo picado', 'salida')])['numRelacion'];
+        }
+        $relaciones = $this->relaciones();
+
+        $primera = $relaciones->listado('', '', '', 1, 2)['datos'];
+        $tercera = $relaciones->listado('', '', '', 3, 2)['datos'];
+        $fueraDeRango = $relaciones->listado('', '', '', 9999, 2)['datos'];
+        $vistas = array_merge(array_column($primera['filas'], 'numRelacion'), array_column($relaciones->listado('', '', '', 2, 2)['datos']['filas'], 'numRelacion'), array_column($tercera['filas'], 'numRelacion'));
+
+        self::assertSame(5, $primera['total']);
+        self::assertCount(2, $primera['filas']);
+        self::assertCount(1, $tercera['filas']);
+        self::assertSame($sembradas, $vistas);
+        self::assertSame([3, $tercera['filas']], [$fueraDeRango['pagina'], $fueraDeRango['filas']]);
+        self::assertSame(1, $relaciones->listado('', '', '', -4, 2)['datos']['pagina']);
+    }
+
+    public function test_T31_enElListadoNoCuentanLaRelacionDeBajaElBorradorNiElProductoQuitado(): void
+    {
+        $pollo = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $this->relaciones()->modificar($pollo['numRelacion'], [], [$this->linea('pollo', 'entrada'), $this->linea('pechuga', 'salida')], $this->usuario);
+        $retirada = $this->escenario->relacionVigente($this->elaboracion, $this->lineasDeLaHamburguesa());
+        $this->relaciones()->darDeBaja($retirada['numRelacion'], $this->usuario);
+        $this->relaciones()->crearBorrador($this->despiece, [], [$this->linea('criollo', 'entrada')], $this->usuario);
+
+        $todas = $this->relaciones()->listado('', '', '', 1, 40)['datos'];
+
+        self::assertSame(1, $todas['total']);
+        self::assertSame(['2.0', 2], [$todas['filas'][0]['version'], $todas['filas'][0]['numProductos']]);
+        self::assertSame(0, $this->relaciones()->listado('alas', '', '', 1, 40)['datos']['total']);
+        self::assertSame(0, $this->relaciones()->listado('hamburguesa', '', '', 1, 40)['datos']['total']);
+        self::assertSame(0, $this->relaciones()->listado('criollo', '', '', 1, 40)['datos']['total']);
+    }
+
+    /**
+     * @comportamiento Lo buscado es texto: un porcentaje o un guion bajo no hacen de comodín,
+     *   y una comilla no cierra la consulta.
+     */
+    public function test_T32_losComodinesYLasComillasDeLoBuscadoSeBuscanComoTexto(): void
+    {
+        $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo(), ['nombre' => 'Pollo entero']);
+        $total = fn(string $buscar, string $tipo = '') => $this->relaciones()->listado($buscar, $tipo, '', 1, 40)['datos']['total'];
+
+        self::assertSame(0, $total('%'));
+        self::assertSame(0, $total('P_llo'));
+        self::assertSame(0, $total("x' OR '1'='1"));
+        self::assertSame(0, $total('', "Despiece' OR '1'='1"));
+        self::assertSame(1, $total('Pollo'));
+    }
+
+    public function test_T33_sinRelacionesElListadoEstaVacioEnSuPrimeraPaginaYNoEsUnError(): void
+    {
+        $respuesta = $this->relaciones()->listado('', '', '', 1, 40);
+
+        self::assertArrayNotHasKey('error', $respuesta);
+        self::assertSame(['total' => 0, 'pagina' => 1, 'filas' => []], $respuesta['datos']);
+    }
+
+    public function test_T34_siLaBaseFallaElListadoDevuelveElFalloYNoLoLanza(): void
+    {
+        $relaciones = $this->relaciones();
+        $relaciones->fallar = true;
+
+        self::assertSame('danger', $relaciones->listado('', '', '', 1, 40)['error']['tipo']);
+    }
+
     /** La clase del módulo, con la posibilidad de hacer fallar sus consultas desde la prueba. */
     private function relaciones(): object
     {

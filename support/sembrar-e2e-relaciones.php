@@ -6,12 +6,16 @@
  * `[E2E relaciones]` y se reutilizan entre pasadas; las relaciones se borran y se vuelven a
  * sembrar cada vez, porque los casos de integracion del modulo vacian esas tablas.
  *
- * Uso: php support/sembrar-e2e-relaciones.php [estado]
+ * Uso: php support/sembrar-e2e-relaciones.php [estado] [vigente|anterior]
  *
  *   completo        tres tipos y cuarenta y cinco relaciones, en dos paginas (por defecto)
  *   sinRelaciones   los tres tipos y ninguna relacion
  *   sinTipos        las tres tablas vacias, como llegan tras instalar
  *   sinEstructura   las tres tablas retiradas de la base
+ *
+ * Los tres ultimos estados dejan el listado sin datos, y los recorridos que los necesitan
+ * los piden sobre la base del ejercicio anterior: asi no se los quitan a los demas
+ * recorridos, que corren a la vez contra la del vigente.
  */
 
 declare(strict_types=1);
@@ -30,9 +34,10 @@ if (!in_array($estado, ['completo', 'sinRelaciones', 'sinTipos', 'sinEstructura'
     exit(1);
 }
 
-$base = Entorno::valor('TPVFOX_TEST_DB_VIGENTE');
+$variable = ($argv[2] ?? 'vigente') === 'anterior' ? 'TPVFOX_TEST_DB_ANTERIOR' : 'TPVFOX_TEST_DB_VIGENTE';
+$base = Entorno::valor($variable);
 if ($base === '' || strpos($base, 'tpvfox_test') !== 0) {
-    fwrite(STDERR, "Falta TPVFOX_TEST_DB_VIGENTE o no empieza por «tpvfox_test»: no se toca.\n");
+    fwrite(STDERR, "Falta $variable o no empieza por «tpvfox_test»: no se toca.\n");
     exit(1);
 }
 
