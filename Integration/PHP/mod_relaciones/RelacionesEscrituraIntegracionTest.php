@@ -135,6 +135,11 @@ final class RelacionesEscrituraIntegracionTest extends CasoIntegracion
         self::assertSame(0, $this->filasDePrueba());
     }
 
+    /**
+     * @comportamiento Una operación que se ejecuta dentro de otra no confirma lo suyo por su cuenta:
+     *   si la de fuera falla después, lo que hizo la de dentro tampoco queda. Es lo que permite que un
+     *   alta directa sea «preparar» y «poner a regir» sin que pueda quedar a medias.
+     */
     public function test_T8_unaOperacionDentroDeOtraNoConfirmaPorSuCuenta(): void
     {
         $modelo = $this->modelo();
@@ -166,6 +171,11 @@ final class RelacionesEscrituraIntegracionTest extends CasoIntegracion
         self::assertSame(2, $this->filasDePrueba());
     }
 
+    /**
+     * @comportamiento Si falla una operación de dentro y la de fuera no mira su respuesta y contesta
+     *   que todo fue bien, la escritura se deshace igual y la respuesta final es un fallo. Sin esto se
+     *   confirmaría una escritura con un paso sin hacer.
+     */
     public function test_T10_elFalloDeLaOperacionDeDentroDeshaceTodoAunqueLaDeFueraRespondaBien(): void
     {
         $modelo = $this->modelo();
@@ -200,10 +210,13 @@ final class RelacionesEscrituraIntegracionTest extends CasoIntegracion
         self::assertSame(1, $confirmadas);
     }
 
+    /**
+     * @comportamiento El fallo de la base se devuelve como aviso también en un servidor que no lanza
+     *   excepciones. TPVFox no fija cómo avisa la base de un fallo: según el servidor llega como
+     *   excepción o como un «falso», y los dos acaban en la misma respuesta.
+     */
     public function test_T12_elFalloSeDevuelveIgualCuandoLaInstalacionNoLanzaLosErroresDeLaBase(): void
     {
-        // TPVFox no fija cómo avisa la base de un fallo: depende del servidor. En uno que no
-        // lanza excepciones, el fallo llega como un «falso» que hay que saber leer.
         $modelo = $this->modelo();
         mysqli_report(MYSQLI_REPORT_OFF);
 

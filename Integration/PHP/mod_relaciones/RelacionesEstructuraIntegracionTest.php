@@ -61,11 +61,13 @@ final class RelacionesEstructuraIntegracionTest extends CasoIntegracion
         self::assertSame('otraVersion', $this->estado());
     }
 
+    /**
+     * @comportamiento Si las tablas tienen una columna que este código no conoce —un fichero de
+     *   instalación posterior aplicado sin actualizar el código—, el módulo lo declara y no opera:
+     *   hacerlo sería leer y escribir a ciegas.
+     */
     public function test_T4_conUnaColumnaDeMasLaEstructuraEsDeOtraVersion(): void
     {
-        // Un fichero de instalación posterior aplicado sin actualizar el código: las
-        // tablas tienen algo que este código no conoce, y operar sobre ellas sería leer y
-        // escribir a ciegas.
         $this->aplicarElFicheroDeInstalacion();
         $this->db->query('ALTER TABLE relacionesTipos ADD COLUMN momento VARCHAR(10) NULL');
 
@@ -105,20 +107,25 @@ final class RelacionesEstructuraIntegracionTest extends CasoIntegracion
         self::assertSame(1, $filas);
     }
 
+    /**
+     * @comportamiento La base rechaza una línea que apunte a un artículo o a una relación que no
+     *   existen. Es la segunda barrera: aunque el código que escribe se equivocase, no queda una
+     *   línea que apunte a nada.
+     */
     public function test_T8_lasLineasNoAdmitenUnArticuloNiUnaRelacionQueNoExistan(): void
     {
-        // Las dos claves ajenas son la segunda barrera: aunque el código que escribe se
-        // equivocase, la base no guarda una línea que apunte a nada.
         $this->aplicarElFicheroDeInstalacion();
 
         $this->expectException(\mysqli_sql_exception::class);
         $this->db->query("INSERT INTO relacionesLineas (idRelacion, idArticulo, sentido) VALUES (999999, 999999, 'entrada')");
     }
 
+    /**
+     * @comportamiento La base no deja borrar al usuario que puso a regir una versión. El historial
+     *   dice quién lo hizo, y si ese usuario se pudiera borrar quedaría una versión a nombre de nadie.
+     */
     public function test_T10_noSePuedeBorrarElUsuarioQueTieneUnaVersionASuNombre(): void
     {
-        // El historial dice quién puso a regir cada versión. Si ese usuario se pudiera
-        // borrar, quedaría una versión a nombre de nadie.
         $this->aplicarElFicheroDeInstalacion();
         $this->db->query("INSERT INTO usuarios (username, password, fecha, group_id, estado, nombre) VALUES ('autor_de_relacion', MD5('x'), CURDATE(), 1, 'activo', 'Autor')");
         $idUsuario = (int) $this->db->insert_id;
@@ -138,10 +145,13 @@ final class RelacionesEstructuraIntegracionTest extends CasoIntegracion
         }
     }
 
+    /**
+     * @comportamiento Si no se puede leer la base, la comprobación de la instalación devuelve un
+     *   aviso en vez de lanzar el fallo. Quien pregunta es una pantalla: necesita algo que pueda
+     *   enseñar, no una excepción que la deje en blanco.
+     */
     public function test_T9_siLaBaseNoSePuedeLeerElFalloSeDevuelveYNoSeLanza(): void
     {
-        // Quien pregunta por la instalación es una pantalla: tiene que recibir un aviso que
-        // pueda enseñar, no una excepción que la deje en blanco.
         $cerrada = self::conectar($this->ejercicio);
         $cerrada->close();
         $anterior = \ModeloP::usarConexion($cerrada);
