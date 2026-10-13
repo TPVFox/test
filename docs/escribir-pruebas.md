@@ -95,7 +95,7 @@ dentro del comentario del caso.
 | | `esperado` | Afirma lo que debería hacer y hoy no hace: **está en rojo a propósito** |
 | | `control` | Acompaña a un `esperado`: comprueba lo que ya funciona y debe seguir funcionando tras la corrección |
 | Documento | `pedido`, `albaran`, `factura` | Lo que el caso recorre |
-| Área | `entrada`, `teclado`, `raton`, `listado`, `busqueda`, `borrador`, `adjuntos`, `guardado`, `estados`, `numeracion`, `existencias`, `importes`, `impreso`, `vencimiento`, `validacion` | La parte del flujo |
+| Área | `entrada`, `teclado`, `raton`, `listado`, `busqueda`, `borrador`, `adjuntos`, `guardado`, `estados`, `numeracion`, `existencias`, `importes`, `impreso`, `vencimiento`, `validacion`, `instalacion`, `historial`, `permisos` | La parte del flujo |
 | Gravedad | `critico`, `alto`, `medio`, `bajo` | Solo en `defecto` y `esperado` |
 | Camino | `directo` · `forzado` | Solo en `esperado`: si el defecto se alcanza navegando con normalidad o hay que intervenir la petición |
 

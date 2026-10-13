@@ -68,6 +68,13 @@ final class ConexionObservada extends mysqli
             return parent::prepare($query);
         }
 
+        // La sentencia que prepara el producto se anota cuando se ejecuta, con lo que hizo:
+        // anotarla tambien aqui la contaria dos veces. La de la siembra se anota al prepararla,
+        // como siempre.
+        if ($this->fase($this->emisor()['fichero']) === 'ejercicio') {
+            return new SentenciaObservada($this, $query);
+        }
+
         $inicio = hrtime(true);
 
         try {
@@ -81,6 +88,40 @@ final class ConexionObservada extends mysqli
         $this->anotar('prepare', $query, $inicio, null, null);
 
         return $sentencia;
+    }
+
+    /**
+     * Anota la ejecucion de una sentencia preparada del producto.
+     *
+     * Se presenta como una consulta mas: para quien lee el informe lo que importa es que
+     * hizo el dato, no por que camino llego a la base.
+     */
+    public function anotarEjecucion(string $sql, int $inicio, ?int $afectadas, ?int $idInsertado, ?int $devueltas, ?string $error): void
+    {
+        $emisor = $this->emisor();
+
+        $paso = [
+            'tipo' => 'query',
+            'sql' => $this->recortar($sql),
+            'recortado' => strlen($sql) > self::LIMITE_SQL,
+            'fase' => $this->fase($emisor['fichero']),
+            'fichero' => $emisor['fichero'],
+            'linea' => $emisor['linea'],
+            'funcion' => $emisor['funcion'],
+            'origen' => $emisor['origen'],
+            'ms' => round((hrtime(true) - $inicio) / 1_000_000, 3),
+        ];
+
+        if ($error !== null) {
+            $paso['error'] = $error;
+        } elseif ($devueltas !== null) {
+            $paso['filasDevueltas'] = $devueltas;
+        } else {
+            $paso['filasAfectadas'] = $afectadas;
+            $paso['idInsertado'] = $idInsertado;
+        }
+
+        Bitacora::anotar($paso);
     }
 
     /**
@@ -147,7 +188,7 @@ final class ConexionObservada extends mysqli
 
         foreach ($pila as $indice => $marco) {
             $suyo = $marco['file'] ?? '';
-            if ($suyo === '' || $suyo === __FILE__) {
+            if ($suyo === '' || $suyo === __FILE__ || $suyo === __DIR__ . '/SentenciaObservada.php') {
                 continue;
             }
 

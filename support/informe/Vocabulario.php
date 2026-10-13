@@ -70,6 +70,13 @@ final class Vocabulario
         'Atomicidad' => 'guardado',
         'Despacho' => 'despacho',
         'Alcance' => 'busqueda',
+        'Escritura' => 'guardado',
+        'Borrador' => 'borrador',
+        'Formas' => 'validacion',
+        'Estructura' => 'instalacion',
+        'Historial' => 'historial',
+        'Cambio' => 'historial',
+        'Acceso' => 'permisos',
     ];
 
     /**
@@ -130,6 +137,9 @@ final class Vocabulario
 
         if (str_contains($fichero, '/mod_venta/')) {
             $etiquetas[] = 'venta';
+        }
+        if (str_contains($fichero, '/mod_relaciones/')) {
+            $etiquetas[] = 'relaciones';
         }
         if (str_contains($fichero, '/mod_reorganizacion/')) {
             $etiquetas[] = 'reorganizacion';
