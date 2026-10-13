@@ -249,7 +249,7 @@ final class RelacionesEscrituraIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * La clase del módulo con sus dos operaciones internas a la vista, y la posibilidad de
+     * La clase del módulo con sus operaciones internas a la vista, y la posibilidad de
      * hacer fallar la consulta que se le indique. El código del producto no lleva nada
      * pensado para pruebas: el fallo se provoca desde aquí.
      */
@@ -264,9 +264,20 @@ final class RelacionesEscrituraIntegracionTest extends CasoIntegracion
                 return $this->consultaPreparada($sql, $valores);
             }
 
+            /**
+             * Una escritura de varios pasos, escrita como la escribe una operación del
+             * módulo: iniciar, ejecutar los pasos recogiendo cualquier fallo, y terminar.
+             */
             public function transaccion(callable $pasos): array
             {
-                return $this->enTransaccion($pasos);
+                $this->iniciarEscritura();
+                try {
+                    $respuesta = $pasos();
+                } catch (\Throwable $e) {
+                    $respuesta = ['error' => $this->montarAdvertencia('danger', 'La escritura no se pudo completar.'), 'consulta' => ''];
+                }
+
+                return $this->terminarEscritura($respuesta);
             }
 
             protected function consultaPreparada($sql, $valores = array())
