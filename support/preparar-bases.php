@@ -19,6 +19,14 @@ use TPVFox\Test\Entorno;
 
 const ESQUEMA = '/BD/BDtpv/tpvfox_V_0_4-2.84.sql';
 
+/**
+ * Ficheros de instalacion que el esquema de referencia todavia no incluye.
+ *
+ * Son repetibles, de modo que se aplican siempre, tambien sobre una base que ya estaba
+ * cargada: asi una base preparada antes de que existiera el fichero lo recibe sin rehacerla.
+ */
+const POSTERIORES = ['/BD/Update/install_update_relaciones.sql'];
+
 $rehacer = in_array('--rehacer', $argv, true);
 $ficheroEsquema = RUTA_TPVFOX . ESQUEMA;
 
@@ -61,6 +69,7 @@ foreach (['vigente' => 'TPVFOX_TEST_DB_VIGENTE', 'anterior' => 'TPVFOX_TEST_DB_A
 
     if ($tablas > 0 && !$rehacer) {
         echo "$papel ($base): ya tiene $tablas objetos. Se deja como esta — usa --rehacer para rehacerla.\n";
+        aplicarPosteriores($db, $base);
         $db->close();
         continue;
     }
@@ -70,6 +79,7 @@ foreach (['vigente' => 'TPVFOX_TEST_DB_VIGENTE', 'anterior' => 'TPVFOX_TEST_DB_A
     }
 
     cargar($db, $sql, $base);
+    aplicarPosteriores($db, $base);
 
     $resumen = $db->query(
         "SELECT SUM(table_type = 'BASE TABLE') t, SUM(table_type = 'VIEW') v
@@ -94,6 +104,17 @@ function vaciar(mysqli $db): void
     }
 
     $db->query('SET FOREIGN_KEY_CHECKS = 1');
+}
+
+/** Aplica los ficheros de instalacion posteriores al esquema de referencia que existan en el clon. */
+function aplicarPosteriores(mysqli $db, string $base): void
+{
+    foreach (POSTERIORES as $relativo) {
+        $fichero = RUTA_TPVFOX . $relativo;
+        if (is_file($fichero)) {
+            cargar($db, (string) file_get_contents($fichero), $base);
+        }
+    }
 }
 
 /** Carga el volcado de esquema completo. */
