@@ -323,15 +323,104 @@ final class RelacionesHistorialIntegracionTest extends CasoIntegracion
         self::assertSame($lineasAntes, $this->lineas($vigente['id']));
     }
 
+    /**
+     * @comportamiento Dar de baja una relación no borra nada: añade una versión que la cierra,
+     *   sin líneas, y todo lo que fue queda en su sitio.
+     */
+    public function test_T20_laBajaAnadeUnaVersionQueCierraLaRelacionYConservaLasAnteriores(): void
+    {
+        $vigente = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $lineasAntes = $this->lineas($vigente['id']);
+
+        $respuesta = $this->relaciones()->darDeBaja($vigente['numRelacion'], $this->otroUsuario);
+
+        $baja = $this->fila($respuesta['datos']['id']);
+        self::assertSame('1.1', $baja['version']);
+        self::assertSame('baja', $baja['tipoCambio']);
+        self::assertSame('Baja', $baja['estado']);
+        self::assertSame($this->otroUsuario, (int) $baja['idUsuario']);
+        self::assertSame([], $this->lineas($respuesta['datos']['id']));
+        self::assertSame('Sustituido', $this->fila($vigente['id'])['estado']);
+        self::assertSame($lineasAntes, $this->lineas($vigente['id']));
+    }
+
+    public function test_T21_laBajaDescartaElBorradorQueLaRelacionTuvieraPendiente(): void
+    {
+        $vigente = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $idBorrador = $this->relaciones()->crearBorradorDeCambio($vigente['numRelacion'], $this->usuario)['datos']['id'];
+
+        $respuesta = $this->relaciones()->darDeBaja($vigente['numRelacion'], $this->usuario);
+
+        self::assertArrayHasKey('datos', $respuesta);
+        self::assertNull($this->fila($idBorrador));
+        self::assertSame([], $this->lineas($idBorrador));
+    }
+
+    /**
+     * @comportamiento Una relación dada de baja no vuelve a tener versiones: ni se modifica ni
+     *   se da de baja otra vez. Para recuperarla se da de alta de nuevo.
+     */
+    public function test_T22_unaRelacionDadaDeBajaNoSeModificaNiSeDaDeBajaOtraVez(): void
+    {
+        $vigente = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $this->relaciones()->darDeBaja($vigente['numRelacion'], $this->usuario);
+
+        $otraBaja = $this->relaciones()->darDeBaja($vigente['numRelacion'], $this->usuario);
+        $modificacion = $this->relaciones()->modificar($vigente['numRelacion'], ['nombre' => 'Otro'], $this->lineasDelPollo(), $this->usuario);
+
+        self::assertStringContainsString('no está vigente', $otraBaja['error']['mensaje']);
+        self::assertStringContainsString('no está vigente', $modificacion['error']['mensaje']);
+        self::assertSame(2, (int) $this->db->query("SELECT COUNT(*) AS n FROM relaciones WHERE numRelacion = {$vigente['numRelacion']}")->fetch_assoc()['n']);
+    }
+
+    public function test_T23_trasLaBajaLaMismaRelacionSePuedeDarDeAltaDeNuevoConOtroNumero(): void
+    {
+        $vigente = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $this->relaciones()->darDeBaja($vigente['numRelacion'], $this->usuario);
+
+        $respuesta = $this->relaciones()->alta($this->despiece, [], $this->lineasDelPollo(), $this->usuario);
+
+        self::assertSame('1.0', $respuesta['datos']['version']);
+        self::assertNotSame($vigente['numRelacion'], $respuesta['datos']['numRelacion']);
+    }
+
+    public function test_T24_siLaBajaFallaAMitadLaRelacionSigueRigiendo(): void
+    {
+        $vigente = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $relaciones = $this->relaciones();
+        $relaciones->fallarAlInsertarLaBaja = true;
+
+        $respuesta = $relaciones->darDeBaja($vigente['numRelacion'], $this->usuario);
+
+        self::assertArrayHasKey('error', $respuesta);
+        self::assertSame('Activo', $this->fila($vigente['id'])['estado']);
+        self::assertSame(1, (int) $this->db->query("SELECT COUNT(*) AS n FROM relaciones WHERE numRelacion = {$vigente['numRelacion']}")->fetch_assoc()['n']);
+    }
+
+    public function test_T25_sinUsuarioIdentificadoNoSeDaDeBajaNada(): void
+    {
+        $vigente = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+
+        $respuesta = $this->relaciones()->darDeBaja($vigente['numRelacion'], 0);
+
+        self::assertStringContainsString('usuario', $respuesta['error']['mensaje']);
+        self::assertSame('Activo', $this->fila($vigente['id'])['estado']);
+    }
+
     /** La clase del módulo, con la posibilidad de hacer fallar la escritura que activa el borrador. */
     private function relaciones(): object
     {
         return new class extends \Relaciones {
             public bool $fallarAlEscribirElBorrador = false;
+            public bool $fallarAlInsertarLaBaja = false;
 
             protected function consultaPreparada($sql, $valores = array())
             {
                 if ($this->fallarAlEscribirElBorrador && str_contains($sql, "estado = 'Activo' WHERE id = ? AND estado = 'Borrador'")) {
+                    return ['error' => $this->montarAdvertencia('danger', 'Fallo provocado por la prueba'), 'consulta' => $sql];
+                }
+
+                if ($this->fallarAlInsertarLaBaja && str_contains($sql, "'baja'")) {
                     return ['error' => $this->montarAdvertencia('danger', 'Fallo provocado por la prueba'), 'consulta' => $sql];
                 }
 
