@@ -91,6 +91,11 @@ acota a quien lo mira, y para eso hacen falta dos sesiones. Se declara igual, co
 `TPVFOX_E2E_USUARIO2` y `TPVFOX_E2E_CLAVE2`. Sin ellas ese recorrido se salta solo y el resto no se
 entera.
 
+**Usuario sin permisos, opcional.** Los recorridos que comprueban que una vista deniega el acceso
+entran con un usuario que no es administrador. Se declara con `TPVFOX_E2E_USUARIO_SIN_PERMISO` y
+`TPVFOX_E2E_CLAVE_SIN_PERMISO`, y el guion de preparación lo da de alta fuera del grupo de
+administradores. Sin ellas esos recorridos se saltan solos.
+
 ## 5. Preparar el entorno
 
 ```bash

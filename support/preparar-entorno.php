@@ -41,6 +41,9 @@ const MARCA_FIN = '// --- fin del despliegue del ejercicio anterior ---';
 /** La tienda por la que el cierre del ejercicio selecciona los productos. */
 const TIENDA_DEL_CIERRE = 1;
 
+/** Un grupo que no es el 9, el de administradores: sus permisos son los que declara cada modulo. */
+const GRUPO_SIN_PERMISOS = 1;
+
 $rehacer = in_array('--rehacer', $argv, true);
 $ejercicio = ejercicioPedido($argv);
 
@@ -54,6 +57,12 @@ $clave = Entorno::valor('TPVFOX_E2E_CLAVE');
 // acota a quien lo mira. Sin el, esos recorridos se saltan solos y el resto no se entera.
 $usuario2 = Entorno::valor('TPVFOX_E2E_USUARIO2');
 $clave2 = Entorno::valor('TPVFOX_E2E_CLAVE2');
+
+// Usuario sin permisos, opcional: no es administrador, de modo que solo tiene lo que cada
+// modulo concede por defecto. Lo necesitan los recorridos que comprueban que una vista deniega
+// el acceso. Sin el, esos recorridos se saltan solos.
+$usuarioSinPermiso = Entorno::valor('TPVFOX_E2E_USUARIO_SIN_PERMISO');
+$claveSinPermiso = Entorno::valor('TPVFOX_E2E_CLAVE_SIN_PERMISO');
 
 if ($usuario === '' || $clave === '') {
     fwrite(STDERR,
@@ -78,6 +87,15 @@ foreach (['vigente', 'anterior'] as $papel) {
         $idUsuario2 = usuarioDeRecorrido($db, $usuario2, $clave2);
         indiceDelUsuario($db, $idTienda, $idUsuario2);
         echo "  $papel ($base): segundo usuario $idUsuario2 con su indice.\n";
+    }
+
+    if ($usuarioSinPermiso !== '' && $claveSinPermiso !== '') {
+        $idSinPermiso = usuarioDeRecorrido($db, $usuarioSinPermiso, $claveSinPermiso, GRUPO_SIN_PERMISOS);
+        indiceDelUsuario($db, $idTienda, $idSinPermiso);
+        // Sus permisos se siembran al entrar: se borran los que tuviera para que no arrastre
+        // los de una pasada en que fue administrador.
+        ejecutar($db, 'DELETE FROM permisos WHERE idUsuario = ?', [$idSinPermiso]);
+        echo "  $papel ($base): usuario sin permisos $idSinPermiso con su indice.\n";
     }
 
     echo "  $papel ($base): tienda $idTienda, usuario $idUsuario con su indice.\n";
@@ -134,20 +152,20 @@ function tiendaPrincipal(mysqli $db, string $ano): int
  * tiendas— y el grupo 9 resuelve todos los permisos a la vez, de modo que no hay que dar
  * de alta ninguno fila a fila.
  */
-function usuarioDeRecorrido(mysqli $db, string $usuario, string $clave): int
+function usuarioDeRecorrido(mysqli $db, string $usuario, string $clave, int $grupo = 9): int
 {
     $existente = unValor($db, 'SELECT id FROM usuarios WHERE username = ? LIMIT 1', [$usuario]);
 
     if ($existente !== null) {
-        ejecutar($db, 'UPDATE usuarios SET password = ?, group_id = 9, estado = ? WHERE id = ?',
-            [md5($clave), 'activo', $existente]);
+        ejecutar($db, 'UPDATE usuarios SET password = ?, group_id = ?, estado = ? WHERE id = ?',
+            [md5($clave), $grupo, 'activo', $existente]);
 
         return $existente;
     }
 
     return ejecutar($db,
         'INSERT INTO usuarios (username, password, fecha, group_id, estado, nombre) VALUES (?, ?, ?, ?, ?, ?)',
-        [$usuario, md5($clave), date('Y-m-d'), 9, 'activo', 'Usuario de recorridos']
+        [$usuario, md5($clave), date('Y-m-d'), $grupo, 'activo', 'Usuario de recorridos']
     );
 }
 

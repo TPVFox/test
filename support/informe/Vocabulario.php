@@ -64,6 +64,7 @@ final class Vocabulario
         'Temporal' => 'borrador',
         'Estados' => 'estados',
         'Lectura' => 'listado',
+        'Listado' => 'listado',
         'Composicion' => 'importes',
         'Identidad' => 'numeracion',
         'Existencias' => 'existencias',

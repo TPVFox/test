@@ -17,13 +17,19 @@ module.exports = async () => {
     return;
   }
 
-  const guion = path.resolve(__dirname, 'sembrar-e2e-venta.php');
-  console.error('Sembrando escenarios de venta...');
+  const guiones = [
+    ['venta', 'sembrar-e2e-venta.php'],
+    ['productos relacionados', 'sembrar-e2e-relaciones.php'],
+  ];
 
-  try {
-    execFileSync('php', [guion], { stdio: ['ignore', 'pipe', 'pipe'] });
-  } catch (error) {
-    const detalle = [error.stdout, error.stderr].filter(Boolean).map(String).join('\n');
-    throw new Error(`La siembra fallo y los recorridos no pueden partir de un estado conocido:\n${detalle}`);
+  for (const [nombre, fichero] of guiones) {
+    console.error(`Sembrando escenarios de ${nombre}...`);
+
+    try {
+      execFileSync('php', [path.resolve(__dirname, fichero)], { stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (error) {
+      const detalle = [error.stdout, error.stderr].filter(Boolean).map(String).join('\n');
+      throw new Error(`La siembra de ${nombre} fallo y los recorridos no pueden partir de un estado conocido:\n${detalle}`);
+    }
   }
 };

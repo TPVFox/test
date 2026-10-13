@@ -39,4 +39,12 @@ function segundoUsuario() {
   return usuario && clave ? { usuario, clave } : null;
 }
 
-module.exports = { iniciarSesion, segundoUsuario };
+/** Las credenciales del usuario que no es administrador, si el entorno las declara. */
+function usuarioSinPermiso() {
+  const usuario = process.env.TPVFOX_E2E_USUARIO_SIN_PERMISO;
+  const clave = process.env.TPVFOX_E2E_CLAVE_SIN_PERMISO;
+
+  return usuario && clave ? { usuario, clave } : null;
+}
+
+module.exports = { iniciarSesion, segundoUsuario, usuarioSinPermiso };
