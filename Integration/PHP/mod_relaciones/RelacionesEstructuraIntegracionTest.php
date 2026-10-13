@@ -115,6 +115,29 @@ final class RelacionesEstructuraIntegracionTest extends CasoIntegracion
         $this->db->query("INSERT INTO relacionesLineas (idRelacion, idArticulo, sentido) VALUES (999999, 999999, 'entrada')");
     }
 
+    public function test_T10_noSePuedeBorrarElUsuarioQueTieneUnaVersionASuNombre(): void
+    {
+        // El historial dice quién puso a regir cada versión. Si ese usuario se pudiera
+        // borrar, quedaría una versión a nombre de nadie.
+        $this->aplicarElFicheroDeInstalacion();
+        $this->db->query("INSERT INTO usuarios (username, password, fecha, group_id, estado, nombre) VALUES ('autor_de_relacion', MD5('x'), CURDATE(), 1, 'activo', 'Autor')");
+        $idUsuario = (int) $this->db->insert_id;
+        $this->db->query("INSERT INTO relacionesTipos (nombre, forma) VALUES ('Despiece', '1:N')");
+        $idTipo = (int) $this->db->insert_id;
+        $this->db->query("INSERT INTO relaciones (numRelacion, idTipo, version, idUsuario, fechaCreacion, estado) VALUES (1, $idTipo, '1.0', $idUsuario, NOW(), 'Activo')");
+
+        try {
+            $this->db->query("DELETE FROM usuarios WHERE id = $idUsuario");
+            self::fail('La base dejó borrar al autor de una versión');
+        } catch (\mysqli_sql_exception $e) {
+            self::assertStringContainsString('foreign key constraint', strtolower($e->getMessage()));
+        } finally {
+            // Las tablas del módulo las retira tearDown; el usuario hay que quitarlo aquí.
+            $this->quitarLasTablas();
+            $this->db->query("DELETE FROM usuarios WHERE id = $idUsuario");
+        }
+    }
+
     public function test_T9_siLaBaseNoSePuedeLeerElFalloSeDevuelveYNoSeLanza(): void
     {
         // Quien pregunta por la instalación es una pantalla: tiene que recibir un aviso que
