@@ -61,6 +61,36 @@ final class EscenarioRelaciones
         return ['id' => $id, 'numRelacion' => $numRelacion];
     }
 
+    /**
+     * Una version mas de una relacion ya sembrada, en el estado y con la fecha que se indiquen.
+     * Sirve para montar un historial con fechas conocidas, y los estados que el modulo no deja
+     * alcanzar por sus operaciones.
+     *
+     * @param list<array{idArticulo:int,sentido:string,cantidad?:float|null,unidad?:string|null}> $lineas
+     */
+    public function versionDeRelacion(int $numRelacion, int $idTipo, string $version, string $estado, string $fecha, array $lineas = []): int
+    {
+        $tipoCambio = ['Borrador' => null, 'Baja' => 'baja'][$estado] ?? 'proporciones';
+        $idUsuario = $this->usuario();
+
+        $alta = $this->db->prepare(
+            'INSERT INTO relaciones (numRelacion, idTipo, version, tipoCambio, idUsuario, fechaCreacion, estado) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        $alta->bind_param('iississ', $numRelacion, $idTipo, $version, $tipoCambio, $idUsuario, $fecha, $estado);
+        $alta->execute();
+        $id = (int) $this->db->insert_id;
+
+        foreach ($lineas as $linea) {
+            $cantidad = array_key_exists('cantidad', $linea) ? $linea['cantidad'] : 1;
+            $unidad = array_key_exists('unidad', $linea) ? $linea['unidad'] : 'kg';
+            $fila = $this->db->prepare('INSERT INTO relacionesLineas (idRelacion, idArticulo, sentido, cantidad, unidad) VALUES (?, ?, ?, ?, ?)');
+            $fila->bind_param('iisss', $id, $linea['idArticulo'], $linea['sentido'], $cantidad, $unidad);
+            $fila->execute();
+        }
+
+        return $id;
+    }
+
     /** Un usuario que ya existe en la base: las relaciones no admiten uno inventado. */
     public function usuario(): int
     {
