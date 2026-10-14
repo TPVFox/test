@@ -23,9 +23,10 @@ final class EscenarioTareasCron
     /**
      * Una tarea programada, tal como la deja el formulario de la pantalla.
      *
-     * Por omision: cada 60 minutos, desde hoy, nunca ejecutada y activa.
+     * Por omision: cada 60 minutos, desde hoy, nunca ejecutada y activa. Con `id`, la tarea lleva
+     * ese identificador.
      *
-     * @param array{cantidad?:int,tipo?:int,inicio?:string,ultima?:?string,estado?:int} $opciones
+     * @param array{id?:int,cantidad?:int,tipo?:int,inicio?:string,ultima?:?string,estado?:int} $opciones
      */
     public function tarea(string $nombre, string $clase, array $opciones = []): int
     {
@@ -34,12 +35,13 @@ final class EscenarioTareasCron
         $inicio = $opciones['inicio'] ?? date('Y-m-d');
         $ultima = $opciones['ultima'] ?? null;
         $estado = $opciones['estado'] ?? 1;
+        $id = $opciones['id'] ?? null;
 
         $alta = $this->db->prepare(
-            'INSERT INTO tareas_cron (nombre, cantidad_periodo, tipo_periodo, nombre_clase, inicio_ejecucion, ultima_ejecucion, estado)
-             VALUES (?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO tareas_cron (id, nombre, cantidad_periodo, tipo_periodo, nombre_clase, inicio_ejecucion, ultima_ejecucion, estado)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        $alta->bind_param('siisssi', $nombre, $cantidad, $tipo, $clase, $inicio, $ultima, $estado);
+        $alta->bind_param('isiisssi', $id, $nombre, $cantidad, $tipo, $clase, $inicio, $ultima, $estado);
         $alta->execute();
 
         return (int) $this->db->insert_id;
