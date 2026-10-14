@@ -311,7 +311,7 @@ final class Siembra
     /**
      * Entrada de proveedor: suma existencias.
      *
-     * @param array{estado?:string,estadoLinea?:string,idProveedor?:int,idTienda?:int,suNumero?:string} $opciones
+     * @param array{estado?:string,estadoLinea?:string,idProveedor?:int,idTienda?:int,suNumero?:string,coste?:float,nunidades?:float} $opciones
      * @return int Identificador del albaran, para anadirle mas lineas
      */
     public function entradaProveedor(int $idArticulo, float $unidades, string $fecha, array $opciones = []): int
@@ -338,21 +338,28 @@ final class Siembra
         return $idAlbaran;
     }
 
-    /** Anade una linea a un albaran de proveedor ya creado. */
+    /**
+     * Anade una linea a un albaran de proveedor ya creado.
+     *
+     * Sin `coste`, la linea lleva el coste que tiene el articulo; con el, el de esa compra. Las
+     * unidades van en la cantidad (`ncant`) y en las unidades (`nunidades`) de la linea; con la
+     * opcion `nunidades`, las unidades son esas.
+     */
     public function lineaEntrada(int $idAlbaran, int $idArticulo, float $unidades, array $opciones = []): int
     {
         $articulo = $this->datosArticulo($idArticulo);
-        $base = $this->dinero($articulo['coste'] * $unidades);
+        $coste = (float) ($opciones['coste'] ?? $articulo['coste']);
+        $base = $this->dinero($coste * $unidades);
 
         $id = $this->insertar('albprolinea', [
             'idalbpro'    => $idAlbaran,
             'Numalbpro'   => $this->numeroDe('albprot', 'Numalbpro', $idAlbaran),
             'idArticulo'  => $idArticulo,
             'ncant'       => $unidades,
-            'nunidades'   => $unidades,
+            'nunidades'   => $opciones['nunidades'] ?? $unidades,
             'estadoLinea' => $opciones['estadoLinea'] ?? 'Activo',
             'ref_prov'    => '',
-            'costeSiva'   => $articulo['coste'],
+            'costeSiva'   => $coste,
             'iva'         => $articulo['iva'],
             'nfila'       => $this->siguienteFila('albprot', $idAlbaran),
         ]);
