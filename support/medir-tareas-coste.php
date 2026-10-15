@@ -1,22 +1,19 @@
 <?php
 /**
- * Cuanto tardan las dos tareas de coste sobre un volumen de compras realista.
+ * Cuanto tardan las dos tareas de coste segun crece el volumen de compras.
  *
- * De eso depende si pueden correr dentro de una peticion: la ejecucion manual las lanza en la
- * propia peticion web, y cualquier disparo por uso haria lo mismo.
+ * Responde a si pueden correr dentro de una peticion: la ejecucion manual las lanza en la propia
+ * peticion web, y cualquier disparo por uso haria lo mismo. Por eso no busca el tamano de ninguna
+ * tienda concreta, sino a partir de que tamano cada tarea pasa del tiempo de una peticion.
  *
- * El volumen sale de los recuentos de una instalacion en uso, solo numeros: lineas de compra,
- * articulos con compras, meses con compras y pares articulo-mes. Cada articulo compra en unos
- * meses, y cada par articulo-mes lleva varias lineas, de modo que las cuatro cifras se reproducen.
- * Los factores multiplican articulos, pares y lineas, como una tienda mas grande o mas pequena;
- * los meses no cambian.
+ * El volumen es inventado y lo fija este guion, en una escalera de tres tamanos con la misma forma:
+ * doce meses de compras, cada articulo compra en seis de ellos, y cada articulo y mes lleva tres
+ * lineas. Lo que cambia de un tamano a otro es el numero de articulos.
  *
  * Todo ocurre dentro de una transaccion que se deshace al acabar cada tamano: la base queda como
  * estaba.
  *
- * Uso:  php support/medir-tareas-coste.php --lineas=N --articulos=N --meses=N --articulos-mes=N [--factores=1]
- *
- * `--factores` admite varios, separados por comas: `--factores=0.5,1,2`.
+ * Uso:  php support/medir-tareas-coste.php [--tamanos=pequeno,mediano,grande]
  */
 
 declare(strict_types=1);
@@ -28,8 +25,12 @@ use TPVFox\Test\PrecargaInicial;
 use TPVFox\Test\Siembra\EscenarioTareasCron;
 use TPVFox\Test\Siembra\Siembra;
 
-$recuentos = recuentosPedidos($argv);
-$factores = factoresPedidos($argv);
+const MESES = 12;
+const MESES_CON_COMPRA_POR_ARTICULO = 6;
+const LINEAS_POR_ARTICULO_Y_MES = 3;
+const TAMANOS = ['pequeno' => 1000, 'mediano' => 5000, 'grande' => 20000];
+
+$tamanos = tamanosPedidos($argv);
 
 $base = Entorno::valor('TPVFOX_TEST_DB_VIGENTE');
 if ($base === '' || strpos($base, 'tpvfox_test') !== 0) {
@@ -51,46 +52,49 @@ require_once RUTA_TPVFOX . '/modulos/mod_tareas_cron/tareas/UltimoPrecioCompraTa
 
 printf("Medida de las tareas de coste sobre «%s». PHP %s.\n", $base, PHP_VERSION);
 printf(
-    "Recuentos de la instalacion: %d lineas, %d articulos, %d meses, %d pares articulo-mes.\n\n",
-    $recuentos['lineas'],
-    $recuentos['articulos'],
-    $recuentos['meses'],
-    $recuentos['articulos-mes']
+    "Forma del volumen: %d meses, cada articulo compra en %d, %d lineas por articulo y mes.\n\n",
+    MESES,
+    MESES_CON_COMPRA_POR_ARTICULO,
+    LINEAS_POR_ARTICULO_Y_MES
 );
 
 $filas = [];
-foreach ($factores as $factor) {
+foreach ($tamanos as $tamano) {
+    $articulos = TAMANOS[$tamano];
     $db = conectar($base);
     $db->begin_transaction();
     ModeloP::usarConexion($db);
 
     try {
+        printf("%s: sembrando %d articulos...\n", ucfirst($tamano), $articulos);
         $arranque = microtime(true);
-        sembrarVolumen($db, $ano, $recuentos, $factor);
+        sembrarVolumen($db, $ano, $articulos);
         $siembra = microtime(true) - $arranque;
         $volumen = volumenDeLaBase($db);
+        printf("  sembrado en %s: %d lineas. Midiendo el coste medio...\n", duracion($siembra), $volumen['lineas']);
 
         $tareas = new EscenarioTareasCron($db);
         $costeMedio = medir(new AcumuladoComprasTarea($tareas->tarea('Medida: coste medio', 'AcumuladoComprasTarea')));
+        printf("  coste medio en %s. Midiendo el ultimo coste...\n", duracion($costeMedio['segundos']));
         $ultimoCoste = medir(new UltimoPrecioCompraTarea($tareas->tarea('Medida: ultimo coste', 'UltimoPrecioCompraTarea')));
+        printf("  ultimo coste en %s. Deshaciendo la transaccion...\n", duracion($ultimoCoste['segundos']));
     } finally {
         ModeloP::usarConexion(null);
         $db->rollback();
         $db->close();
     }
 
-    $filas[] = [$factor, $volumen, $siembra, $costeMedio, $ultimoCoste];
-    printf("  factor %s sembrado en %s\n", $factor, duracion($siembra));
+    $filas[] = [$tamano, $volumen, $costeMedio, $ultimoCoste];
 }
 
 echo "\n";
-$formato = "%-7s %9s %9s %6s %10s %12s %12s %10s\n";
-printf($formato, 'Factor', 'Lineas', 'Articulos', 'Meses', 'Art.-mes', 'Coste medio', 'Ultimo coste', 'Memoria');
-printf($formato, ...array_map(static fn (int $ancho): string => str_repeat('-', $ancho), [7, 9, 9, 6, 10, 12, 12, 10]));
-foreach ($filas as [$factor, $volumen, , $costeMedio, $ultimoCoste]) {
+$formato = "%-8s %9s %9s %6s %10s %12s %12s %10s\n";
+printf($formato, 'Tamano', 'Lineas', 'Articulos', 'Meses', 'Art.-mes', 'Coste medio', 'Ultimo coste', 'Memoria');
+printf($formato, ...array_map(static fn (int $ancho): string => str_repeat('-', $ancho), [8, 9, 9, 6, 10, 12, 12, 10]));
+foreach ($filas as [$tamano, $volumen, $costeMedio, $ultimoCoste]) {
     printf(
         $formato,
-        $factor,
+        $tamano,
         $volumen['lineas'],
         $volumen['articulos'],
         $volumen['meses'],
@@ -100,34 +104,29 @@ foreach ($filas as [$factor, $volumen, , $costeMedio, $ultimoCoste]) {
         memoria(max($costeMedio['bytes'], $ultimoCoste['bytes']))
     );
 }
-echo "\nEl volumen incluye las compras que ya tuviera la base. La transaccion se ha deshecho: la base queda como estaba.\n";
+echo "\nEl volumen incluye las compras que ya tuviera la base. Las transacciones se han deshecho: la base queda como estaba.\n";
+echo "Terminado.\n";
 
 /**
- * Siembra el volumen de un factor: los articulos, un albaran por mes y las lineas de cada par
- * articulo-mes.
- *
- * @param array{lineas:int,articulos:int,meses:int,articulos-mes:int} $recuentos
+ * Siembra un tamano de la escalera: los articulos, un albaran por mes y las lineas de cada
+ * articulo en sus meses.
  */
-function sembrarVolumen(mysqli $db, int $ano, array $recuentos, float $factor): void
+function sembrarVolumen(mysqli $db, int $ano, int $articulos): void
 {
     $siembra = new Siembra($db);
-    $articulos = max(1, (int) round($recuentos['articulos'] * $factor));
-    $pares = max($articulos, (int) round($recuentos['articulos-mes'] * $factor));
-    $lineas = max($pares, (int) round($recuentos['lineas'] * $factor));
-    $meses = max(1, $recuentos['meses']);
 
     $ids = [];
     for ($n = 1; $n <= $articulos; $n++) {
         $ids[] = $siembra->articulo(sprintf('Medida de tareas %06d', $n));
     }
 
-    // Un albaran por mes, el dia 15, contando hacia atras desde diciembre del ejercicio.
+    // Un albaran por mes, el dia 15, de enero a diciembre del ejercicio.
     $tienda = $siembra->tiendaPorDefecto();
     $usuario = $siembra->usuarioPorDefecto();
     $proveedor = $siembra->proveedor('Proveedor de la medida');
     $albaranes = [];
-    for ($m = 0; $m < $meses; $m++) {
-        $fecha = sprintf('%04d-%02d-15 00:00:00', $ano - intdiv($m, 12), 12 - ($m % 12));
+    for ($m = 0; $m < MESES; $m++) {
+        $fecha = sprintf('%04d-%02d-15 00:00:00', $ano, $m + 1);
         $alta = $db->prepare(
             'INSERT INTO albprot (Fecha, idTienda, idUsuario, idProveedor, estado, formaPago, total_siniva, total)'
             . " VALUES (?, ?, ?, ?, 'Guardado', 'Efectivo', 0, 0)"
@@ -137,20 +136,12 @@ function sembrarVolumen(mysqli $db, int $ano, array $recuentos, float $factor): 
         $albaranes[$m] = (int) $db->insert_id;
     }
 
-    // Cada articulo compra en sus meses, y cada par lleva su parte de las lineas.
-    $mesesPorArticulo = intdiv($pares, $articulos);
-    $articulosConUnMesMas = $pares % $articulos;
-    $lineasPorPar = intdiv($lineas, $pares);
-    $paresConUnaLineaMas = $lineas % $pares;
-
+    // Cada articulo compra en seis meses seguidos, empezando en uno distinto segun su posicion.
     $valores = [];
-    $par = 0;
     foreach ($ids as $posicion => $idArticulo) {
-        $suyos = min($meses, $mesesPorArticulo + ($posicion < $articulosConUnMesMas ? 1 : 0));
-        for ($j = 0; $j < $suyos; $j++) {
-            $m = ($posicion + $j) % $meses;
-            $cuantas = $lineasPorPar + ($par < $paresConUnaLineaMas ? 1 : 0);
-            for ($k = 0; $k < $cuantas; $k++) {
+        for ($j = 0; $j < MESES_CON_COMPRA_POR_ARTICULO; $j++) {
+            $m = ($posicion + $j) % MESES;
+            for ($k = 0; $k < LINEAS_POR_ARTICULO_Y_MES; $k++) {
                 $coste = 1 + (($idArticulo * 7 + $m * 3 + $k) % 100) / 10;
                 $valores[] = sprintf("(%d, %d, %d, 1, 1, %.4F, 0, 'Activo', '')", $albaranes[$m], $albaranes[$m], $idArticulo, $coste);
                 if (count($valores) === 1000) {
@@ -158,7 +149,6 @@ function sembrarVolumen(mysqli $db, int $ano, array $recuentos, float $factor): 
                     $valores = [];
                 }
             }
-            $par++;
         }
     }
     insertarLineas($db, $valores);
@@ -178,7 +168,7 @@ function insertarLineas(mysqli $db, array $valores): void
 }
 
 /**
- * Los cuatro recuentos de la base, con la misma consulta que se pide a la instalacion.
+ * Lineas, articulos, meses y pares articulo-mes de las compras que hay en la base.
  *
  * @return array{lineas:int,articulos:int,meses:int,articulos_mes:int}
  */
@@ -208,41 +198,23 @@ function medir(object $tarea): array
     return ['segundos' => microtime(true) - $arranque, 'bytes' => memory_get_peak_usage(true)];
 }
 
-/** @return array{lineas:int,articulos:int,meses:int,articulos-mes:int} */
-function recuentosPedidos(array $argumentos): array
-{
-    $recuentos = [];
-    foreach (['lineas', 'articulos', 'meses', 'articulos-mes'] as $nombre) {
-        foreach ($argumentos as $argumento) {
-            if (strpos($argumento, "--{$nombre}=") === 0) {
-                $recuentos[$nombre] = (int) substr($argumento, strlen("--{$nombre}="));
-            }
-        }
-        if (($recuentos[$nombre] ?? 0) < 1) {
-            fwrite(STDERR, "Faltan los recuentos de la instalacion: --lineas, --articulos, --meses y --articulos-mes, mayores que cero.\n");
-            exit(1);
-        }
-    }
-
-    return $recuentos;
-}
-
-/** @return list<float> */
-function factoresPedidos(array $argumentos): array
+/** @return list<string> */
+function tamanosPedidos(array $argumentos): array
 {
     foreach ($argumentos as $argumento) {
-        if (strpos($argumento, '--factores=') === 0) {
-            $factores = array_map('floatval', explode(',', substr($argumento, strlen('--factores='))));
-            if (min($factores) <= 0) {
-                fwrite(STDERR, "--factores pide numeros mayores que cero.\n");
+        if (strpos($argumento, '--tamanos=') === 0) {
+            $tamanos = explode(',', substr($argumento, strlen('--tamanos=')));
+            $desconocidos = array_diff($tamanos, array_keys(TAMANOS));
+            if ($desconocidos !== []) {
+                fwrite(STDERR, 'Tamanos desconocidos: ' . implode(', ', $desconocidos) . '. Son: ' . implode(', ', array_keys(TAMANOS)) . ".\n");
                 exit(1);
             }
 
-            return $factores;
+            return $tamanos;
         }
     }
 
-    return [1.0];
+    return array_keys(TAMANOS);
 }
 
 function conectar(string $base): mysqli
