@@ -6,6 +6,10 @@
  * peticion web, y cualquier disparo por uso haria lo mismo. Por eso no busca el tamano de ninguna
  * tienda concreta, sino a partir de que tamano cada tarea pasa del tiempo de una peticion.
  *
+ * Mide el tiempo de reloj y el de CPU. El limite de PHP, `max_execution_time`, cuenta en Linux el
+ * tiempo de CPU del proceso, no la espera a la base; los limites del servidor web cuentan tiempo de
+ * reloj.
+ *
  * El volumen es inventado y lo fija este guion, en una escalera de tres tamanos con la misma forma:
  * doce meses de compras, cada articulo compra en seis de ellos, y cada articulo y mes lleva tres
  * lineas. Lo que cambia de un tamano a otro es el numero de articulos.
@@ -75,9 +79,9 @@ foreach ($tamanos as $tamano) {
 
         $tareas = new EscenarioTareasCron($db);
         $costeMedio = medir(new AcumuladoComprasTarea($tareas->tarea('Medida: coste medio', 'AcumuladoComprasTarea')));
-        printf("  coste medio en %s. Midiendo el ultimo coste...\n", duracion($costeMedio['segundos']));
+        printf("  coste medio en %s, %s de CPU. Midiendo el ultimo coste...\n", duracion($costeMedio['segundos']), duracion($costeMedio['cpu']));
         $ultimoCoste = medir(new UltimoPrecioCompraTarea($tareas->tarea('Medida: ultimo coste', 'UltimoPrecioCompraTarea')));
-        printf("  ultimo coste en %s. Deshaciendo la transaccion...\n", duracion($ultimoCoste['segundos']));
+        printf("  ultimo coste en %s, %s de CPU. Deshaciendo la transaccion...\n", duracion($ultimoCoste['segundos']), duracion($ultimoCoste['cpu']));
     } finally {
         ModeloP::usarConexion(null);
         $db->rollback();
@@ -88,9 +92,9 @@ foreach ($tamanos as $tamano) {
 }
 
 echo "\n";
-$formato = "%-8s %9s %9s %6s %10s %12s %12s %10s\n";
-printf($formato, 'Tamano', 'Lineas', 'Articulos', 'Meses', 'Art.-mes', 'Coste medio', 'Ultimo coste', 'Memoria');
-printf($formato, ...array_map(static fn (int $ancho): string => str_repeat('-', $ancho), [8, 9, 9, 6, 10, 12, 12, 10]));
+$formato = "%-8s %9s %9s %6s %10s %12s %12s %12s %12s %10s\n";
+printf($formato, 'Tamano', 'Lineas', 'Articulos', 'Meses', 'Art.-mes', 'Coste medio', '(CPU)', 'Ultimo coste', '(CPU)', 'Memoria');
+printf($formato, ...array_map(static fn (int $ancho): string => str_repeat('-', $ancho), [8, 9, 9, 6, 10, 12, 12, 12, 12, 10]));
 foreach ($filas as [$tamano, $volumen, $costeMedio, $ultimoCoste]) {
     printf(
         $formato,
@@ -100,7 +104,9 @@ foreach ($filas as [$tamano, $volumen, $costeMedio, $ultimoCoste]) {
         $volumen['meses'],
         $volumen['articulos_mes'],
         duracion($costeMedio['segundos']),
+        duracion($costeMedio['cpu']),
         duracion($ultimoCoste['segundos']),
+        duracion($ultimoCoste['cpu']),
         memoria(max($costeMedio['bytes'], $ultimoCoste['bytes']))
     );
 }
@@ -185,17 +191,30 @@ function volumenDeLaBase(mysqli $db): array
 }
 
 /**
- * El tiempo que tarda una ejecucion de la tarea y la memoria que llega a pedir.
+ * El tiempo de reloj y de CPU que tarda una ejecucion de la tarea, y la memoria que llega a pedir.
  *
- * @return array{segundos:float,bytes:int}
+ * @return array{segundos:float,cpu:float,bytes:int}
  */
 function medir(object $tarea): array
 {
     memory_reset_peak_usage();
+    $cpu = tiempoDeCpu();
     $arranque = microtime(true);
     $tarea->execute();
 
-    return ['segundos' => microtime(true) - $arranque, 'bytes' => memory_get_peak_usage(true)];
+    return [
+        'segundos' => microtime(true) - $arranque,
+        'cpu' => tiempoDeCpu() - $cpu,
+        'bytes' => memory_get_peak_usage(true),
+    ];
+}
+
+/** El tiempo de CPU que lleva gastado el proceso, de usuario y de sistema. */
+function tiempoDeCpu(): float
+{
+    $uso = getrusage();
+
+    return $uso['ru_utime.tv_sec'] + $uso['ru_utime.tv_usec'] / 1e6 + $uso['ru_stime.tv_sec'] + $uso['ru_stime.tv_usec'] / 1e6;
 }
 
 /** @return list<string> */
