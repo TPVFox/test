@@ -187,7 +187,7 @@ final class ProductoBorradoIntegracionTest extends CasoIntegracion
 
     private function aplicarElFicheroDeInstalacion(): void
     {
-        $sql = file_get_contents(RUTA_TPVFOX . '/BD/Update/install_update_relaciones.sql');
+        $sql = file_get_contents(RUTA_TPVFOX . '/BD/Update/install_update_v0.4.4.54.sql');
         self::assertNotFalse($sql);
 
         $this->db->multi_query($sql);

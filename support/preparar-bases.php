@@ -25,7 +25,7 @@ const ESQUEMA = '/BD/BDtpv/tpvfox_V_0_4-2.84.sql';
  * Son repetibles, de modo que se aplican siempre, tambien sobre una base que ya estaba
  * cargada: asi una base preparada antes de que existiera el fichero lo recibe sin rehacerla.
  */
-const POSTERIORES = ['/BD/Update/install_update_relaciones.sql'];
+const POSTERIORES = ['/BD/Update/install_update_v0.4.4.54.sql'];
 
 $rehacer = in_array('--rehacer', $argv, true);
 $ficheroEsquema = RUTA_TPVFOX . ESQUEMA;

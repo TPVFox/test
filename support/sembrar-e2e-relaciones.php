@@ -62,7 +62,7 @@ if ($estado === 'sinEstructura') {
 }
 
 // Las tablas se crean si faltan: el fichero de instalacion no toca las que ya existen.
-$db->multi_query((string) file_get_contents(RUTA_TPVFOX . '/BD/Update/install_update_relaciones.sql'));
+$db->multi_query((string) file_get_contents(RUTA_TPVFOX . '/BD/Update/install_update_v0.4.4.54.sql'));
 while ($db->more_results()) {
     $db->next_result();
 }
