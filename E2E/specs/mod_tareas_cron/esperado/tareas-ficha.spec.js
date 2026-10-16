@@ -19,8 +19,13 @@ test.describe('Tareas programadas — guardar la ficha sin tocarla', () => {
       { type: 'Cómo debería funcionar', description: 'Dar el guardado por bueno cuando no hay errores, cambie o no alguna fila.' },
     ],
   }, async ({ page }) => {
+    const nombre = PREFIJO + 'Guardada sin cambios';
     await iniciarSesion(page, LISTA);
-    await abrirFicha(page, PREFIJO + 'Guardada sin cambios');
+    await abrirFicha(page, nombre);
+    // La ficha propone la fecha del día en que se pinta, y la siembra guardó la del día en que
+    // sembró: se escribe la guardada para que el formulario envíe lo que hay también si la pasada
+    // cruza la medianoche.
+    await page.locator('#fecha_inicio').fill(leerTarea(nombre).inicio_ejecucion);
 
     await page.getByRole('button', { name: 'Guardar' }).click();
 
@@ -63,5 +68,25 @@ test.describe('Tareas programadas — guardar la ficha sin tocarla', () => {
     await expect(page).toHaveURL(/ListaTareasCron\.php$/);
 
     expect(leerTarea(nombre).tipo_periodo, 'El tipo de período no puede cambiar').toBe(2);
+  });
+
+  test('T4 guardar una tarea en proceso sin tocar el estado conserva su estado', {
+    tag: ['@esperado', '@tareas', '@guardado', '@directo', '@bajo'],
+    annotation: [
+      { type: 'Qué ocurre hoy', description: 'La ficha de una tarea que no está activa ni de baja no marca ningún estado, y al guardarla sin tocarlo la tarea pasa a activa. Una tarea en proceso puede volver a lanzarse mientras corre.' },
+      { type: 'Qué debería ocurrir', description: 'Que la tarea conserve su estado.' },
+      { type: 'Por qué ocurre', description: 'La ficha solo marca los estados activa y de baja; sin ninguno marcado, el formulario no envía el estado y el guardado se queda con el de una tarea nueva, activa.' },
+      { type: 'Cómo debería funcionar', description: 'Conservar el estado guardado cuando la ficha no envía otro.' },
+    ],
+  }, async ({ page }) => {
+    const nombre = PREFIJO + 'En proceso';
+    await iniciarSesion(page, LISTA);
+    await abrirFicha(page, nombre);
+    await page.locator('#fecha_inicio').fill(leerTarea(nombre).inicio_ejecucion);
+
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await expect(page).toHaveURL(/ListaTareasCron\.php$/);
+
+    expect(leerTarea(nombre).estado, 'El estado no puede cambiar').toBe(2);
   });
 });

@@ -427,6 +427,268 @@ final class PlanificadorIntegracionTest extends CasoIntegracion
         self::assertEqualsWithDelta(2.75, $this->siembra->costeMedio($primero), 0.0001);
     }
 
+    /**
+     * @comportamiento Una tarea ya ejecutada cuya fecha de inicio es futura espera a esa fecha: su
+     *   última ejecución queda antes de la fecha de inicio, y el planificador no la lanza.
+     */
+    public function test_T17_unaTareaYaEjecutadaConLaFechaDeInicioFuturaEspera(): void
+    {
+        $id = $this->tarea('TareaQueAnota', [
+            'inicio' => date('Y-m-d', strtotime('+5 days')),
+            'ultima' => self::hace(1440),
+        ]);
+
+        $this->pasada();
+
+        self::assertSame(0, RegistroDeTareas::vecesQueSeEjecuto($id));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_tareas_cron/TareaCron.php:89
+     * @codigo-afectado modulos/mod_tareas_cron/clases/TareasCron.php:52-54
+     *
+     * @group esperado
+     * @group periodo
+     * @group critico
+     *
+     * @que-ocurre-hoy Guardar sin tocar nada la ficha de una tarea que ya se ejecutó le pone la fecha
+     *   de hoy como inicio, y desde ese momento el planificador no vuelve a lanzarla: su última
+     *   ejecución queda antes de la fecha de inicio, y solo cambiaría si la tarea se ejecutara.
+     * @que-deberia-ocurrir Que la tarea siga lanzándose cuando venza su periodo.
+     * @por-que-ocurre La ficha propone siempre la fecha de hoy como inicio, y el planificador compara
+     *   la fecha de inicio con la última ejecución, no con la fecha de hoy.
+     * @como-deberia-funcionar Que la ficha proponga la fecha guardada, y que el planificador compare
+     *   la fecha de inicio con la de hoy.
+     */
+    public function test_T18_unaTareaYaEjecutadaGuardadaSinTocarSigueLanzandoseCuandoLeToca(): void
+    {
+        $id = $this->tarea('TareaQueAnota', ['nombre' => 'Guardada sin tocar', 'cantidad' => 60, 'ultima' => self::hace(2 * 1440)]);
+
+        // Lo que envía la ficha de esa tarea si se guarda sin tocar nada: hoy como fecha de inicio.
+        [, $errores] = (new \CTareasCron())->guardar([
+            'id' => (string) $id,
+            'nombre' => 'Guardada sin tocar',
+            'cantidad_periodo' => '60',
+            'tipo_periodo' => '1',
+            'inicio_ejecucion' => date('Y-m-d'),
+            'nombre_clase' => 'TareaQueAnota',
+            'estado' => '1',
+        ]);
+        $this->pasada();
+
+        self::assertSame([], $errores);
+        self::assertSame(1, RegistroDeTareas::vecesQueSeEjecuto($id), 'Vencido su periodo, la tarea tiene que lanzarse.');
+    }
+
+    /**
+     * @comportamiento El fichero se comprueba antes de mirar si a la tarea le toca: una tarea sin
+     *   fichero pasa al estado de fichero no encontrado aunque su periodo no haya vencido.
+     */
+    public function test_T19_unaTareaSinFicheroPasaAFicheroNoEncontradoAunqueNoLeToque(): void
+    {
+        $id = $this->tarea('TareaQueNoExiste', ['cantidad' => 60, 'ultima' => self::hace(10)]);
+
+        $this->pasada();
+
+        self::assertSame(\MTareasCron::ESTADO_FICHERO_NO_ENCONTRADO, (int) $this->siembra->filaDeTarea($id)['estado']);
+    }
+
+    /**
+     * @comportamiento Una tarea que se pone en proceso al empezar, como la del coste medio, no se
+     *   vuelve a lanzar en una pasada que empieza mientras ella corre: la pasada solo lee las tareas
+     *   activas.
+     */
+    public function test_T20_unaTareaQueSePoneEnProcesoNoSeRelanzaEnUnaPasadaQueCoincide(): void
+    {
+        $id = $this->tarea('TareaQueSePoneEnProceso');
+
+        $this->pasada();
+
+        self::assertSame(1, RegistroDeTareas::vecesQueSeEjecuto($id));
+        self::assertSame(1, RegistroDeTareas::maximoALaVez('TareaQueSePoneEnProceso'));
+        self::assertSame(\MTareasCron::ESTADO_ACTIVO, (int) $this->siembra->filaDeTarea($id)['estado']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_tareas_cron/clases/TareasCron.php:43-47
+     * @codigo-afectado modulos/mod_tareas_cron/clases/CTareasCron.php:44-70
+     *
+     * @group esperado
+     * @group ejecucion
+     * @group medio
+     *
+     * @que-ocurre-hoy Dos tareas pueden nombrar la misma clase. Si una pasada empieza mientras corre
+     *   una de ellas, lanza la otra: el mismo cálculo corre dos veces a la vez sobre los mismos datos.
+     *   La marca de en proceso es de cada tarea y no protege a la otra.
+     * @que-deberia-ocurrir Que no corran a la vez dos ejecuciones de la misma clase.
+     * @por-que-ocurre La pasada solo deja fuera a la tarea en proceso, no a las demás de su clase, y
+     *   la ficha admite una clase que ya tiene otra tarea.
+     * @como-deberia-funcionar No admitir dos tareas con la misma clase, o no lanzar una tarea mientras
+     *   otra de su clase está en proceso.
+     */
+    public function test_T21_dosTareasDeLaMismaClaseNoCorrenALaVez(): void
+    {
+        $this->tarea('TareaQueSePoneEnProceso', ['nombre' => 'Primera']);
+        $this->tarea('TareaQueSePoneEnProceso', ['nombre' => 'Segunda']);
+
+        $this->pasada();
+
+        self::assertSame(1, RegistroDeTareas::maximoALaVez('TareaQueSePoneEnProceso'), 'Dos ejecuciones de la misma clase no pueden coincidir.');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_tareas_cron/clases/TareasCron.php:48-49
+     * @codigo-afectado modulos/mod_tareas_cron/clases/TareasCron.php:81
+     *
+     * @group esperado
+     * @group seguridad
+     * @group alto
+     *
+     * @que-ocurre-hoy Con un nombre de clase que es una ruta fuera de la carpeta de tareas, el
+     *   planificador incluye ese fichero y ejecuta su código. La pantalla de tareas admite ese nombre.
+     * @que-deberia-ocurrir Que solo incluya ficheros de la carpeta de tareas.
+     * @por-que-ocurre El planificador forma la ruta pegando el nombre de clase guardado a la carpeta de
+     *   tareas, y no comprueba adónde lleva.
+     * @como-deberia-funcionar Rechazar un nombre de clase con barras o puntos antes de formar la ruta.
+     */
+    public function test_T22_elPlanificadorNoIncluyeUnFicheroDeFueraDeLaCarpetaDeTareas(): void
+    {
+        $clase = '../../../fuera-de-tareas/OtroDeFuera';
+        $ruta = RegistroDeTareas::raiz() . '/modulos/mod_tareas_cron/tareas/' . $clase . '.php';
+        self::assertLessThanOrEqual(150, strlen('estoy:' . $ruta), 'Precondición: la ruta cabe en el diario, que si no corta la pasada antes de incluir.');
+        $this->tarea($clase);
+
+        $this->pasada();
+
+        self::assertFalse(RegistroDeTareas::seIncluyo('OtroDeFuera.php'), 'Un fichero de fuera de la carpeta de tareas no puede incluirse.');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_tareas_cron/clases/TareasCron.php:59
+     * @codigo-afectado modulos/mod_tareas_cron/clases/TareasCron.php:63
+     * @codigo-afectado modulos/mod_tareas_cron/clases/TareasCron.php:68
+     *
+     * @group esperado
+     * @group diario
+     * @group medio
+     *
+     * @que-ocurre-hoy Cuando a una tarea no le toca, el diario anota los minutos de su periodo, los
+     *   transcurridos y el motivo de no lanzarla, pero sin la tarea: con varias tareas, no se sabe de
+     *   cuál habla cada entrada.
+     * @que-deberia-ocurrir Que toda entrada que trata de una tarea lleve la tarea.
+     * @por-que-ocurre Esas tres entradas se escriben sin pasar el identificador de la tarea.
+     * @como-deberia-funcionar Pasar el identificador de la tarea en todas las entradas que tratan de
+     *   ella.
+     */
+    public function test_T23_lasEntradasDelDiarioDeUnaTareaQueNoTocaLlevanLaTarea(): void
+    {
+        $id = $this->tarea('TareaQueAnota', ['nombre' => 'En plazo', 'cantidad' => 60, 'ultima' => self::hace(10)]);
+
+        $this->pasada();
+
+        $entradas = $this->siembra->diarioDesde($this->diarioPrevio);
+        $deLaTarea = array_slice($entradas, 2);
+        self::assertSame(['minutos periodo-->60', 'minutos-->10', 'No ejecuta tarea En plazo:No ha pasado periodo de 60 minutos'], array_column($deLaTarea, 'descripcion'));
+        self::assertSame([$id, $id, $id], array_column($deLaTarea, 'tarea_id'), 'Cada entrada sobre la tarea tiene que llevarla.');
+    }
+
+    /**
+     * @comportamiento Cuando la última ejecución queda antes de la fecha de inicio, el diario anota el
+     *   motivo atado a la tarea.
+     */
+    public function test_T24_elMotivoDeLaFechaDeInicioLlevaLaTarea(): void
+    {
+        $id = $this->tarea('TareaQueAnota', [
+            'nombre' => 'Antes de su inicio',
+            'inicio' => date('Y-m-d', strtotime('+5 days')),
+            'ultima' => self::hace(1440),
+        ]);
+
+        $this->pasada();
+
+        self::assertSame(['No ejecuta tarea Antes de su inicio:fecha inicio no ha pasado'], $this->diarioDe($id));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_tareas_cron/clases/DiarioCron.php:12
+     *
+     * @group esperado
+     * @group diario
+     * @group medio
+     *
+     * @que-ocurre-hoy Una entrada del diario de más de 150 caracteres no se escribe: la base la
+     *   rechaza en modo estricto y la excepción corta a quien escribía. La entrada que anuncia una
+     *   tarea lleva la ruta completa de su fichero, así que pasa de 150 con una ruta de instalación
+     *   larga o una clase de nombre largo.
+     * @que-deberia-ocurrir Que el diario guarde la entrada, sin depender de su longitud.
+     * @por-que-ocurre La columna admite 150 caracteres, y la entrada se escribe tal cual.
+     * @como-deberia-funcionar No guardar la ruta entera, o ajustar la entrada a la columna.
+     */
+    public function test_T25_unaEntradaDelDiarioDeMasDe150CaracteresSeGuarda(): void
+    {
+        $excepcion = null;
+
+        try {
+            \DiarioCron::log(str_repeat('a', 151));
+        } catch (\mysqli_sql_exception $e) {
+            $excepcion = $e;
+        }
+
+        self::assertNull($excepcion, 'Una entrada larga no puede romper la escritura del diario.');
+        self::assertCount(1, $this->siembra->diarioDesde($this->diarioPrevio));
+    }
+
+    /**
+     * @comportamiento El momento de cada entrada del diario lo pone la base al escribirla.
+     */
+    public function test_T26_cadaEntradaDelDiarioLlevaElMomentoEnQueSeEscribe(): void
+    {
+        $this->tarea('TareaQueAnota');
+
+        $this->pasada();
+
+        $fila = $this->db->query(
+            'SELECT COUNT(*) AS n, MAX(ABS(TIMESTAMPDIFF(SECOND, ejecucion, NOW()))) AS desfase FROM diario_cron WHERE id > ' . $this->diarioPrevio
+        )->fetch_assoc();
+        self::assertSame(5, (int) $fila['n']);
+        self::assertLessThanOrEqual(60, (int) $fila['desfase']);
+    }
+
+    /**
+     * @comportamiento Una tarea con periodo cero se lanza en cada pasada, aunque se acabe de ejecutar:
+     *   cero minutos han pasado siempre. Es lo que hace la pasada con una tarea que llega a la base con
+     *   ese periodo; la ficha no debería admitirlo.
+     */
+    public function test_T27_unaTareaConPeriodoCeroSeLanzaEnCadaPasada(): void
+    {
+        $id = $this->tarea('TareaQueAnota', ['cantidad' => 0, 'ultima' => self::hace(0)]);
+
+        $this->pasada();
+
+        self::assertSame(1, RegistroDeTareas::vecesQueSeEjecuto($id));
+    }
+
+    /**
+     * @comportamiento Un tipo de periodo que no es ninguno de los cuatro queda sin convertir, y el
+     *   periodo se cuenta como minutos. Es lo que hace la pasada con una tarea que llega a la base con
+     *   ese tipo; la ficha no debería admitirlo.
+     */
+    public function test_T28_unTipoDePeriodoQueNoExisteSeCuentaComoMinutos(): void
+    {
+        $vencida = $this->tarea('TareaQueAnota', ['cantidad' => 60, 'tipo' => 9, 'ultima' => self::hace(61)]);
+        $enPlazo = $this->tarea('TareaQueAnota', ['cantidad' => 60, 'tipo' => 9, 'ultima' => self::hace(59)]);
+
+        $this->pasada();
+
+        self::assertSame(1, RegistroDeTareas::vecesQueSeEjecuto($vencida));
+        self::assertSame(0, RegistroDeTareas::vecesQueSeEjecuto($enPlazo));
+    }
+
     /** Una pasada del planificador sobre la raíz de pruebas, como la lanza el cron. */
     private function pasada(): void
     {

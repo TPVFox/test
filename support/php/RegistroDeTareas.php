@@ -21,6 +21,12 @@ final class RegistroDeTareas
     /** @var list<string> Ficheros de prueba que alguien incluyo. */
     private static array $incluidos = [];
 
+    /** @var array<string,int> Ejecuciones de cada clase de prueba que estan en curso ahora. */
+    private static array $enCurso = [];
+
+    /** @var array<string,int> Cuantas ejecuciones de cada clase de prueba llego a haber a la vez. */
+    private static array $maximoALaVez = [];
+
     public static function anotar(int $idTarea): void
     {
         self::$ejecuciones[] = $idTarea;
@@ -29,6 +35,25 @@ final class RegistroDeTareas
     public static function anotarInclusion(string $fichero): void
     {
         self::$incluidos[] = $fichero;
+    }
+
+    /** Una ejecucion de esa clase de prueba empieza. */
+    public static function empezar(string $clase): void
+    {
+        self::$enCurso[$clase] = (self::$enCurso[$clase] ?? 0) + 1;
+        self::$maximoALaVez[$clase] = max(self::$maximoALaVez[$clase] ?? 0, self::$enCurso[$clase]);
+    }
+
+    /** Una ejecucion de esa clase de prueba termina. */
+    public static function terminar(string $clase): void
+    {
+        self::$enCurso[$clase] = (self::$enCurso[$clase] ?? 1) - 1;
+    }
+
+    /** Cuantas ejecuciones de esa clase de prueba llego a haber en curso a la vez. */
+    public static function maximoALaVez(string $clase): int
+    {
+        return self::$maximoALaVez[$clase] ?? 0;
     }
 
     /** Si alguien incluyo el fichero de prueba de ese nombre. */
@@ -69,6 +94,8 @@ final class RegistroDeTareas
         self::$ejecuciones = [];
         self::$relanzado = false;
         self::$incluidos = [];
+        self::$enCurso = [];
+        self::$maximoALaVez = [];
     }
 
     /** La raiz que imita la de TPVFox, con las tareas de prueba en su carpeta de tareas. */

@@ -237,6 +237,34 @@ final class EjecucionManualIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_tareas_cron/tareas.php:14-20
+     *
+     * @group esperado
+     * @group ejecucion
+     * @group medio
+     *
+     * @que-ocurre-hoy La ejecución manual lanza una tarea aunque otra tarea de la misma clase esté en
+     *   proceso: el mismo cálculo corre dos veces a la vez sobre los mismos datos.
+     * @que-deberia-ocurrir Que no la lance mientras otra ejecución de su clase está en curso, y
+     *   responda por qué.
+     * @por-que-ocurre `tareas.php` no mira el estado de ninguna tarea antes de lanzar la pedida, y la
+     *   ficha admite dos tareas con la misma clase.
+     * @como-deberia-funcionar No admitir dos tareas con la misma clase, o no lanzar una tarea mientras
+     *   otra de su clase está en proceso.
+     */
+    public function test_T10_noLanzaUnaTareaMientrasOtraDeSuMismaClaseEstaEnProceso(): void
+    {
+        $this->tareas->tarea('Primera, en proceso', 'TareaQueAnota', ['estado' => \MTareasCron::ESTADO_EN_PROCESO]);
+        $segunda = $this->tareas->tarea('Segunda, activa', 'TareaQueAnota');
+
+        $respuesta = $this->pedirEjecucion((string) $segunda);
+
+        self::assertSame(0, RegistroDeTareas::vecesQueSeEjecuto($segunda), 'Con otra ejecución de su clase en curso, la tarea no puede lanzarse.');
+        self::assertNotSame(0, $respuesta['error'] ?? null);
+    }
+
+    /**
      * Una petición de la pantalla de tareas para ejecutar una: `tareas.php` corre con la carpeta del
      * módulo de esa raíz como directorio de trabajo, como lo pone el servidor web. Devuelve la
      * respuesta decodificada, o null si no la hubo.

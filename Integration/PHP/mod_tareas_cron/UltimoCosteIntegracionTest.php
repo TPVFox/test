@@ -258,6 +258,20 @@ final class UltimoCosteIntegracionTest extends CasoIntegracion
         self::assertSame([], $avisos);
     }
 
+    /**
+     * @comportamiento `ultimoCoste` guarda unas seis cifras significativas: un coste de compra con
+     *   más se escribe redondeado. La columna es de la ficha del artículo.
+     */
+    public function test_T9_unCosteConMasDeSeisCifrasSeEscribeRedondeado(): void
+    {
+        $articulo = $this->compras->articulo('Coste con cuatro decimales');
+        $this->compras->entradaProveedor($articulo, 1, $this->ano() . '-01-10', ['coste' => 123.4567]);
+
+        $this->ejecutar();
+
+        self::assertEqualsWithDelta(123.457, $this->tareas->ultimoCoste($articulo), 0.0000001);
+    }
+
     /** Una ejecución de la tarea, como la lanza el planificador. */
     private function ejecutar(): void
     {

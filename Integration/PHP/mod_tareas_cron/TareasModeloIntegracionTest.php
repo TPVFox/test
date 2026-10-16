@@ -405,6 +405,56 @@ final class TareasModeloIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_tareas_cron/clases/CTareasCron.php:54-59
+     *
+     * @group esperado
+     * @group periodo
+     * @group medio
+     *
+     * @que-ocurre-hoy La validación admite un periodo cero o negativo y un tipo de periodo que no es
+     *   ninguno de los cuatro: solo pide que sean números. Con periodo cero la tarea se lanza en cada
+     *   pasada, y con un tipo que no existe su periodo se cuenta como minutos.
+     * @que-deberia-ocurrir Que se rechacen con su aviso y no se guarde nada.
+     * @por-que-ocurre La validación comprueba que la cantidad y el tipo sean números, sin mirar su
+     *   valor.
+     * @como-deberia-funcionar Admitir solo un periodo entero positivo y uno de los cuatro tipos.
+     */
+    public function test_T22_unPeriodoCeroONegativoOUnTipoQueNoExisteSeRechazaAlValidar(): void
+    {
+        $casos = [
+            'Periodo cero' => ['cantidad_periodo' => '0'],
+            'Periodo negativo' => ['cantidad_periodo' => '-5'],
+            'Tipo que no existe' => ['tipo_periodo' => '9'],
+        ];
+
+        foreach ($casos as $nombre => $campos) {
+            [$tarea, $errores] = (new \CTareasCron())->guardar($this->formulario(['nombre' => $nombre] + $campos));
+
+            self::assertNotSame([], $errores, $nombre . ': tiene que rechazarse.');
+            self::assertSame([], $tarea, $nombre);
+            self::assertSame(0, $this->siembra->cuantasSeLlaman($nombre), $nombre . ': no puede guardarse.');
+        }
+    }
+
+    /**
+     * @comportamiento La ficha admite dar de alta una tarea con la misma clase que ya tiene otra.
+     */
+    public function test_T23_laFichaAdmiteDosTareasConLaMismaClase(): void
+    {
+        $primera = $this->siembra->tarea('Coste medio', 'AcumuladoComprasTarea');
+
+        [$segunda, $errores] = (new \CTareasCron())->guardar($this->formulario([
+            'nombre' => 'Coste medio, otra vez',
+            'nombre_clase' => 'AcumuladoComprasTarea',
+        ]));
+
+        self::assertSame([], $errores);
+        self::assertNotSame($primera, (int) $segunda);
+        self::assertSame('AcumuladoComprasTarea', $this->siembra->filaDeTarea((int) $segunda)['nombre_clase']);
+    }
+
+    /**
      * Los campos que envía el formulario de la pantalla de tareas, con los cambios del caso.
      *
      * @param array<string,string> $campos

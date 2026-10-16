@@ -306,6 +306,26 @@ final class CosteMedioIntegracionTest extends CasoIntegracion
         self::assertEqualsWithDelta(0.0, $cantidades[1] ?? 0.0, 0.000001, 'Enero ya no tiene compras.');
     }
 
+    /**
+     * @comportamiento Un mes cuya cantidad neta es cero —lo comprado y lo devuelto se igualan— no
+     *   aporta nada a la media, tampoco su coste: si la devolución se valoró a otro coste que la
+     *   compra, esa diferencia no cuenta.
+     */
+    public function test_T13_unMesConCantidadNetaCeroNoAportaNadaALaMedia(): void
+    {
+        $ano = $this->ano();
+        $articulo = $this->compras->articulo('Comprado y devuelto el mismo mes');
+        $this->compras->entradaProveedor($articulo, 10, "$ano-01-10", ['coste' => 8.0]);
+        $this->compras->entradaProveedor($articulo, 5, "$ano-02-10", ['coste' => 10.0]);
+        $this->compras->devolucionProveedor($articulo, 5, "$ano-02-20", ['coste' => 12.0]);
+        $this->articuloDeCierre();
+
+        $this->ejecutar();
+
+        // Solo cuenta enero: 10 × 8 / 10. Con febrero sumado línea a línea sería (80 + 50 − 60) / 10.
+        self::assertEqualsWithDelta(8.0, $this->tareas->costeMedio($articulo), 0.000001);
+    }
+
     /** Una ejecución de la tarea, como la lanza el planificador. */
     private function ejecutar(): void
     {

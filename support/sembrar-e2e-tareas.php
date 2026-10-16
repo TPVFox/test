@@ -53,6 +53,8 @@ $tareas->tarea(PREFIJO . 'Para listar', 'AcumuladoComprasTarea', ['cantidad' => 
 $tareas->tarea(PREFIJO . 'De baja', 'UltimoPrecioCompraTarea', ['inicio' => $pasado, 'estado' => 0]);
 $tareas->tarea(PREFIJO . 'Para borrar', 'AcumuladoComprasTarea', ['inicio' => $pasado]);
 $tareas->tarea(PREFIJO . 'Para borrar sin sesión', 'AcumuladoComprasTarea', ['inicio' => $pasado]);
+$tareas->tarea(PREFIJO . 'Para borrar sin permiso', 'AcumuladoComprasTarea', ['inicio' => $pasado]);
+$tareas->tarea(PREFIJO . 'Para borrar por su dirección', 'AcumuladoComprasTarea', ['inicio' => $pasado]);
 $tareas->tarea(PREFIJO . '<b id=e2e-inyectado>x</b>', 'AcumuladoComprasTarea', ['inicio' => $pasado]);
 
 // La ficha. Guardada sin tocar nada, la ficha envía siempre minutos como tipo de período y hoy
@@ -60,5 +62,7 @@ $tareas->tarea(PREFIJO . '<b id=e2e-inyectado>x</b>', 'AcumuladoComprasTarea', [
 $tareas->tarea(PREFIJO . 'Guardada sin cambios', 'AcumuladoComprasTarea', ['cantidad' => 60, 'tipo' => 1, 'inicio' => $hoy]);
 $tareas->tarea(PREFIJO . 'Con inicio pasado', 'AcumuladoComprasTarea', ['cantidad' => 60, 'tipo' => 1, 'inicio' => $pasado]);
 $tareas->tarea(PREFIJO . 'Cada dos horas', 'AcumuladoComprasTarea', ['cantidad' => 2, 'tipo' => 2, 'inicio' => $hoy]);
+// Ni activa ni de baja: la ficha no marca ningún estado.
+$tareas->tarea(PREFIJO . 'En proceso', 'AcumuladoComprasTarea', ['cantidad' => 60, 'tipo' => 1, 'inicio' => $hoy, 'estado' => 2]);
 
 echo "Tareas de los recorridos sembradas.\n";
