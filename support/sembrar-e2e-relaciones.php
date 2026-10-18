@@ -6,12 +6,17 @@
  * `[E2E relaciones]` y se reutilizan entre pasadas; las relaciones se borran y se vuelven a
  * sembrar cada vez, porque los casos de integracion del modulo vacian esas tablas.
  *
- * Uso: php support/sembrar-e2e-relaciones.php [estado] [vigente|anterior]
+ * Uso: php support/sembrar-e2e-relaciones.php [estado] [vigente|anterior] [conPermiso|sinPermiso]
  *
  *   completo        tres tipos y cuarenta y cinco relaciones, en dos paginas (por defecto)
  *   sinRelaciones   los tres tipos y ninguna relacion
  *   sinTipos        las tres tablas vacias, como llegan tras instalar
  *   sinEstructura   las tres tablas retiradas de la base
+ *
+ * El tercer argumento deja al usuario de los recorridos (TPVFOX_E2E_USUARIO) con el permiso
+ * de cambiar el estado de las relaciones desde el listado concedido (por defecto) o denegado.
+ * Es lo que haria «Reorganizar permisos»: el permiso es de una pantalla que ya existia, y a
+ * quien ya la tenia no le llega solo al entrar.
  *
  * Los tres ultimos estados dejan el listado sin datos, y los recorridos que los necesitan
  * los piden sobre la base del ejercicio anterior: asi no se los quitan a los demas
@@ -31,6 +36,12 @@ const PREFIJO = '[E2E relaciones] ';
 $estado = $argv[1] ?? 'completo';
 if (!in_array($estado, ['completo', 'sinRelaciones', 'sinTipos', 'sinEstructura'], true)) {
     fwrite(STDERR, "Estado desconocido: {$estado}\n");
+    exit(1);
+}
+
+$permiso = $argv[3] ?? 'conPermiso';
+if (!in_array($permiso, ['conPermiso', 'sinPermiso'], true)) {
+    fwrite(STDERR, "Permiso desconocido: {$permiso}\n");
     exit(1);
 }
 
@@ -102,8 +113,7 @@ $escenario->relacionVigente($cruce, [$linea('Naranja de mesa', 'entrada', null, 
 
 // Una relacion dada de baja y otra que solo tiene un borrador: sus productos no se listan.
 $retirada = $escenario->relacionVigente($despiece, [$linea('Conejo', 'entrada'), $linea('Paletilla de conejo', 'salida')], ['fecha' => '2026-01-05 09:00:00']);
-$db->query("UPDATE relaciones SET estado = 'Sustituido' WHERE id = {$retirada['id']}");
-$escenario->versionDeRelacion($retirada['numRelacion'], $despiece, '1.1', 'Baja', '2026-02-05 09:00:00');
+$db->query("UPDATE relaciones SET estado = 'Baja' WHERE id = {$retirada['id']}");
 $numeroLibre = (int) $db->query('SELECT MAX(numRelacion) + 1 AS n FROM relaciones')->fetch_assoc()['n'];
 $escenario->versionDeRelacion($numeroLibre, $despiece, '0.0', 'Borrador', '2026-03-10 09:00:00', [$linea('Pavo', 'entrada'), $linea('Muslo de pavo', 'salida')]);
 
@@ -119,3 +129,19 @@ for ($n = 1; $n <= 42; $n++) {
 
 $filas = (int) $db->query("SELECT COUNT(*) AS n FROM relaciones WHERE estado = 'Activo'")->fetch_assoc()['n'];
 echo "Relaciones sembradas: {$filas} que rigen.\n";
+
+// El permiso de cambiar el estado desde el listado, para el usuario de los recorridos.
+$login = Entorno::valor('TPVFOX_E2E_USUARIO');
+$buscar = $db->prepare('SELECT id FROM usuarios WHERE username = ? LIMIT 1');
+$buscar->bind_param('s', $login);
+$buscar->execute();
+$usuario = $buscar->get_result()->fetch_row();
+if ($usuario === null) {
+    echo "Sin usuario de recorridos «{$login}»: el permiso no se toca.\n";
+    exit(0);
+}
+$idUsuario = (int) $usuario[0];
+$concedido = $permiso === 'conPermiso' ? 1 : 0;
+$db->query("DELETE FROM permisos WHERE idUsuario = $idUsuario AND modulo = 'mod_relaciones' AND vista = 'ListaRelaciones.php' AND accion = 'CambiarEstado'");
+$db->query("INSERT INTO permisos (idUsuario, modulo, vista, accion, permiso) VALUES ($idUsuario, 'mod_relaciones', 'ListaRelaciones.php', 'CambiarEstado', $concedido)");
+echo $concedido === 1 ? "Permiso de cambiar el estado concedido.\n" : "Permiso de cambiar el estado denegado.\n";

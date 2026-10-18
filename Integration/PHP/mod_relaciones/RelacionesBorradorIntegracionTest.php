@@ -260,6 +260,27 @@ final class RelacionesBorradorIntegracionTest extends CasoIntegracion
     }
 
     /** La clase del módulo, con la posibilidad de hacer fallar la consulta que se le indique. */
+    /**
+     * @comportamiento Mientras se prepara el borrador de un cambio, la relación queda leída
+     *   con bloqueo: una baja que llega a la vez espera, y si la espera se agota no cambia
+     *   nada. Sin ese bloqueo, el borrador podría entrar después de la baja.
+     */
+    public function test_T18_mientrasSeCreaElBorradorDeUnCambioOtraConexionNoPuedeDarDeBajaLaRelacion(): void
+    {
+        $vigente = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $otra = $this->otraConexion();
+        $baja = "UPDATE relaciones SET estado = 'Baja' WHERE numRelacion = {$vigente['numRelacion']} AND estado = 'Activo'";
+        $relaciones = $this->relacionesQueAlLeerConBloqueo($otra, $baja);
+
+        $respuesta = $relaciones->crearBorradorDeCambio($vigente['numRelacion'], $this->usuario);
+        $otra->close();
+
+        self::assertSame(1205, $relaciones->errorDeLaOtraConexion);
+        self::assertArrayHasKey('datos', $respuesta);
+        self::assertSame('Activo', $this->fila($vigente['id'])['estado']);
+        self::assertSame('Borrador', $this->fila($respuesta['datos']['id'])['estado']);
+    }
+
     private function relaciones(): object
     {
         return new class extends \Relaciones {
@@ -275,6 +296,49 @@ final class RelacionesBorradorIntegracionTest extends CasoIntegracion
                 return parent::consultaPreparada($sql, $valores);
             }
         };
+    }
+
+    /** Una segunda conexión a la misma base, que espera un segundo como mucho a un bloqueo. */
+    private function otraConexion(): \mysqli
+    {
+        $otra = self::conectar($this->ejercicio);
+        $otra->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        return $otra;
+    }
+
+    /**
+     * La clase del módulo que, justo después de su lectura con bloqueo, hace escribir a otra
+     * conexión, como si otra persona lo intentara a la vez, y anota el error que esta recibe.
+     */
+    private function relacionesQueAlLeerConBloqueo(\mysqli $otra, string $escritura): object
+    {
+        $relaciones = new class extends \Relaciones {
+            public ?\mysqli $otra = null;
+            public string $escritura = '';
+            public int $errorDeLaOtraConexion = 0;
+
+            protected function consultaPreparada($sql, $valores = array())
+            {
+                $respuesta = parent::consultaPreparada($sql, $valores);
+                if ($this->otra !== null && str_contains($sql, 'FOR UPDATE')) {
+                    try {
+                        if ($this->otra->query($this->escritura) === false) {
+                            $this->errorDeLaOtraConexion = $this->otra->errno;
+                        }
+                    } catch (\mysqli_sql_exception $e) {
+                        $this->errorDeLaOtraConexion = $e->getCode();
+                    }
+                    $this->otra = null;
+                }
+
+                return $respuesta;
+            }
+        };
+        $relaciones->otra = $otra;
+        $relaciones->escritura = $escritura;
+
+        return $relaciones;
     }
 
     private function linea(string $nombre, string $sentido): array

@@ -324,36 +324,43 @@ final class RelacionesHistorialIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @comportamiento Dar de baja una relación no borra nada: añade una versión que la cierra,
-     *   sin líneas, y todo lo que fue queda en su sitio.
+     * @comportamiento Dar de baja una relación no borra nada ni añade versiones: la versión que
+     *   rige pasa a estar de baja, y su número, su autor, su fecha y sus líneas quedan como
+     *   estaban.
      */
-    public function test_T20_laBajaAnadeUnaVersionQueCierraLaRelacionYConservaLasAnteriores(): void
+    public function test_T20_laBajaSoloCambiaElEstadoDeLaVersionQueRigeYConservaTodoLoDemas(): void
     {
         $vigente = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $antes = $this->fila($vigente['id']);
         $lineasAntes = $this->lineas($vigente['id']);
 
         $respuesta = $this->relaciones()->darDeBaja($vigente['numRelacion'], $this->otroUsuario);
 
-        $baja = $this->fila($respuesta['datos']['id']);
-        self::assertSame('1.1', $baja['version']);
-        self::assertSame('baja', $baja['tipoCambio']);
-        self::assertSame('Baja', $baja['estado']);
-        self::assertSame($this->otroUsuario, (int) $baja['idUsuario']);
-        self::assertSame([], $this->lineas($respuesta['datos']['id']));
-        self::assertSame('Sustituido', $this->fila($vigente['id'])['estado']);
+        self::assertArrayHasKey('datos', $respuesta);
+        $despues = $this->fila($vigente['id']);
+        self::assertSame('Baja', $despues['estado']);
+        unset($antes['estado'], $despues['estado']);
+        self::assertSame($antes, $despues);
         self::assertSame($lineasAntes, $this->lineas($vigente['id']));
+        self::assertSame(['Baja'], $this->estadosDe($vigente['numRelacion']));
     }
 
-    public function test_T21_laBajaDescartaElBorradorQueLaRelacionTuvieraPendiente(): void
+    /**
+     * @comportamiento La baja no descarta el borrador que alguien prepara: se rechaza con su
+     *   motivo, y el borrador y la versión que rige quedan como estaban.
+     */
+    public function test_T21_laBajaSeRechazaSiLaRelacionTieneUnBorradorPendienteYNoLoToca(): void
     {
         $vigente = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
         $idBorrador = $this->relaciones()->crearBorradorDeCambio($vigente['numRelacion'], $this->usuario)['datos']['id'];
+        $lineasDelBorrador = $this->lineas($idBorrador);
 
         $respuesta = $this->relaciones()->darDeBaja($vigente['numRelacion'], $this->usuario);
 
-        self::assertArrayHasKey('datos', $respuesta);
-        self::assertNull($this->fila($idBorrador));
-        self::assertSame([], $this->lineas($idBorrador));
+        self::assertStringContainsString('borrador pendiente', $respuesta['error']['mensaje']);
+        self::assertSame('Activo', $this->fila($vigente['id'])['estado']);
+        self::assertSame('Borrador', $this->fila($idBorrador)['estado']);
+        self::assertSame($lineasDelBorrador, $this->lineas($idBorrador));
     }
 
     /**
@@ -370,7 +377,7 @@ final class RelacionesHistorialIntegracionTest extends CasoIntegracion
 
         self::assertStringContainsString('no está vigente', $otraBaja['error']['mensaje']);
         self::assertStringContainsString('no está vigente', $modificacion['error']['mensaje']);
-        self::assertSame(2, (int) $this->db->query("SELECT COUNT(*) AS n FROM relaciones WHERE numRelacion = {$vigente['numRelacion']}")->fetch_assoc()['n']);
+        self::assertSame(1, (int) $this->db->query("SELECT COUNT(*) AS n FROM relaciones WHERE numRelacion = {$vigente['numRelacion']}")->fetch_assoc()['n']);
     }
 
     public function test_T23_trasLaBajaLaMismaRelacionSePuedeDarDeAltaDeNuevoConOtroNumero(): void
@@ -440,6 +447,27 @@ final class RelacionesHistorialIntegracionTest extends CasoIntegracion
         self::assertSame(1, (int) $this->db->query("SELECT COUNT(*) AS n FROM relaciones WHERE numRelacion = {$vigente['numRelacion']}")->fetch_assoc()['n']);
     }
 
+    /**
+     * @comportamiento Mientras la baja tiene leída la relación, nadie puede prepararle un
+     *   borrador: quien lo intenta espera, y si la espera se agota no escribe nada. Sin ese
+     *   bloqueo, la relación quedaría de baja con un borrador que ya no se puede activar.
+     */
+    public function test_T28_mientrasSeDaDeBajaOtraConexionNoPuedeCrearleUnBorrador(): void
+    {
+        $vigente = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $otra = $this->otraConexion();
+        $borrador = "INSERT INTO relaciones (numRelacion, idTipo, version, idUsuario, fechaCreacion, estado)"
+            . " VALUES ({$vigente['numRelacion']}, {$this->despiece}, '0.0', {$this->usuario}, NOW(), 'Borrador')";
+        $relaciones = $this->relacionesQueAlLeerConBloqueo($otra, $borrador);
+
+        $respuesta = $relaciones->darDeBaja($vigente['numRelacion'], $this->usuario);
+        $otra->close();
+
+        self::assertSame(1205, $relaciones->errorDeLaOtraConexion);
+        self::assertArrayHasKey('datos', $respuesta);
+        self::assertSame(['Baja'], $this->estadosDe($vigente['numRelacion']));
+    }
+
     private function relaciones(): object
     {
         return new class extends \Relaciones {
@@ -454,11 +482,11 @@ final class RelacionesHistorialIntegracionTest extends CasoIntegracion
                     return ['error' => $this->montarAdvertencia('danger', 'Fallo provocado por la prueba'), 'consulta' => $sql];
                 }
 
-                if ($this->otraEscrituraSeAdelanta && str_contains($sql, "SET estado = 'Sustituido'")) {
+                if ($this->otraEscrituraSeAdelanta && (str_contains($sql, "SET estado = 'Sustituido'") || str_contains($sql, "SET estado = 'Baja'"))) {
                     parent::consultaPreparada("UPDATE relaciones SET estado = 'Sustituido' WHERE id = ?", $valores);
                 }
 
-                if ($this->fallarAlInsertarLaBaja && str_contains($sql, "'baja'")) {
+                if ($this->fallarAlInsertarLaBaja && str_contains($sql, "SET estado = 'Baja'")) {
                     return ['error' => $this->montarAdvertencia('danger', 'Fallo provocado por la prueba'), 'consulta' => $sql];
                 }
 
@@ -512,5 +540,56 @@ final class RelacionesHistorialIntegracionTest extends CasoIntegracion
         $fila = $this->db->query("SELECT estado FROM relacionesLineas WHERE idRelacion = $idRelacion AND idArticulo = {$this->articulo[$nombre]}")->fetch_assoc();
 
         return $fila['estado'] ?? null;
+    }
+
+    /** @return list<string> el estado de cada versión de la relación, por orden de alta */
+    private function estadosDe(int $numRelacion): array
+    {
+        $filas = $this->db->query("SELECT estado FROM relaciones WHERE numRelacion = $numRelacion ORDER BY id")->fetch_all(MYSQLI_ASSOC);
+
+        return array_column($filas, 'estado');
+    }
+
+    /** Una segunda conexión a la misma base, que espera un segundo como mucho a un bloqueo. */
+    private function otraConexion(): \mysqli
+    {
+        $otra = self::conectar($this->ejercicio);
+        $otra->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        return $otra;
+    }
+
+    /**
+     * La clase del módulo que, justo después de su lectura con bloqueo, hace escribir a otra
+     * conexión, como si otra persona lo intentara a la vez, y anota el error que esta recibe.
+     */
+    private function relacionesQueAlLeerConBloqueo(\mysqli $otra, string $escritura): object
+    {
+        $relaciones = new class extends \Relaciones {
+            public ?\mysqli $otra = null;
+            public string $escritura = '';
+            public int $errorDeLaOtraConexion = 0;
+
+            protected function consultaPreparada($sql, $valores = array())
+            {
+                $respuesta = parent::consultaPreparada($sql, $valores);
+                if ($this->otra !== null && str_contains($sql, 'FOR UPDATE')) {
+                    try {
+                        if ($this->otra->query($this->escritura) === false) {
+                            $this->errorDeLaOtraConexion = $this->otra->errno;
+                        }
+                    } catch (\mysqli_sql_exception $e) {
+                        $this->errorDeLaOtraConexion = $e->getCode();
+                    }
+                    $this->otra = null;
+                }
+
+                return $respuesta;
+            }
+        };
+        $relaciones->otra = $otra;
+        $relaciones->escritura = $escritura;
+
+        return $relaciones;
     }
 }

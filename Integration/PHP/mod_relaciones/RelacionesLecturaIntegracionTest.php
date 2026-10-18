@@ -212,18 +212,22 @@ final class RelacionesLecturaIntegracionTest extends CasoIntegracion
         self::assertNull($respuesta['datos']['version']);
     }
 
-    public function test_T13_unaFechaPosteriorALaBajaRespondeQueEstabaDeBaja(): void
+    /**
+     * @comportamiento Dar de baja no deja fecha: la consulta por fecha devuelve la última
+     *   versión anterior a la fecha, con su contenido y su estado actual, sin saber desde
+     *   cuándo está de baja.
+     */
+    public function test_T13_trasLaBajaLaFechaDevuelveLaUltimaVersionConSuEstadoActual(): void
     {
         $numRelacion = $this->polloConTresVersiones();
-        $this->db->query("UPDATE relaciones SET estado = 'Sustituido' WHERE numRelacion = $numRelacion AND estado = 'Activo'");
-        $this->escenario->versionDeRelacion($numRelacion, $this->despiece, '1.3', 'Baja', '2026-07-01 09:00:00');
+        $this->db->query("UPDATE relaciones SET estado = 'Baja' WHERE numRelacion = $numRelacion AND estado = 'Activo'");
 
-        $antes = $this->relaciones()->estadoEnFecha($numRelacion, '2026-06-30');
+        $enMarzo = $this->relaciones()->estadoEnFecha($numRelacion, '2026-03-15');
         $despues = $this->relaciones()->estadoEnFecha($numRelacion, '2026-07-02');
 
-        self::assertSame('regia', $antes['datos']['situacion']);
-        self::assertSame('deBaja', $despues['datos']['situacion']);
-        self::assertNull($despues['datos']['version']);
+        self::assertSame(['regia', '1.1', 'Sustituido'], [$enMarzo['datos']['situacion'], $enMarzo['datos']['version']['version'], $enMarzo['datos']['version']['estado']]);
+        self::assertSame(['regia', '1.2', 'Baja'], [$despues['datos']['situacion'], $despues['datos']['version']['version'], $despues['datos']['version']['estado']]);
+        self::assertSame('0.250000', $despues['datos']['version']['lineas'][1]['cantidad']);
     }
 
     public function test_T14_unBorradorNoCuentaParaLoQueRegiaEnUnaFecha(): void
@@ -522,6 +526,34 @@ final class RelacionesLecturaIntegracionTest extends CasoIntegracion
     }
 
     /** Un despiece con tres versiones: enero, marzo y mayo, cada una con otra cantidad de pechuga. */
+    public function test_T35_laComprobacionDetectaUnaRelacionConUnaVersionQueRigeYOtraDeBaja(): void
+    {
+        $pollo = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $this->escenario->versionDeRelacion($pollo['numRelacion'], $this->despiece, '1.1', 'Baja', '2026-03-15 09:00:00', $this->lineasDelPollo());
+
+        $respuesta = $this->relaciones()->comprobarVersiones();
+
+        self::assertSame([$pollo['numRelacion']], array_map('intval', array_column($respuesta['datos'], 'numRelacion')));
+        self::assertStringContainsString('más de una versión', $respuesta['datos'][0]['motivo']);
+    }
+
+    /**
+     * @comportamiento Una relación de baja no tiene borrador: la baja se rechaza si lo hay, y
+     *   preparar un cambio exige que la relación rija. Si alguna vez ocurriera, la comprobación
+     *   lo encuentra.
+     */
+    public function test_T36_laComprobacionDetectaUnaRelacionDeBajaConUnBorrador(): void
+    {
+        $pollo = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $this->db->query("UPDATE relaciones SET estado = 'Baja' WHERE id = {$pollo['id']}");
+        $this->escenario->versionDeRelacion($pollo['numRelacion'], $this->despiece, '0.0', 'Borrador', '2026-03-15 09:00:00');
+
+        $respuesta = $this->relaciones()->comprobarVersiones();
+
+        self::assertSame([$pollo['numRelacion']], array_map('intval', array_column($respuesta['datos'], 'numRelacion')));
+        self::assertStringContainsString('de baja y tiene un borrador', $respuesta['datos'][0]['motivo']);
+    }
+
     private function polloConTresVersiones(): int
     {
         $lineas = fn(float $pechuga) => [$this->linea('pollo', 'entrada'), $this->linea('pechuga', 'salida', $pechuga), $this->linea('alas', 'salida')];

@@ -157,6 +157,21 @@ final class ProductoBorradoIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('Relaciones entre productos', $mensajes);
     }
 
+    /**
+     * @comportamiento Dar de baja una relación conserva sus líneas: su artículo sigue sin poder
+     *   borrarse, como el de una versión que ya no rige.
+     */
+    public function test_T8_unArticuloDeUnaRelacionDadaDeBajaTampocoSeBorra(): void
+    {
+        $pollo = $this->escenario->relacionVigente($this->despiece, [$this->linea('pollo', 'entrada'), $this->linea('pechuga', 'salida')]);
+        $this->db->query("UPDATE relaciones SET estado = 'Baja' WHERE id = {$pollo['id']}");
+
+        $respuesta = $this->borrar('pechuga');
+
+        self::assertSame(1, $respuesta['bandera']);
+        self::assertTrue($this->existe('pechuga'));
+    }
+
     /** @return array{bandera:int,resultado:list<array<string,mixed>>} */
     private function borrar(string $nombre): array
     {

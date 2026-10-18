@@ -20,8 +20,12 @@ function conBarraFinal(url) {
   return url.endsWith('/') ? url : url + '/';
 }
 
-function dejarLasTablas(estado, ejercicio) {
-  execFileSync('php', [path.resolve(__dirname, '../../../support/sembrar-e2e-relaciones.php'), estado, ejercicio], { stdio: 'pipe' });
+function dejarLasTablas(estado, ejercicio, permiso = 'conPermiso') {
+  execFileSync('php', [path.resolve(__dirname, '../../../support/sembrar-e2e-relaciones.php'), estado, ejercicio, permiso], { stdio: 'pipe' });
+}
+
+function prepararRelacion(argumentos) {
+  execFileSync('php', [path.resolve(__dirname, '../../../support/preparar-e2e-cambio-estado.php'), ...argumentos], { stdio: 'pipe' });
 }
 
 test.describe.configure({ mode: 'serial' });
@@ -158,20 +162,19 @@ test.describe('Productos relacionados — listado', () => {
     await expect(page.locator('h2')).toHaveText('Productos relacionados');
   });
 
-  test('T13 las acciones tienen su sitio, como en los demás listados, y están desactivadas', {
+  test('T13 añadir, ver y modificar tienen su sitio y siguen desactivados; la casilla de cada fila y «Cambiar estado» funcionan', {
     tag: ['@estado-actual', '@relaciones', '@listado'],
     annotation: [
-      { type: 'Comportamiento', description: 'El listado reserva el sitio de añadir, ver y modificar y el selector de cada fila, igual que el de albaranes. Mientras no exista la pantalla de relación están desactivados: ninguno lleva a ninguna parte ni envía nada.' },
+      { type: 'Comportamiento', description: 'El listado reserva el sitio de añadir, ver y modificar, igual que el de albaranes. Mientras no exista la pantalla de relación están desactivados: ninguno lleva a ninguna parte. La casilla de cada fila se puede marcar, y «Cambiar estado» está disponible para quien tiene su permiso.' },
     ],
   }, async ({ page }) => {
     await iniciarSesion(page, VISTA);
 
-    const opciones = page.locator('.col-sm-3 button');
-    await expect(opciones).toHaveText(['Añadir', 'Ver', 'Modificar']);
-    for (const boton of await opciones.all()) {
-      await expect(boton).toBeDisabled();
+    for (const nombre of ['Añadir', 'Ver', 'Modificar']) {
+      await expect(page.locator('.col-sm-3 button', { hasText: nombre })).toBeDisabled();
     }
-    await expect(page.locator(FILAS + ' input.Check').first()).toBeDisabled();
+    await expect(page.locator('.col-sm-3 button', { hasText: 'Cambiar estado' })).toBeEnabled();
+    await expect(page.locator(FILAS + ' input.Check').first()).toBeEnabled();
     await expect(page.locator('#tablaRelaciones tbody a')).toHaveCount(0);
   });
 
@@ -265,5 +268,183 @@ test.describe('Productos relacionados — listado sin datos', () => {
     expect(respuesta.status()).toBe(200);
     await expect(page.locator('.alert-warning')).toContainText('no están instaladas');
     await expect(page.locator(FILAS)).toHaveCount(0);
+  });
+});
+
+// Cambiar el estado escribe: se hace sobre el despliegue del ejercicio anterior, como los
+// estados sin datos, para no quitar relaciones a los recorridos que corren a la vez sobre el
+// vigente.
+test.describe('Productos relacionados — cambiar el estado desde el listado', () => {
+  const vistaEnElAnterior = (consulta = '') => new URL(VISTA + consulta, conBarraFinal(URL_ANTERIOR)).toString();
+  const BOTON = '.col-sm-3 button:has-text("Cambiar estado")';
+
+  function filaDeLaRelacion(page, numero) {
+    return page.locator(FILAS).filter({ has: page.locator('td:nth-child(4)', { hasText: new RegExp('^' + numero + '$') }) });
+  }
+
+  async function marcar(page, numeros) {
+    for (const numero of numeros) {
+      await filaDeLaRelacion(page, numero).locator('input.Check').check();
+    }
+  }
+
+  /** Acepta los avisos y responde a la confirmación; devuelve el texto de cada diálogo. */
+  function atenderDialogos(page, confirmar = true) {
+    const mensajes = [];
+    page.on('dialog', async (dialogo) => {
+      mensajes.push(dialogo.message());
+      if (dialogo.type() === 'confirm' && !confirmar) {
+        await dialogo.dismiss();
+      } else {
+        await dialogo.accept();
+      }
+    });
+    return mensajes;
+  }
+
+  function peticionesDeCambio(page) {
+    const peticiones = [];
+    page.on('request', (peticion) => {
+      if (peticion.url().includes('mod_relaciones/tareas.php')) {
+        peticiones.push(peticion);
+      }
+    });
+    return peticiones;
+  }
+
+  test.beforeEach(() => {
+    test.skip(!URL_ANTERIOR, 'El entorno no declara TPVFOX_URL_ANTERIOR.');
+  });
+
+  test.afterAll(() => {
+    if (URL_ANTERIOR) {
+      dejarLasTablas('sinTipos', 'anterior');
+    }
+  });
+
+  test('T15 el administrador marca dos relaciones, confirma y dejan de aparecer', {
+    tag: ['@estado-actual', '@relaciones', '@listado', '@permisos'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Como «Cambiar estado» en los listados de compras: se marcan las filas, se pulsa la opción general y se confirma. La pregunta nombra cada relación, con su número, y el estado al que pasa. Tras confirmar, el listado se recarga sin ellas.' },
+    ],
+  }, async ({ page }) => {
+    dejarLasTablas('completo', 'anterior');
+    await iniciarSesion(page, vistaEnElAnterior());
+    const mensajes = atenderDialogos(page);
+
+    await marcar(page, [1, 2]);
+    await page.locator(BOTON).click();
+
+    await expect(page.locator('#relacionesEncontradas')).toHaveText('43');
+    expect(mensajes).toHaveLength(1);
+    expect(mensajes[0]).toContain('Baja');
+    expect(mensajes[0]).toContain('1 Pollo entero');
+    expect(mensajes[0]).toContain('2 [E2E relaciones] Hamburguesa');
+    await expect(filaDeLaRelacion(page, 1)).toHaveCount(0);
+    await expect(filaDeLaRelacion(page, 2)).toHaveCount(0);
+  });
+
+  test('T16 sin ninguna relación marcada, avisa y no envía nada', {
+    tag: ['@estado-actual', '@relaciones', '@listado', '@permisos'],
+  }, async ({ page }) => {
+    dejarLasTablas('completo', 'anterior');
+    await iniciarSesion(page, vistaEnElAnterior());
+    const mensajes = atenderDialogos(page);
+    const peticiones = peticionesDeCambio(page);
+
+    await page.locator(BOTON).click();
+
+    await expect.poll(() => mensajes.length).toBe(1);
+    expect(mensajes[0]).toBe('No tienes items seleccionados');
+    expect(peticiones).toHaveLength(0);
+    await expect(page.locator('#relacionesEncontradas')).toHaveText('45');
+  });
+
+  test('T17 sin el permiso de cambiar el estado, la opción no aparece', {
+    tag: ['@estado-actual', '@relaciones', '@listado', '@permisos'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Quien ve el listado pero no tiene el permiso de cambiar el estado no encuentra la opción. El permiso es de la pantalla desde la que se hace el cambio.' },
+    ],
+  }, async ({ page }) => {
+    dejarLasTablas('completo', 'anterior', 'sinPermiso');
+    await iniciarSesion(page, vistaEnElAnterior());
+
+    await expect(page.locator(FILAS).first()).toBeVisible();
+    await expect(page.locator(BOTON)).toHaveCount(0);
+  });
+
+  test('T18 si no se confirma, no se envía nada y las relaciones siguen', {
+    tag: ['@estado-actual', '@relaciones', '@listado'],
+  }, async ({ page }) => {
+    dejarLasTablas('completo', 'anterior');
+    await iniciarSesion(page, vistaEnElAnterior());
+    const mensajes = atenderDialogos(page, false);
+    const peticiones = peticionesDeCambio(page);
+
+    await marcar(page, [1]);
+    await page.locator(BOTON).click();
+
+    await expect.poll(() => mensajes.length).toBe(1);
+    expect(peticiones).toHaveLength(0);
+    await expect(page.locator('#relacionesEncontradas')).toHaveText('45');
+    await expect(filaDeLaRelacion(page, 1)).toHaveCount(1);
+  });
+
+  test('T19 una relación con un borrador pendiente se avisa antes de recargar y las demás se dan de baja', {
+    tag: ['@estado-actual', '@relaciones', '@listado'],
+    annotation: [
+      { type: 'Comportamiento', description: 'La baja no descarta el cambio que alguien está preparando: esa relación no se da de baja, y su aviso se ve antes de que el listado se recargue. Un cambio a medias no pasa por completo.' },
+    ],
+  }, async ({ page }) => {
+    dejarLasTablas('completo', 'anterior');
+    prepararRelacion(['borrador', '1', 'anterior']);
+    await iniciarSesion(page, vistaEnElAnterior());
+    const mensajes = atenderDialogos(page);
+
+    await marcar(page, [1, 2]);
+    await page.locator(BOTON).click();
+
+    await expect(page.locator('#relacionesEncontradas')).toHaveText('44');
+    expect(mensajes).toHaveLength(2);
+    expect(mensajes[1]).toContain('borrador pendiente');
+    await expect(filaDeLaRelacion(page, 1)).toHaveCount(1);
+    await expect(filaDeLaRelacion(page, 2)).toHaveCount(0);
+  });
+
+  test('T20 si se retiran todas las filas de la última página, la recarga muestra la última que queda', {
+    tag: ['@estado-actual', '@relaciones', '@listado'],
+  }, async ({ page }) => {
+    dejarLasTablas('completo', 'anterior');
+    await iniciarSesion(page, vistaEnElAnterior('?pagina=2'));
+    atenderDialogos(page);
+
+    for (const casilla of await page.locator(FILAS + ' input.Check').all()) {
+      await casilla.check();
+    }
+    await page.locator(BOTON).click();
+
+    await expect(page.locator('#relacionesEncontradas')).toHaveText('40');
+    await expect(page.locator(FILAS)).toHaveCount(40);
+  });
+
+  test('T21 un nombre con comillas o marcas se pregunta tal cual y no rompe la página', {
+    tag: ['@estado-actual', '@relaciones', '@listado', '@validacion'],
+    annotation: [
+      { type: 'Comportamiento', description: 'El nombre que la pregunta muestra lo deja el servidor, escapado, en la propia casilla: se lee como texto, sin ejecutarse ni cortar el atributo.' },
+    ],
+  }, async ({ page }) => {
+    const nombre = 'Pollo "entero" <b>&';
+    dejarLasTablas('completo', 'anterior');
+    prepararRelacion(['nombre', '1', nombre, 'anterior']);
+    await iniciarSesion(page, vistaEnElAnterior());
+    const mensajes = atenderDialogos(page, false);
+
+    await marcar(page, [1]);
+    await page.locator(BOTON).click();
+
+    await expect.poll(() => mensajes.length).toBe(1);
+    expect(mensajes[0]).toContain('1 ' + nombre);
+    await expect(filaDeLaRelacion(page, 1).locator('td').nth(4)).toHaveText(nombre);
+    await expect(filaDeLaRelacion(page, 1).locator('b')).toHaveCount(0);
   });
 });
