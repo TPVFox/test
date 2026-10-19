@@ -91,6 +91,34 @@ final class EscenarioRelaciones
         return $id;
     }
 
+    /**
+     * Lo que alguien está preparando en la vista de relación, guardado y sin activar: de una
+     * relación nueva, sin número, o de un cambio de una que rige, con su número y la versión de
+     * la que partió. Las líneas van en una columna, con la cantidad como texto.
+     *
+     * @param list<array{idArticulo:int,sentido:string,cantidad?:string|null,unidad?:string|null}> $lineas
+     * @param array{numRelacion?:int,idRelacion?:int,nombre?:string,origenAjuste?:string,idUsuario?:int,fecha?:string} $opciones
+     */
+    public function temporal(int $idTipo, array $lineas, array $opciones = []): int
+    {
+        $numRelacion = $opciones['numRelacion'] ?? null;
+        $idRelacion = $opciones['idRelacion'] ?? null;
+        $nombre = $opciones['nombre'] ?? null;
+        $origenAjuste = $opciones['origenAjuste'] ?? null;
+        $idUsuario = $opciones['idUsuario'] ?? $this->usuario();
+        $fecha = $opciones['fecha'] ?? date('Y-m-d H:i:s');
+        $json = (string) json_encode($lineas);
+
+        $alta = $this->db->prepare(
+            'INSERT INTO relacionesTemporales (numRelacion, idRelacion, idTipo, nombre, origenAjuste, lineas, idUsuario, fechaInicio, fechaModificacion)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $alta->bind_param('iiisssiss', $numRelacion, $idRelacion, $idTipo, $nombre, $origenAjuste, $json, $idUsuario, $fecha, $fecha);
+        $alta->execute();
+
+        return (int) $this->db->insert_id;
+    }
+
     /** Un usuario que ya existe en la base: las relaciones no admiten uno inventado. */
     public function usuario(): int
     {
@@ -98,7 +126,7 @@ final class EscenarioRelaciones
     }
 
     /**
-     * Deja vacias las tablas del modulo y retira los articulos que el caso sembro.
+     * Deja vacias las cuatro tablas del modulo y retira los articulos que el caso sembro.
      *
      * La necesitan los casos que no pueden aislarse deshaciendo, porque lo que prueban es
      * que el propio modulo abre y cierra su transaccion.
@@ -107,6 +135,7 @@ final class EscenarioRelaciones
      */
     public function limpiar(array $articulos = []): void
     {
+        $this->db->query('DELETE FROM relacionesTemporales');
         $this->db->query('DELETE FROM relacionesLineas');
         $this->db->query('DELETE FROM relaciones');
         $this->db->query('DELETE FROM relacionesTipos');

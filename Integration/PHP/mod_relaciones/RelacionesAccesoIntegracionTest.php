@@ -319,6 +319,27 @@ final class RelacionesAccesoIntegracionTest extends CasoIntegracion
         self::assertSame(['1.0 Baja'], $this->versiones($tercera));
     }
 
+    /**
+     * @comportamiento Una relación con un cambio en preparación tampoco se da de baja: se avisa
+     *   de ella, conserva su temporal, y las demás marcadas se dan de baja igual.
+     */
+    public function test_T15_unaRelacionConUnCambioEnPreparacionSeAvisaYLasDemasSeDanDeBaja(): void
+    {
+        $pollo = $this->despieceDelPollo();
+        $conejo = $this->despieceDelConejo();
+        $this->escenario->temporal($this->despiece, $this->lineasDelPollo(), ['numRelacion' => $pollo]);
+        $sesion = $this->sesionDeUnUsuarioDelGrupo(9);
+
+        $respuesta = $this->cambiarEstado([$pollo, $conejo], 'Baja', $sesion);
+
+        self::assertSame([$conejo], $respuesta['datos']['cambiadas']);
+        self::assertCount(1, $respuesta['avisos']);
+        self::assertStringContainsString('Relación ' . $pollo, $respuesta['avisos'][0]['mensaje']);
+        self::assertStringContainsString('cambio en preparación', $respuesta['avisos'][0]['mensaje']);
+        self::assertSame(['1.0 Activo'], $this->versiones($pollo));
+        self::assertSame(1, (int) $this->db->query("SELECT COUNT(*) AS n FROM relacionesTemporales WHERE numRelacion = $pollo")->fetch_assoc()['n']);
+    }
+
     /** La clase del módulo, que hace fallar el cambio de estado de una versión concreta. */
     private function relacionesQueFallanAlCambiar(int $idVersion): object
     {

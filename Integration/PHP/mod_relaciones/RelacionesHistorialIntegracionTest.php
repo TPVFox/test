@@ -468,6 +468,54 @@ final class RelacionesHistorialIntegracionTest extends CasoIntegracion
         self::assertSame(['Baja'], $this->estadosDe($vigente['numRelacion']));
     }
 
+    /**
+     * @comportamiento Una relación con un cambio en preparación no se da de baja: se perdería el
+     *   trabajo de quien lo prepara. La baja lo dice, y el temporal y la versión que rige quedan
+     *   como estaban.
+     */
+    public function test_T29_unaRelacionConUnCambioEnPreparacionNoSeDaDeBaja(): void
+    {
+        $vigente = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $temporal = $this->escenario->temporal($this->despiece, $this->lineasDelPollo(), ['numRelacion' => $vigente['numRelacion'], 'idRelacion' => $vigente['id']]);
+
+        $respuesta = $this->relaciones()->darDeBaja($vigente['numRelacion'], $this->usuario);
+
+        self::assertStringContainsString('cambio en preparación', $respuesta['error']['mensaje']);
+        self::assertSame(['Activo'], $this->estadosDe($vigente['numRelacion']));
+        self::assertSame(1, (int) $this->db->query("SELECT COUNT(*) AS n FROM relacionesTemporales WHERE id = $temporal")->fetch_assoc()['n']);
+    }
+
+    /**
+     * @comportamiento Mientras se da de baja, el primer guardado de un cambio de la misma
+     *   relación espera a que termine, y después se rechaza porque ya no rige.
+     */
+    public function test_T30_mientrasSeDaDeBajaOtraConexionNoPuedeGuardarleUnCambio(): void
+    {
+        $this->incluirTPVFox('/modulos/mod_relaciones/clases/RelacionesTemporales.php');
+        $vigente = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $otra = $this->otraConexion();
+        $relaciones = $this->relacionesQueAlLeerConBloqueo($otra, "SELECT id FROM relaciones WHERE numRelacion = {$vigente['numRelacion']} FOR UPDATE");
+
+        $baja = $relaciones->darDeBaja($vigente['numRelacion'], $this->usuario);
+        $otra->close();
+        $guardado = (new \RelacionesTemporales())->guardar([
+            'id' => 0,
+            'numRelacion' => $vigente['numRelacion'],
+            'idTipo' => $this->despiece,
+            'nombre' => '',
+            'descripcion' => '',
+            'diasViabilidad' => '',
+            'origenAjuste' => '',
+            'lineas' => $this->lineasDelPollo(),
+            'fechaModificacion' => '',
+        ], $this->usuario);
+
+        self::assertSame(1205, $relaciones->errorDeLaOtraConexion);
+        self::assertArrayHasKey('datos', $baja);
+        self::assertStringContainsString('no está vigente', $guardado['error']['mensaje']);
+        self::assertSame(0, (int) $this->db->query('SELECT COUNT(*) AS n FROM relacionesTemporales')->fetch_assoc()['n']);
+    }
+
     private function relaciones(): object
     {
         return new class extends \Relaciones {

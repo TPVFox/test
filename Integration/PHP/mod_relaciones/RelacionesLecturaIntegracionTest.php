@@ -554,6 +554,44 @@ final class RelacionesLecturaIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('de baja y tiene un borrador', $respuesta['datos'][0]['motivo']);
     }
 
+    /**
+     * @comportamiento Una relación de baja no tiene un cambio en preparación: la baja se rechaza
+     *   si lo hay, y el primer guardado exige que la relación rija. Si alguna vez ocurriera, la
+     *   comprobación lo encuentra.
+     */
+    public function test_T37_laComprobacionDetectaUnaRelacionDeBajaConUnCambioEnPreparacion(): void
+    {
+        $pollo = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
+        $this->db->query("UPDATE relaciones SET estado = 'Baja' WHERE id = {$pollo['id']}");
+        $this->escenario->temporal($this->despiece, $this->lineasDelPollo(), ['numRelacion' => $pollo['numRelacion'], 'idRelacion' => $pollo['id']]);
+
+        $respuesta = $this->relaciones()->comprobarVersiones();
+
+        self::assertSame([$pollo['numRelacion']], array_map('intval', array_column($respuesta['datos'], 'numRelacion')));
+        self::assertStringContainsString('de baja y tiene un cambio en preparación', $respuesta['datos'][0]['motivo']);
+    }
+
+    /** @comportamiento Lo que se activa desde un temporal deja las versiones como las demás escrituras. */
+    public function test_T38_laComprobacionNoEncuentraNadaTrasActivarDesdeTemporalesYDarDeBaja(): void
+    {
+        $this->incluirTPVFox('/modulos/mod_relaciones/clases/RelacionesTemporales.php');
+        $relaciones = $this->relaciones();
+        $temporales = new \RelacionesTemporales();
+        $nueva = $this->escenario->temporal($this->despiece, $this->lineasDelPollo());
+        $pollo = $temporales->activar($nueva, $this->usuario, $relaciones);
+        $ajustadas = [$this->linea('pollo', 'entrada'), $this->linea('pechuga', 'salida', 0.25), $this->linea('alas', 'salida')];
+        $vigente = $relaciones->vigente($pollo['datos']['numRelacion'])['datos'];
+        $cambio = $this->escenario->temporal($this->despiece, $ajustadas, ['numRelacion' => $vigente['numRelacion'], 'idRelacion' => $vigente['id'], 'origenAjuste' => 'Pesada']);
+        $temporales->activar($cambio, $this->usuario, $relaciones);
+        $hamburguesa = $relaciones->alta($this->elaboracion, [], $this->lineasDeLaHamburguesa(), $this->usuario);
+        $relaciones->darDeBaja($hamburguesa['datos']['numRelacion'], $this->usuario);
+
+        $respuesta = $relaciones->comprobarVersiones();
+
+        self::assertSame('1.1', $relaciones->vigente($pollo['datos']['numRelacion'])['datos']['version']);
+        self::assertSame([], $respuesta['datos']);
+    }
+
     private function polloConTresVersiones(): int
     {
         $lineas = fn(float $pechuga) => [$this->linea('pollo', 'entrada'), $this->linea('pechuga', 'salida', $pechuga), $this->linea('alas', 'salida')];

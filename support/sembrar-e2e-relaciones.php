@@ -10,11 +10,11 @@
  *
  *   completo        tres tipos y cuarenta y cinco relaciones, en dos paginas (por defecto)
  *   sinRelaciones   los tres tipos y ninguna relacion
- *   sinTipos        las tres tablas vacias, como llegan tras instalar
- *   sinEstructura   las tres tablas retiradas de la base
+ *   sinTipos        las tablas del modulo vacias, como llegan tras instalar
+ *   sinEstructura   las cuatro tablas del modulo retiradas de la base
  *
- * El tercer argumento deja al usuario de los recorridos (TPVFOX_E2E_USUARIO) con el permiso
- * de cambiar el estado de las relaciones desde el listado concedido (por defecto) o denegado.
+ * El tercer argumento deja al usuario de los recorridos (TPVFOX_E2E_USUARIO) con los permisos
+ * del listado —cambiar el estado, crear, modificar y activar— concedidos (por defecto) o denegados.
  * Es lo que haria «Reorganizar permisos»: el permiso es de una pantalla que ya existia, y a
  * quien ya la tenia no le llega solo al entrar.
  *
@@ -65,17 +65,19 @@ if ($db->connect_errno) {
 $db->set_charset('utf8mb4');
 
 if ($estado === 'sinEstructura') {
-    foreach (['relacionesLineas', 'relaciones', 'relacionesTipos'] as $tabla) {
+    foreach (['relacionesTemporales', 'relacionesLineas', 'relaciones', 'relacionesTipos'] as $tabla) {
         $db->query("DROP TABLE IF EXISTS $tabla");
     }
     echo "Tablas de relaciones retiradas.\n";
     exit(0);
 }
 
-// Las tablas se crean si faltan: el fichero de instalacion no toca las que ya existen.
-$db->multi_query((string) file_get_contents(RUTA_TPVFOX . '/BD/Update/install_update_v0.4.4.54.sql'));
-while ($db->more_results()) {
-    $db->next_result();
+// Las tablas se crean si faltan: los ficheros de instalacion no tocan las que ya existen.
+foreach (['install_update_v0.4.4.54.sql', 'install_update_v0.4.4.55.sql'] as $fichero) {
+    $db->multi_query((string) file_get_contents(RUTA_TPVFOX . '/BD/Update/' . $fichero));
+    while ($db->more_results()) {
+        $db->next_result();
+    }
 }
 
 $escenario = new EscenarioRelaciones($db);
@@ -130,7 +132,7 @@ for ($n = 1; $n <= 42; $n++) {
 $filas = (int) $db->query("SELECT COUNT(*) AS n FROM relaciones WHERE estado = 'Activo'")->fetch_assoc()['n'];
 echo "Relaciones sembradas: {$filas} que rigen.\n";
 
-// El permiso de cambiar el estado desde el listado, para el usuario de los recorridos.
+// Los permisos del listado, para el usuario de los recorridos.
 $login = Entorno::valor('TPVFOX_E2E_USUARIO');
 $buscar = $db->prepare('SELECT id FROM usuarios WHERE username = ? LIMIT 1');
 $buscar->bind_param('s', $login);
@@ -142,6 +144,8 @@ if ($usuario === null) {
 }
 $idUsuario = (int) $usuario[0];
 $concedido = $permiso === 'conPermiso' ? 1 : 0;
-$db->query("DELETE FROM permisos WHERE idUsuario = $idUsuario AND modulo = 'mod_relaciones' AND vista = 'ListaRelaciones.php' AND accion = 'CambiarEstado'");
-$db->query("INSERT INTO permisos (idUsuario, modulo, vista, accion, permiso) VALUES ($idUsuario, 'mod_relaciones', 'ListaRelaciones.php', 'CambiarEstado', $concedido)");
-echo $concedido === 1 ? "Permiso de cambiar el estado concedido.\n" : "Permiso de cambiar el estado denegado.\n";
+foreach (['CambiarEstado', 'Crear', 'Modificar', 'Activar'] as $accion) {
+    $db->query("DELETE FROM permisos WHERE idUsuario = $idUsuario AND modulo = 'mod_relaciones' AND vista = 'ListaRelaciones.php' AND accion = '$accion'");
+    $db->query("INSERT INTO permisos (idUsuario, modulo, vista, accion, permiso) VALUES ($idUsuario, 'mod_relaciones', 'ListaRelaciones.php', '$accion', $concedido)");
+}
+echo $concedido === 1 ? "Permisos del listado concedidos.\n" : "Permisos del listado denegados.\n";

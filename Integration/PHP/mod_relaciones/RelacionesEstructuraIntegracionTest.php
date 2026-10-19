@@ -16,7 +16,8 @@ use TPVFox\Test\CasoIntegracion;
 
 final class RelacionesEstructuraIntegracionTest extends CasoIntegracion
 {
-    private const TABLAS = ['relacionesLineas', 'relaciones', 'relacionesTipos'];
+    // La de temporales primero: así se retiran en un orden que ninguna clave ajena impide.
+    private const TABLAS = ['relacionesTemporales', 'relacionesLineas', 'relaciones', 'relacionesTipos'];
 
     /**
      * Crear y borrar tablas confirma la transacción en curso sin avisar: estos casos no
@@ -169,6 +170,58 @@ final class RelacionesEstructuraIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('information_schema', $respuesta['consulta']);
     }
 
+    /**
+     * @comportamiento Con el código que espera la tabla de temporales y sin su fichero de
+     *   instalación, el módulo declara la estructura incompleta y no opera.
+     */
+    public function test_T11_conSoloElPrimerFicheroDeInstalacionLaEstructuraEstaIncompleta(): void
+    {
+        $this->aplicar('install_update_v0.4.4.54.sql');
+
+        self::assertSame('incompleta', $this->estado());
+    }
+
+    public function test_T12_conUnaColumnaDeMenosEnLaTablaDeTemporalesLaEstructuraEsDeOtraVersion(): void
+    {
+        $this->aplicarElFicheroDeInstalacion();
+        $this->db->query('ALTER TABLE relacionesTemporales DROP COLUMN origenAjuste');
+
+        self::assertSame('otraVersion', $this->estado());
+    }
+
+    /** @comportamiento Aplicar otra vez el fichero de los temporales no borra lo que alguien está preparando. */
+    public function test_T13_instalarDeNuevoLaTablaDeTemporalesConservaSusFilas(): void
+    {
+        $this->aplicarElFicheroDeInstalacion();
+        $idUsuario = (int) $this->db->query('SELECT id FROM usuarios ORDER BY id LIMIT 1')->fetch_assoc()['id'];
+        $this->db->query("INSERT INTO relacionesTemporales (idTipo, lineas, idUsuario, fechaInicio, fechaModificacion) VALUES (1, '[]', $idUsuario, NOW(), NOW())");
+        $unaVez = $this->esquema();
+
+        $this->aplicar('install_update_v0.4.4.55.sql');
+
+        self::assertSame($unaVez, $this->esquema());
+        self::assertSame(1, (int) $this->db->query('SELECT COUNT(*) AS n FROM relacionesTemporales')->fetch_assoc()['n']);
+    }
+
+    /**
+     * @comportamiento La tabla de temporales no depende de las otras tres: con un temporal
+     *   guardado, las tablas de la relación se pueden retirar y volver a instalar.
+     */
+    public function test_T14_lasTablasDeLaRelacionSeRetiranYSeReponenConLaDeTemporalesPresente(): void
+    {
+        $this->aplicarElFicheroDeInstalacion();
+        $idUsuario = (int) $this->db->query('SELECT id FROM usuarios ORDER BY id LIMIT 1')->fetch_assoc()['id'];
+        $this->db->query("INSERT INTO relacionesTemporales (numRelacion, idRelacion, idTipo, lineas, idUsuario, fechaInicio, fechaModificacion) VALUES (7, 999999, 999999, '[]', $idUsuario, NOW(), NOW())");
+
+        foreach (['relacionesLineas', 'relaciones', 'relacionesTipos'] as $tabla) {
+            $this->db->query("DROP TABLE $tabla");
+        }
+        $this->aplicar('install_update_v0.4.4.54.sql');
+
+        self::assertSame('instalada', $this->estado());
+        self::assertSame(1, (int) $this->db->query('SELECT COUNT(*) AS n FROM relacionesTemporales')->fetch_assoc()['n']);
+    }
+
     private function estado(): string
     {
         $respuesta = (new \RelacionesModelo())->estadoEstructura();
@@ -195,9 +248,16 @@ final class RelacionesEstructuraIntegracionTest extends CasoIntegracion
         }
     }
 
+    /** Los dos ficheros de instalación del módulo: las tres tablas de la relación y la de temporales. */
     private function aplicarElFicheroDeInstalacion(): void
     {
-        $sql = file_get_contents(RUTA_TPVFOX . '/BD/Update/install_update_v0.4.4.54.sql');
+        $this->aplicar('install_update_v0.4.4.54.sql');
+        $this->aplicar('install_update_v0.4.4.55.sql');
+    }
+
+    private function aplicar(string $fichero): void
+    {
+        $sql = file_get_contents(RUTA_TPVFOX . '/BD/Update/' . $fichero);
         self::assertNotFalse($sql);
 
         $this->db->multi_query($sql);

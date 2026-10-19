@@ -32,6 +32,13 @@ module.exports = defineConfig({
   // El JSON no es para leerlo: lo consume el informe de pruebas unitarias y de integración para
   // poder decir quién cubre cada fichero del producto. Va fuera de `E2E/informe-ultimo` porque
   // el reporter HTML vacía esa carpeta antes de escribir y se lo llevaría por delante.
+  // Los recorridos de productos relacionados escriben en la misma base, la del ejercicio
+  // anterior, desde varios ficheros: corren de uno en uno para que la siembra de uno no pise lo
+  // que está probando otro. El resto sigue en paralelo.
+  projects: [
+    { name: 'relaciones', testMatch: /mod_relaciones[\\/].*\.spec\.js$/, workers: 1 },
+    { name: 'resto', testIgnore: /mod_relaciones[\\/].*\.spec\.js$/ }
+  ],
   reporter: [
     ['list'],
     ['html', { outputFolder: 'E2E/informe-ultimo', open: 'never' }],

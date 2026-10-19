@@ -162,20 +162,21 @@ test.describe('Productos relacionados — listado', () => {
     await expect(page.locator('h2')).toHaveText('Productos relacionados');
   });
 
-  test('T13 añadir, ver y modificar tienen su sitio y siguen desactivados; la casilla de cada fila y «Cambiar estado» funcionan', {
+  test('T13 añadir, ver y modificar abren la vista de relación; la casilla de cada fila y «Cambiar estado» funcionan', {
     tag: ['@estado-actual', '@relaciones', '@listado'],
     annotation: [
-      { type: 'Comportamiento', description: 'El listado reserva el sitio de añadir, ver y modificar, igual que el de albaranes. Mientras no exista la pantalla de relación están desactivados: ninguno lleva a ninguna parte. La casilla de cada fila se puede marcar, y «Cambiar estado» está disponible para quien tiene su permiso.' },
+      { type: 'Comportamiento', description: 'Las opciones generales están donde las tienen los listados de documentos: añadir, ver y modificar abren la vista de relación, cada una con su permiso, y cada fila lleva sus accesos a editarla y a verla. La casilla de cada fila se puede marcar, y «Cambiar estado» está disponible para quien tiene su permiso.' },
     ],
   }, async ({ page }) => {
-    await iniciarSesion(page, VISTA);
+    await iniciarSesion(page, VISTA + '?buscar=Pollo+entero');
 
-    for (const nombre of ['Añadir', 'Ver', 'Modificar']) {
-      await expect(page.locator('.col-sm-3 button', { hasText: nombre })).toBeDisabled();
+    for (const nombre of ['Añadir', 'Ver', 'Modificar', 'Cambiar estado']) {
+      await expect(page.locator('.col-sm-3 .btn', { hasText: nombre })).toBeEnabled();
     }
-    await expect(page.locator('.col-sm-3 button', { hasText: 'Cambiar estado' })).toBeEnabled();
+    await expect(page.locator('.col-sm-3 a.btn', { hasText: 'Añadir' })).toHaveAttribute('href', /relacion\.php$/);
     await expect(page.locator(FILAS + ' input.Check').first()).toBeEnabled();
-    await expect(page.locator('#tablaRelaciones tbody a')).toHaveCount(0);
+    await expect(page.locator(FILAS).first().locator('a[href$="relacion.php?id=1&accion=editar"]')).toHaveCount(1);
+    await expect(page.locator(FILAS).first().locator('a[href$="relacion.php?id=1&accion=ver"]')).toHaveCount(1);
   });
 
   test('T14 al cambiar de página se conservan el orden, la búsqueda y el filtro', {
@@ -446,5 +447,117 @@ test.describe('Productos relacionados — cambiar el estado desde el listado', (
     expect(mensajes[0]).toContain('1 ' + nombre);
     await expect(filaDeLaRelacion(page, 1).locator('td').nth(4)).toHaveText(nombre);
     await expect(filaDeLaRelacion(page, 1).locator('b')).toHaveCount(0);
+  });
+});
+
+// Abrir la vista de relación desde el listado, y las relaciones abiertas: sobre el despliegue
+// del ejercicio anterior, porque los casos dejan cambios en preparación.
+test.describe('Productos relacionados — abrir la vista de relación desde el listado', () => {
+  const vistaEnElAnterior = (consulta = '') => new URL(VISTA + consulta, conBarraFinal(URL_ANTERIOR)).toString();
+  const ABIERTAS = '#relacionesAbiertas tbody tr';
+
+  function filaDeLaRelacion(page, numero) {
+    return page.locator(FILAS).filter({ has: page.locator('td:nth-child(4)', { hasText: new RegExp('^' + numero + '$') }) });
+  }
+
+  function prepararVista(argumentos) {
+    execFileSync('php', [path.resolve(__dirname, '../../../support/preparar-e2e-vista-relacion.php'), ...argumentos, 'anterior'], { stdio: 'pipe' });
+  }
+
+  function atenderDialogos(page) {
+    const mensajes = [];
+    page.on('dialog', async (dialogo) => {
+      mensajes.push(dialogo.message());
+      await dialogo.accept();
+    });
+    return mensajes;
+  }
+
+  test.beforeEach(() => {
+    test.skip(!URL_ANTERIOR, 'El entorno no declara TPVFOX_URL_ANTERIOR.');
+  });
+
+  test.afterAll(() => {
+    if (URL_ANTERIOR) {
+      dejarLasTablas('sinTipos', 'anterior');
+    }
+  });
+
+  test('T22 «Ver» y «Modificar» abren la relación marcada, y avisan si no hay una sola', {
+    tag: ['@estado-actual', '@relaciones', '@listado'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Como en los listados de compras: ver y modificar actúan sobre una sola fila marcada. Sin ninguna, o con más de una, avisan y no abren nada.' },
+    ],
+  }, async ({ page }) => {
+    dejarLasTablas('completo', 'anterior');
+    await iniciarSesion(page, vistaEnElAnterior());
+    const mensajes = atenderDialogos(page);
+
+    await page.locator('.col-sm-3 .btn', { hasText: 'Ver' }).click();
+    await filaDeLaRelacion(page, 1).locator('input.Check').check();
+    await filaDeLaRelacion(page, 2).locator('input.Check').check();
+    await page.locator('.col-sm-3 .btn', { hasText: 'Modificar' }).click();
+    await expect.poll(() => mensajes.length).toBe(2);
+    expect(mensajes[0]).toContain('una sola');
+    expect(mensajes[1]).toContain('una sola');
+    await expect(page).toHaveURL(/ListaRelaciones\.php/);
+
+    await filaDeLaRelacion(page, 2).locator('input.Check').uncheck();
+    await page.locator('.col-sm-3 .btn', { hasText: 'Ver' }).click();
+    await expect(page).toHaveURL(/relacion\.php\?id=1&accion=ver/);
+  });
+
+  test('T23 las relaciones abiertas dicen quién y cuándo, y se retoman desde ahí', {
+    tag: ['@estado-actual', '@relaciones', '@listado'],
+    annotation: [
+      { type: 'Comportamiento', description: 'Como los albaranes abiertos de compras: cada cambio en preparación, con el número de su relación, quién lo guardó por última vez y cuándo. Pulsarlo abre la vista de relación con él.' },
+    ],
+  }, async ({ page }) => {
+    dejarLasTablas('completo', 'anterior');
+    prepararVista(['temporal', '1']);
+    await iniciarSesion(page, vistaEnElAnterior());
+
+    await expect(page.locator(ABIERTAS)).toHaveCount(1);
+    await expect(page.locator(ABIERTAS)).toContainText('1');
+    await expect(page.locator(ABIERTAS)).toContainText(process.env.TPVFOX_E2E_USUARIO);
+    await expect(page.locator(ABIERTAS)).toContainText('2026-10-01 10:00');
+    await page.locator(ABIERTAS).first().click();
+    await expect(page).toHaveURL(/relacion\.php\?tActual=\d+/);
+  });
+
+  test('T24 sin los permisos de crear y modificar no se ofrecen ni las relaciones abiertas', {
+    tag: ['@estado-actual', '@relaciones', '@listado', '@permisos'],
+  }, async ({ page }) => {
+    dejarLasTablas('completo', 'anterior', 'sinPermiso');
+    prepararVista(['temporal', '1']);
+    await iniciarSesion(page, vistaEnElAnterior());
+
+    await expect(page.locator('.col-sm-3 .btn', { hasText: 'Añadir' })).toHaveCount(0);
+    await expect(page.locator('.col-sm-3 .btn', { hasText: 'Modificar' })).toHaveCount(0);
+    await expect(page.locator('.col-sm-3 .btn', { hasText: 'Ver' })).toBeEnabled();
+    await expect(page.locator('#relacionesAbiertas')).toHaveCount(0);
+    await expect(page.locator(FILAS).first().locator('a[href*="accion=editar"]')).toHaveCount(0);
+  });
+
+  test('T25 una relación con un cambio en preparación no se da de baja y se avisa', {
+    tag: ['@estado-actual', '@relaciones', '@listado'],
+    annotation: [
+      { type: 'Comportamiento', description: 'La baja no se lleva por delante lo que otro está preparando: esa relación sigue, con su aviso, y las demás marcadas se dan de baja.' },
+    ],
+  }, async ({ page }) => {
+    dejarLasTablas('completo', 'anterior');
+    prepararVista(['temporal', '1']);
+    await iniciarSesion(page, vistaEnElAnterior());
+    const mensajes = atenderDialogos(page);
+
+    await filaDeLaRelacion(page, 1).locator('input.Check').check();
+    await filaDeLaRelacion(page, 2).locator('input.Check').check();
+    await page.locator('.col-sm-3 button:has-text("Cambiar estado")').click();
+
+    await expect(page.locator('#relacionesEncontradas')).toHaveText('44');
+    expect(mensajes).toHaveLength(2);
+    expect(mensajes[1]).toContain('cambio en preparación');
+    await expect(filaDeLaRelacion(page, 1)).toHaveCount(1);
+    await expect(filaDeLaRelacion(page, 2)).toHaveCount(0);
   });
 });

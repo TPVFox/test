@@ -226,6 +226,44 @@ final class RelacionesFormasTest extends TestCase
         self::assertStringContainsString('unidad', $this->motivo($this->tipo('1:1'), $lineas));
     }
 
+    /**
+     * @comportamiento Un rechazo por la cantidad dice qué línea falla —su lado y su número, el de
+     *   la columna L de la pantalla— y cómo se resuelve. Las líneas eliminadas no cuentan.
+     */
+    public function test_T29_unRechazoPorLaCantidadNombraLaLineaPorSuLadoYSuNumero(): void
+    {
+        $sinCantidad = [$this->linea(1, 'entrada'), $this->linea(9, 'salida', null, null, 'Eliminado'), $this->linea(2, 'salida'), $this->linea(3, 'salida', null)];
+        $sinUnidad = [$this->linea(1, 'entrada', 1, null), $this->linea(2, 'salida')];
+        $cero = [$this->linea(1, 'entrada'), $this->linea(2, 'salida', 0)];
+
+        $porCantidad = $this->motivo($this->tipo('1:N'), $sinCantidad);
+        $porUnidad = $this->motivo($this->tipo('1:N'), $sinUnidad);
+        $porCero = $this->motivo($this->tipo('1:N'), $cero);
+
+        self::assertStringContainsString('salida 2', $porCantidad);
+        self::assertStringContainsString('escríbela', $porCantidad);
+        self::assertStringContainsString('entrada 1', $porUnidad);
+        self::assertStringContainsString('kg o ud', $porUnidad);
+        self::assertStringContainsString('salida 1', $porCero);
+    }
+
+    /** @comportamiento Un rechazo por la forma dice cuántas hay y qué hacer; uno por repetido, qué artículo. */
+    public function test_T30_unRechazoPorLaFormaDiceCuantasHayYQueHacer(): void
+    {
+        $dosEntradas = [$this->linea(1, 'entrada'), $this->linea(2, 'entrada'), $this->linea(3, 'salida')];
+        $sinSalida = [$this->linea(1, 'entrada')];
+        $repetido = [$this->linea(1, 'entrada'), $this->linea(5, 'salida'), $this->linea(5, 'salida')];
+
+        $porLaForma = $this->motivo($this->tipo('1:N'), $dosEntradas);
+        $porFalta = $this->motivo($this->tipo('1:N'), $sinSalida);
+        $porRepetido = $this->motivo($this->tipo('1:N'), $repetido);
+
+        self::assertStringContainsString('hay 2', $porLaForma);
+        self::assertStringContainsString('quita', $porLaForma);
+        self::assertStringContainsString('añade', $porFalta);
+        self::assertStringContainsString('artículo 5', $porRepetido);
+    }
+
     private function tipo(string $forma, int $llevaCantidad = 1, string $estado = 'Activo'): array
     {
         return ['id' => 1, 'nombre' => 'Tipo de prueba', 'forma' => $forma, 'llevaCantidad' => $llevaCantidad, 'estado' => $estado];
