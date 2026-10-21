@@ -14,6 +14,10 @@ function baseConBarraFinal(url) {
   return url.endsWith('/') ? url : url + '/';
 }
 
+// Los recorridos que corren de uno en uno: los de productos relacionados y el de aplicar una
+// relación desde «Reorganizar».
+const EN_SERIE = [/mod_relaciones[\\/].*\.spec\.js$/, /mod_reorganizacion[\\/]aplicar-relacion\.spec\.js$/];
+
 // Requiere la aplicación en marcha, y en dos puertos: el resto de la suite corre contra el
 // despliegue del ejercicio vigente, y los recorridos de `mod_reorganizacion` necesitan además
 // el del anterior en `TPVFOX_URL_ANTERIOR`. `npm run entorno:preparar` deja la configuración
@@ -34,10 +38,11 @@ module.exports = defineConfig({
   // el reporter HTML vacía esa carpeta antes de escribir y se lo llevaría por delante.
   // Los recorridos de productos relacionados escriben en la misma base, la del ejercicio
   // anterior, desde varios ficheros: corren de uno en uno para que la siembra de uno no pise lo
-  // que está probando otro. El resto sigue en paralelo.
+  // que está probando otro. Con ellos va el de aplicar una relación, que siembra una relación en
+  // la base del vigente mientras el listado cuenta las suyas. El resto sigue en paralelo.
   projects: [
-    { name: 'relaciones', testMatch: /mod_relaciones[\\/].*\.spec\.js$/, workers: 1 },
-    { name: 'resto', testIgnore: /mod_relaciones[\\/].*\.spec\.js$/ }
+    { name: 'relaciones', testMatch: EN_SERIE, workers: 1 },
+    { name: 'resto', testIgnore: EN_SERIE }
   ],
   reporter: [
     ['list'],
