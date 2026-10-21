@@ -16,7 +16,7 @@ function baseConBarraFinal(url) {
 
 // Los recorridos que corren de uno en uno: los de productos relacionados y el de aplicar una
 // relación desde «Reorganizar».
-const EN_SERIE = [/mod_relaciones[\\/].*\.spec\.js$/, /mod_reorganizacion[\\/]aplicar-relacion\.spec\.js$/];
+const EN_SERIE = [/mod_relaciones[\\/].*\.spec\.js$/, /mod_reorganizacion[\\/]aplicar-relacion(-reunir)?\.spec\.js$/];
 
 // Requiere la aplicación en marcha, y en dos puertos: el resto de la suite corre contra el
 // despliegue del ejercicio vigente, y los recorridos de `mod_reorganizacion` necesitan además

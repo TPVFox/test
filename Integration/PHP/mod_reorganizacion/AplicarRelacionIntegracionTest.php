@@ -279,7 +279,7 @@ final class AplicarRelacionIntegracionTest extends CasoIntegracion
         self::assertSame($this->especial, (int) $temporal['idProveedor']);
         self::assertSame('2026-02-28', substr($temporal['Fecha'], 0, 10));
         self::assertSame('Nuevo', $temporal['estadoAlbPro']);
-        self::assertSame('ESCANDALLO', $temporal['Su_numero']);
+        self::assertSame('Despiece de la aplic', $temporal['Su_numero']);
         $lineas = json_decode($temporal['Productos'], true);
         self::assertCount(5, $lineas);
         foreach ($lineas as $linea) {
