@@ -95,13 +95,13 @@ final class RelacionesAccesoIntegracionTest extends CasoIntegracion
         self::assertSame(['1.0 Activo'], $this->versiones($pollo));
     }
 
-    /** @comportamiento Hoy solo se admite dar de baja: cualquier otro estado, o ninguno, se rechaza sin escribir. */
+    /** @comportamiento Solo se admite dar de baja o reactivar: cualquier otro estado, o ninguno, se rechaza sin escribir. */
     public function test_T3_conElPermisoUnEstadoQueNoSeAdmiteSeRechazaSinEscribir(): void
     {
         $pollo = $this->despieceDelPollo();
         $sesion = $this->sesionDeUnUsuarioDelGrupo(9);
 
-        foreach (['Activo', 'Sustituido', 'Borrador', ''] as $estado) {
+        foreach (['Sustituido', 'Borrador', ''] as $estado) {
             $respuesta = $this->cambiarEstado([$pollo], $estado, $sesion);
             self::assertArrayHasKey('error', $respuesta, 'estado «' . $estado . '»');
         }

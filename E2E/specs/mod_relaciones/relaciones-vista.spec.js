@@ -142,7 +142,7 @@ test.describe('Productos relacionados — vista de relación', () => {
     await page.goto(enElAnterior(LISTADO + '?buscar=Pavo+para+asar'));
     await expect(page.locator('#tablaRelaciones tbody tr')).toHaveCount(1);
     await expect(page.locator('#tablaRelaciones tbody tr td').nth(5)).toHaveText('Despiece');
-    await expect(page.locator('#tablaRelaciones tbody tr td').nth(8)).toHaveText('3');
+    await expect(page.locator('#tablaRelaciones tbody tr td').nth(9)).toHaveText('3');
   });
 
   test('T3 la misma pantalla crea una elaboración, con varias entradas, y un cruce, sin cantidades', {

@@ -1,9 +1,9 @@
 /**
- * El listado de productos relacionados: una fila por relación que rige, y cómo se acota con
+ * El listado de productos relacionados: una fila por relación, vigente o de baja, y cómo se acota con
  * la búsqueda, el filtro por tipo, el orden y las páginas.
  *
  * Parte de la siembra de `support/sembrar-e2e-relaciones.php`: cuarenta y cinco relaciones en
- * dos páginas, una relación dada de baja y otra que solo tiene un borrador.
+ * dos páginas más una relación dada de baja y otra que solo tiene un borrador.
  */
 
 const { test, expect } = require('@playwright/test');
@@ -31,7 +31,7 @@ function prepararRelacion(argumentos) {
 test.describe.configure({ mode: 'serial' });
 
 test.describe('Productos relacionados — listado', () => {
-  test('T1 cada relación ocupa una fila con su número, nombre, tipo, versión, fecha y productos', {
+  test('T1 cada relación ocupa una fila con su número, nombre, tipo, versión, estado, fecha y productos', {
     tag: ['@estado-actual', '@relaciones', '@listado'],
     annotation: [
       { type: 'Comportamiento', description: 'El listado es de relaciones, como el de albaranes es de albaranes: una fila por relación que rige, no una por producto.' },
@@ -39,9 +39,9 @@ test.describe('Productos relacionados — listado', () => {
   }, async ({ page }) => {
     await iniciarSesion(page, VISTA + '?buscar=Pollo+entero');
 
-    await expect(page.locator('#tablaRelaciones thead th')).toHaveText(['', '', '', /^Nº/, 'RELACIÓN', 'TIPO', 'VERSIÓN', /^FECHA/, 'PRODUCTOS']);
+    await expect(page.locator('#tablaRelaciones thead th')).toHaveText(['', '', '', /^Nº/, 'RELACIÓN', 'TIPO', 'VERSIÓN', /^ESTADO/, /^FECHA/, 'PRODUCTOS']);
     await expect(page.locator(FILAS)).toHaveCount(1);
-    await expect(page.locator(FILAS + ' td')).toHaveText(['', '', '', '1', 'Pollo entero', 'Despiece', '1.0', '2026-03-01', '3']);
+    await expect(page.locator(FILAS + ' td')).toHaveText(['', '', '', '1', 'Pollo entero', 'Despiece', '1.0', 'Activo', '2026-03-01', '3']);
   });
 
   test('T2 una relación sin nombre se presenta con el del producto que se elabora', {
@@ -72,15 +72,15 @@ test.describe('Productos relacionados — listado', () => {
     await expect(page.locator(FILAS)).toContainText('Elaboración');
   });
 
-  test('T4 una relación dada de baja y una que solo tiene borrador no aparecen', {
+  test('T4 una relación dada de baja se ve con su estado y una que solo tiene borrador no aparece', {
     tag: ['@estado-actual', '@relaciones', '@listado', '@estados'],
     annotation: [
-      { type: 'Comportamiento', description: 'Solo se listan las relaciones que rigen: ni la dada de baja ni la que todavía es un borrador, tampoco al buscar por sus productos.' },
+      { type: 'Comportamiento', description: 'Se listan las relaciones que rigen y las dadas de baja, estas con su estado; la que todavía es un borrador no, tampoco al buscar por sus productos.' },
     ],
   }, async ({ page }) => {
     await iniciarSesion(page, VISTA + '?buscar=Conejo');
-    await expect(page.locator(FILAS)).toHaveCount(0);
-    await expect(page.locator('.alert-warning')).toContainText('Ninguna relación casa con lo buscado');
+    await expect(page.locator(FILAS)).toHaveCount(1);
+    await expect(page.locator(FILAS + ' td:nth-child(8)')).toHaveText('Baja');
 
     await page.goto(VISTA + '?buscar=Pavo');
     await expect(page.locator(FILAS)).toHaveCount(0);
@@ -100,18 +100,18 @@ test.describe('Productos relacionados — listado', () => {
     await expect(page.locator(FILAS)).toContainText('Naranja de mesa');
   });
 
-  test('T6 las cuarenta y cinco relaciones se reparten en dos páginas', {
+  test('T6 las cuarenta y seis relaciones se reparten en dos páginas', {
     tag: ['@estado-actual', '@relaciones', '@listado'],
     annotation: [
       { type: 'Comportamiento', description: 'El recuento es el de todas las relaciones, no el de la página. Lo que no cabe en la primera está en la segunda.' },
     ],
   }, async ({ page }) => {
     await iniciarSesion(page, VISTA);
-    await expect(page.locator('#relacionesEncontradas')).toHaveText('45');
+    await expect(page.locator('#relacionesEncontradas')).toHaveText('46');
     await expect(page.locator(FILAS)).toHaveCount(40);
 
     await page.goto(VISTA + '?pagina=2');
-    await expect(page.locator(FILAS)).toHaveCount(5);
+    await expect(page.locator(FILAS)).toHaveCount(6);
   });
 
   test('T7 el listado sale por número de relación y se puede ordenar por número o por fecha', {
@@ -126,7 +126,7 @@ test.describe('Productos relacionados — listado', () => {
     await expect(primera).toContainText('Lote 42');
 
     await page.goto(VISTA + '?orden=fecha:ASC');
-    await expect(primera).toContainText('2026-01-10');
+    await expect(primera).toContainText('2026-01-05');
 
     await page.goto(VISTA + '?orden=fecha:DESC');
     await expect(primera).toContainText('Lote 42');
@@ -140,7 +140,7 @@ test.describe('Productos relacionados — listado', () => {
   }, async ({ page }) => {
     await iniciarSesion(page, VISTA + '?pagina=9999');
 
-    await expect(page.locator(FILAS)).toHaveCount(5);
+    await expect(page.locator(FILAS)).toHaveCount(6);
   });
 
   test('T9 los parámetros manipulados en la dirección no rompen la página ni se ejecutan', {
@@ -192,7 +192,7 @@ test.describe('Productos relacionados — listado', () => {
 
     await expect(page).toHaveURL(/orden=numRelacion:DESC/);
     await expect(page).toHaveURL(/pagina=2/);
-    await expect(page.locator(FILAS)).toHaveCount(5);
+    await expect(page.locator(FILAS)).toHaveCount(6);
     await expect(page.locator(FILAS).first()).toContainText('Lote 02');
     await expect(page.locator(FILAS).last()).toContainText('Pollo entero');
 
@@ -323,10 +323,10 @@ test.describe('Productos relacionados — cambiar el estado desde el listado', (
     }
   });
 
-  test('T15 el administrador marca dos relaciones, confirma y dejan de aparecer', {
+  test('T15 el administrador marca dos relaciones, confirma y pasan a baja sin salir del listado', {
     tag: ['@estado-actual', '@relaciones', '@listado', '@permisos'],
     annotation: [
-      { type: 'Comportamiento', description: 'Como «Cambiar estado» en los listados de compras: se marcan las filas, se pulsa la opción general y se confirma. La pregunta nombra cada relación, con su número, y el estado al que pasa. Tras confirmar, el listado se recarga sin ellas.' },
+      { type: 'Comportamiento', description: 'Como «Cambiar estado» en los listados de compras: se marcan las filas, se pulsa la opción general y se confirma. La pregunta nombra cada relación, con su número, y el estado al que pasa. Tras confirmar, el listado se recarga con ellas de baja.' },
     ],
   }, async ({ page }) => {
     dejarLasTablas('completo', 'anterior');
@@ -336,13 +336,13 @@ test.describe('Productos relacionados — cambiar el estado desde el listado', (
     await marcar(page, [1, 2]);
     await page.locator(BOTON).click();
 
-    await expect(page.locator('#relacionesEncontradas')).toHaveText('43');
+    await expect(page.locator('#relacionesEncontradas')).toHaveText('46');
     expect(mensajes).toHaveLength(1);
     expect(mensajes[0]).toContain('Baja');
     expect(mensajes[0]).toContain('1 Pollo entero');
     expect(mensajes[0]).toContain('2 [E2E relaciones] Hamburguesa');
-    await expect(filaDeLaRelacion(page, 1)).toHaveCount(0);
-    await expect(filaDeLaRelacion(page, 2)).toHaveCount(0);
+    await expect(filaDeLaRelacion(page, 1).locator('td:nth-child(8)')).toHaveText('Baja');
+    await expect(filaDeLaRelacion(page, 2).locator('td:nth-child(8)')).toHaveText('Baja');
   });
 
   test('T16 sin ninguna relación marcada, avisa y no envía nada', {
@@ -358,7 +358,7 @@ test.describe('Productos relacionados — cambiar el estado desde el listado', (
     await expect.poll(() => mensajes.length).toBe(1);
     expect(mensajes[0]).toBe('No tienes items seleccionados');
     expect(peticiones).toHaveLength(0);
-    await expect(page.locator('#relacionesEncontradas')).toHaveText('45');
+    await expect(page.locator('#relacionesEncontradas')).toHaveText('46');
   });
 
   test('T17 sin el permiso de cambiar el estado, la opción no aparece', {
@@ -387,8 +387,8 @@ test.describe('Productos relacionados — cambiar el estado desde el listado', (
 
     await expect.poll(() => mensajes.length).toBe(1);
     expect(peticiones).toHaveLength(0);
-    await expect(page.locator('#relacionesEncontradas')).toHaveText('45');
-    await expect(filaDeLaRelacion(page, 1)).toHaveCount(1);
+    await expect(page.locator('#relacionesEncontradas')).toHaveText('46');
+    await expect(filaDeLaRelacion(page, 1).locator('td:nth-child(8)')).toHaveText('Activo');
   });
 
   test('T19 una relación con un borrador pendiente se avisa antes de recargar y las demás se dan de baja', {
@@ -405,14 +405,13 @@ test.describe('Productos relacionados — cambiar el estado desde el listado', (
     await marcar(page, [1, 2]);
     await page.locator(BOTON).click();
 
-    await expect(page.locator('#relacionesEncontradas')).toHaveText('44');
+    await expect(filaDeLaRelacion(page, 2).locator('td:nth-child(8)')).toHaveText('Baja');
     expect(mensajes).toHaveLength(2);
     expect(mensajes[1]).toContain('borrador pendiente');
-    await expect(filaDeLaRelacion(page, 1)).toHaveCount(1);
-    await expect(filaDeLaRelacion(page, 2)).toHaveCount(0);
+    await expect(filaDeLaRelacion(page, 1).locator('td:nth-child(8)')).toHaveText('Activo');
   });
 
-  test('T20 si se retiran todas las filas de la última página, la recarga muestra la última que queda', {
+  test('T20 si se dan de baja todas las filas de la última página, la recarga sigue en ella con las filas de baja', {
     tag: ['@estado-actual', '@relaciones', '@listado'],
   }, async ({ page }) => {
     dejarLasTablas('completo', 'anterior');
@@ -424,8 +423,9 @@ test.describe('Productos relacionados — cambiar el estado desde el listado', (
     }
     await page.locator(BOTON).click();
 
-    await expect(page.locator('#relacionesEncontradas')).toHaveText('40');
-    await expect(page.locator(FILAS)).toHaveCount(40);
+    await expect(page.locator('#relacionesEncontradas')).toHaveText('46');
+    await expect(page.locator(FILAS)).toHaveCount(6);
+    await expect(page.locator(FILAS + ' td:nth-child(8)')).toHaveText(Array(6).fill('Baja'));
   });
 
   test('T21 un nombre con comillas o marcas se pregunta tal cual y no rompe la página', {
@@ -554,10 +554,9 @@ test.describe('Productos relacionados — abrir la vista de relación desde el l
     await filaDeLaRelacion(page, 2).locator('input.Check').check();
     await page.locator('.col-sm-3 button:has-text("Cambiar estado")').click();
 
-    await expect(page.locator('#relacionesEncontradas')).toHaveText('44');
+    await expect(filaDeLaRelacion(page, 2).locator('td:nth-child(8)')).toHaveText('Baja');
     expect(mensajes).toHaveLength(2);
     expect(mensajes[1]).toContain('cambio en preparación');
-    await expect(filaDeLaRelacion(page, 1)).toHaveCount(1);
-    await expect(filaDeLaRelacion(page, 2)).toHaveCount(0);
+    await expect(filaDeLaRelacion(page, 1).locator('td:nth-child(8)')).toHaveText('Activo');
   });
 });

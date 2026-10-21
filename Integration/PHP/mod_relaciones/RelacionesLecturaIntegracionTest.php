@@ -371,7 +371,7 @@ final class RelacionesLecturaIntegracionTest extends CasoIntegracion
         self::assertSame(2, $listado['total']);
         self::assertSame(1, $listado['pagina']);
         self::assertSame(
-            ['numRelacion' => $pollo['numRelacion'], 'relacion' => 'Pollo entero', 'tipo' => 'Despiece', 'version' => '1.0', 'fecha' => '2026-03-01 09:00:00', 'numProductos' => 3],
+            ['numRelacion' => $pollo['numRelacion'], 'relacion' => 'Pollo entero', 'tipo' => 'Despiece', 'version' => '1.0', 'estado' => 'Activo', 'fecha' => '2026-03-01 09:00:00', 'numProductos' => 3],
             $listado['filas'][0]
         );
     }
@@ -459,7 +459,7 @@ final class RelacionesLecturaIntegracionTest extends CasoIntegracion
         self::assertSame(1, $relaciones->listado('', '', '', -4, 2)['datos']['pagina']);
     }
 
-    public function test_T31_enElListadoNoCuentanLaRelacionDeBajaElBorradorNiElProductoQuitado(): void
+    public function test_T31_enElListadoCuentanLaRelacionDeBajaPeroNoElBorradorNiElProductoQuitado(): void
     {
         $pollo = $this->escenario->relacionVigente($this->despiece, $this->lineasDelPollo());
         $this->relaciones()->modificar($pollo['numRelacion'], [], [$this->linea('pollo', 'entrada'), $this->linea('pechuga', 'salida')], $this->usuario);
@@ -469,10 +469,11 @@ final class RelacionesLecturaIntegracionTest extends CasoIntegracion
 
         $todas = $this->relaciones()->listado('', '', '', 1, 40)['datos'];
 
-        self::assertSame(1, $todas['total']);
-        self::assertSame(['2.0', 2], [$todas['filas'][0]['version'], $todas['filas'][0]['numProductos']]);
+        self::assertSame(2, $todas['total']);
+        self::assertSame(['2.0', 2, 'Activo'], [$todas['filas'][0]['version'], $todas['filas'][0]['numProductos'], $todas['filas'][0]['estado']]);
+        self::assertSame('Baja', $todas['filas'][1]['estado']);
         self::assertSame(0, $this->relaciones()->listado('alas', '', '', 1, 40)['datos']['total']);
-        self::assertSame(0, $this->relaciones()->listado('hamburguesa', '', '', 1, 40)['datos']['total']);
+        self::assertSame(1, $this->relaciones()->listado('hamburguesa', '', '', 1, 40)['datos']['total']);
         self::assertSame(0, $this->relaciones()->listado('criollo', '', '', 1, 40)['datos']['total']);
     }
 

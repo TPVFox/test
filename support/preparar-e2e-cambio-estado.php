@@ -9,6 +9,8 @@
  *   borrador   le deja un borrador pendiente, copia de la versión que rige, como si alguien
  *              estuviera preparando un cambio
  *   nombre     le pone ese nombre a la versión que rige
+ *   baja       la deja de baja, como si alguien la hubiera dado de baja desde el listado
+ *   repetida   da de alta otra relación vigente igual a esta, aunque esta esté de baja
  */
 
 declare(strict_types=1);
@@ -19,7 +21,7 @@ use TPVFox\Test\Entorno;
 
 $accion = $argv[1] ?? '';
 $numRelacion = (int) ($argv[2] ?? 0);
-if (!in_array($accion, ['borrador', 'nombre'], true) || $numRelacion <= 0) {
+if (!in_array($accion, ['borrador', 'nombre', 'baja', 'repetida'], true) || $numRelacion <= 0) {
     fwrite(STDERR, "Uso: php support/preparar-e2e-cambio-estado.php borrador|nombre <numRelacion> ...\n");
     exit(1);
 }
@@ -45,10 +47,29 @@ if ($db->connect_errno) {
 }
 $db->set_charset('utf8mb4');
 
-$rige = $db->query("SELECT id, idTipo, nombre, idUsuario FROM relaciones WHERE numRelacion = $numRelacion AND estado = 'Activo'")->fetch_assoc();
+$rige = $db->query("SELECT id, idTipo, nombre, idUsuario FROM relaciones WHERE numRelacion = $numRelacion AND estado IN ('Activo', 'Baja')")->fetch_assoc();
 if ($rige === null) {
     fwrite(STDERR, "La relación $numRelacion no rige.\n");
     exit(1);
+}
+
+if ($accion === 'baja') {
+    $db->query("UPDATE relaciones SET estado = 'Baja' WHERE id = {$rige['id']}");
+    echo "Relación $numRelacion de baja.\n";
+    exit(0);
+}
+
+if ($accion === 'repetida') {
+    $nuevo = (int) $db->query('SELECT MAX(numRelacion) + 1 AS n FROM relaciones')->fetch_assoc()['n'];
+    $alta = $db->prepare("INSERT INTO relaciones (numRelacion, idTipo, nombre, version, idUsuario, fechaCreacion, estado) VALUES (?, ?, ?, '1.0', ?, NOW(), 'Activo')");
+    $alta->bind_param('iisi', $nuevo, $rige['idTipo'], $rige['nombre'], $rige['idUsuario']);
+    $alta->execute();
+    $idNueva = (int) $db->insert_id;
+    $db->query("INSERT INTO relacionesLineas (idRelacion, idArticulo, sentido, cantidad, unidad, estado)"
+        . " SELECT $idNueva, idArticulo, sentido, cantidad, unidad, 'Activo' FROM relacionesLineas"
+        . " WHERE idRelacion = {$rige['id']} AND estado = 'Activo'");
+    echo "Relación $nuevo igual a la $numRelacion.\n";
+    exit(0);
 }
 
 if ($accion === 'nombre') {
