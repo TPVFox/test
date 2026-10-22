@@ -98,6 +98,47 @@ final class ClaseTiendaIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento Con la base en modo estricto, un número de tienda con una condición añadida no
+     *   cambia ninguna tienda: el número también se escribe como columna, y la base rechaza ese valor
+     *   antes de llegar a la condición.
+     */
+    public function test_enModoEstrictoUnNumeroConCondicionNoCambiaNingunaTienda(): void
+    {
+        $id = $this->siembra->tienda($this->ano(), 'fisica');
+
+        try {
+            (new \ClaseTienda())->modificarTienda(['idtienda' => $id . ' OR 1=1', 'razonsocial' => 'Cambiadas todas']);
+        } catch (\mysqli_sql_exception) {
+            // El rechazo de la base es lo que hoy impide el cambio; que no se recoja es otro caso.
+        }
+
+        self::assertSame(0, $this->recuentoDe("razonsocial = 'Cambiadas todas'"));
+    }
+
+    /** @comportamiento Una modificación con un número que no es de ninguna tienda no cambia ni crea ninguna. */
+    public function test_unaModificacionConUnNumeroQueNoExisteNoCambiaNinguna(): void
+    {
+        $antes = $this->recuento();
+        $libre = (int) $this->db->query('SELECT MAX(idTienda) + 1000 FROM tiendas')->fetch_row()[0];
+
+        $filas = (new \ClaseTienda())->modificarTienda(['idtienda' => $libre, 'razonsocial' => 'Ninguna']);
+
+        self::assertSame(0, $filas);
+        self::assertSame($antes, $this->recuento());
+        self::assertSame(0, $this->recuentoDe("razonsocial = 'Ninguna'"));
+    }
+
+    /** @comportamiento La modificación guarda tal cual una razón social con comillas simples y dobles. */
+    public function test_laModificacionGuardaLasComillasTalCual(): void
+    {
+        $id = $this->siembra->tienda($this->ano(), 'fisica');
+
+        (new \ClaseTienda())->modificarTienda(['idtienda' => $id, 'razonsocial' => 'L\'Hostal "Nou" S.L.']);
+
+        self::assertSame(['razonsocial' => 'L\'Hostal "Nou" S.L.'], $this->fila($id, 'razonsocial'));
+    }
+
+    /**
      * @comportamiento Los datos del servidor de correo, que la ficha guarda como una lista de pares
      *   sueltos, se reúnen en un solo array.
      */
@@ -108,6 +149,56 @@ final class ClaseTiendaIntegracionTest extends CasoIntegracion
         $datos = (new \ClaseTienda())->obtenerArrayDatosServidor($guardado);
 
         self::assertSame(['emailTienda' => 'tienda@ejemplo.invalid', 'host' => 'smtp.ejemplo.invalid', 'SMTPPort' => '465'], $datos);
+    }
+
+    /**
+     * @comportamiento Con dos tiendas principales, la lectura de la principal trae las dos: quien la
+     *   llama decide con cuál se queda.
+     */
+    public function test_conDosPrincipalesLaLecturaDeLaPrincipalTraeLasDos(): void
+    {
+        $segunda = $this->siembra->tienda($this->ano(), 'principal');
+
+        $principales = (new \ClaseTienda())->tiendaPrincipal()['datos'];
+
+        self::assertSame($this->recuentoDe("tipoTienda = 'principal'"), count($principales));
+        self::assertGreaterThanOrEqual(2, count($principales));
+        self::assertContains((string) $segunda, array_column($principales, 'idTienda'));
+    }
+
+    /** @comportamiento La lectura de la principal la trae por su tipo, esté activa o cerrada. */
+    public function test_unaPrincipalCerradaLaSigueLeyendoLaClase(): void
+    {
+        $this->db->query("UPDATE tiendas SET estado = 'cerrado' WHERE tipoTienda = 'principal'");
+
+        $principales = (new \ClaseTienda())->tiendaPrincipal()['datos'];
+
+        self::assertNotEmpty($principales);
+        self::assertSame(['cerrado'], array_values(array_unique(array_column($principales, 'estado'))));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_tienda/clases/ClaseTienda.php:110-120
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Reunir los datos del servidor de correo de una tienda principal que no los
+     *   tiene guardados —como queda tras darla de alta— deja avisos de PHP.
+     * @que-deberia-ocurrir Que dé un resultado vacío, sin avisos.
+     * @por-que-ocurre Decodifica y recorre lo guardado sin comprobar que haya algo.
+     * @como-deberia-funcionar Comprobar que hay datos antes de decodificarlos y recorrerlos.
+     */
+    public function test_losDatosDelServidorDeUnaPrincipalSinCorreoSeLeenSinAvisos(): void
+    {
+        $id = $this->siembra->tienda($this->ano(), 'principal');
+        $guardado = $this->fila($id, 'servidor_email')['servidor_email'];
+
+        [$datos, $avisos] = self::recogiendoAvisos(fn () => (new \ClaseTienda())->obtenerArrayDatosServidor($guardado));
+
+        self::assertSame([], $datos);
+        self::assertSame([], $avisos, 'Sin avisos de PHP.');
     }
 
     /** @comportamiento La clase de `clases/` cuenta las tiendas al crearse y lee una por su número. */
@@ -304,6 +395,11 @@ final class ClaseTiendaIntegracionTest extends CasoIntegracion
     private function recuento(): int
     {
         return (int) $this->db->query('SELECT COUNT(*) FROM tiendas')->fetch_row()[0];
+    }
+
+    private function recuentoDe(string $condicion): int
+    {
+        return (int) $this->db->query('SELECT COUNT(*) FROM tiendas WHERE ' . $condicion)->fetch_row()[0];
     }
 
     /** @return array<string, string|null> */

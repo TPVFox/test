@@ -191,6 +191,29 @@ final class PantallaTablasPrincipalesIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
+     * @codigo-afectado modulos/mod_configuracion/funciones.php:27-28, 63-64, 90-91
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Abrir la ventana de un número que no es de ninguna fila deja avisos de PHP, en
+     *   las tres tablas, y compone la ventana con los campos vacíos.
+     * @que-deberia-ocurrir Que responda que la fila no existe, sin avisos.
+     * @por-que-ocurre La ventana toma la primera fila leída sin comprobar que la haya.
+     * @como-deberia-funcionar Comprobar que la lectura trae la fila y, si no, responder con un aviso.
+     */
+    public function test_abrirLaVentanaDeUnaFilaQueNoExisteNoDejaAvisos(): void
+    {
+        $errores = '';
+        foreach (['iva', 'forma', 'vencimiento'] as $tabla) {
+            $errores .= $this->ejecutar('tareas.php', ['pulsado' => 'abrirModalModificar', 'dedonde' => $tabla, 'id' => '999999'])['errores'];
+        }
+
+        self::assertSame('', $errores, 'Sin avisos de PHP.');
+    }
+
+    /**
+     * @estado rojo
      * @codigo-afectado modulos/mod_configuracion/funciones.php:32-50, 68-79, 95-112
      *
      * @group defecto

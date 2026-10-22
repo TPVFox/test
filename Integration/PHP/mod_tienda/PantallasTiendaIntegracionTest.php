@@ -75,6 +75,22 @@ final class PantallasTiendaIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento Sin tienda principal ni web, la ficha de crear deja elegir los tres tipos: cada
+     *   botón se desactiva solo si ya hay una tienda de su tipo.
+     */
+    public function test_sinPrincipalNiWebLaFichaDeCrearOfreceLosTresTipos(): void
+    {
+        // Las tiendas las referencian los documentos: se vacía la tabla sin comprobar esas claves,
+        // dentro de la transacción del proceso, que se deshace al terminar.
+        $pantalla = $this->pintar('tienda.php', [], [], ['SET FOREIGN_KEY_CHECKS = 0', 'DELETE FROM tiendas']);
+
+        foreach (['fisica', 'web', 'principal'] as $tipo) {
+            self::assertMatchesRegularExpression('/<input type="radio" name="tipoTienda" value="' . $tipo . '"[^>]*>/', $pantalla['html']);
+            self::assertDoesNotMatchRegularExpression('/value="' . $tipo . '"[^>]*disabled/', $pantalla['html']);
+        }
+    }
+
+    /**
      * @comportamiento Guardar la ficha sin número da de alta la tienda, lo avisa con su número y pasa
      *   la dirección a la de esa tienda, para seguir modificándola.
      */
@@ -102,6 +118,19 @@ final class PantallasTiendaIntegracionTest extends CasoIntegracion
         self::assertSame($pantalla['ultima'], $modificada['idTienda'] ?? null);
         self::assertSame('Activo', $modificada['estado']);
         self::assertStringContainsString('Modificada correctamente la tienda.', $pantalla['html']);
+    }
+
+    /**
+     * @comportamiento Guardar la ficha de la tienda principal guarda los datos del correo tal como
+     *   los envía el formulario: una lista de pares sueltos, en JSON.
+     */
+    public function test_guardarLaFichaDeLaPrincipalGuardaLosDatosDelCorreo(): void
+    {
+        $correo = [['emailTienda' => 'tienda@ejemplo.invalid'], ['host' => 'smtp.ejemplo.invalid'], ['SMTPPort' => '587']];
+
+        $pantalla = $this->pintar('tienda.php', ['id' => ':principal'], ['idtienda' => ':principal', 'tipoTienda' => 'principal', 'servidor_email' => $correo]);
+
+        self::assertSame(json_encode($correo), $this->tiendaPorNumero($pantalla, $pantalla['principal'])['servidor_email']);
     }
 
     /**
@@ -394,6 +423,31 @@ final class PantallasTiendaIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_tienda/clases/ClaseTienda.php:32-41; modulos/mod_tienda/ListaTiendas.php:6
+     *
+     * @group defecto
+     * @group listado
+     * @group medio
+     *
+     * @que-ocurre-hoy Sin ninguna tienda guardada —una instalación que aún no tiene ninguna—, el listado
+     *   termina con un error fatal, y desde el menú no se llega a dar de alta la primera.
+     * @que-deberia-ocurrir Que el listado se pinte vacío y ofrezca añadir una tienda.
+     * @por-que-ocurre La lectura del listado cuenta los datos leídos, y sin filas no hay datos que
+     *   contar.
+     * @como-deberia-funcionar Tomar una lista vacía cuando no hay filas.
+     */
+    public function test_sinTiendasElListadoOfreceAnadirLaPrimera(): void
+    {
+        // Las tiendas las referencian los documentos: se vacía la tabla sin comprobar esas claves,
+        // dentro de la transacción del proceso, que se deshace al terminar.
+        $pantalla = $this->pintar('ListaTiendas.php', [], [], ['SET FOREIGN_KEY_CHECKS = 0', 'DELETE FROM tiendas']);
+
+        self::assertStringContainsString("metodoClick('AgregarTienda');", $pantalla['html']);
+        self::assertSame('', $pantalla['errores'], 'Sin errores de PHP.');
+    }
+
+    /**
      * Pinta una pantalla del módulo en un PHP aparte y devuelve su HTML, lo que escribe en la salida de
      * errores y cómo quedó la tabla de tiendas.
      *
@@ -432,7 +486,7 @@ final class PantallasTiendaIntegracionTest extends CasoIntegracion
             . ' array_walk_recursive($_POST, function (&$valor) use ($sustituir) { $valor = strtr($valor, $sustituir); });'
             . ' $ClasePermisos = $thisTpv->permisos = new ClasePermisos($Usuario, $BDTpv);'
             . ' register_shutdown_function(function () use ($BDTpv, &$sustituir) { echo "\n@@TIENDAS@@" . json_encode(["principal" => $sustituir[":principal"], "ultima" => $sustituir[":ultima"],'
-            . ' "tiendas" => $BDTpv->query("SELECT idTienda, tipoTienda, razonsocial, estado FROM tiendas ORDER BY idTienda")->fetch_all(MYSQLI_ASSOC)]); });'
+            . ' "tiendas" => $BDTpv->query("SELECT idTienda, tipoTienda, razonsocial, estado, servidor_email FROM tiendas ORDER BY idTienda")->fetch_all(MYSQLI_ASSOC)]); });'
             . ' include ' . var_export($pantalla, true) . ';';
 
         $errores = (string) tempnam(sys_get_temp_dir(), 'tiendas');

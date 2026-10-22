@@ -172,6 +172,47 @@ final class ClasesTablasPrincipalesIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_configuracion/clases/ClaseIva.php:19, ClaseFormasPago.php:19, ClaseVencimiento.php:18; modulos/mod_configuracion/tareas.php:30, 38, 46
+     *
+     * @group defecto
+     * @group entrada
+     * @group alto
+     *
+     * @que-ocurre-hoy Guardar una fila con un número que lleva una condición añadida —`7 OR 1=1`—
+     *   cambia todas las filas de la tabla: todos los tipos de IVA pasan a tener la descripción, el
+     *   porcentaje y el recargo de esa fila.
+     * @que-deberia-ocurrir Que cambie como mucho la fila de ese número.
+     * @por-que-ocurre La modificación pega el número a la condición sin convertirlo, y la petición de
+     *   fondo la elige porque el texto compara como mayor que 0.
+     * @como-deberia-funcionar Tomar el número como entero, en una sentencia preparada.
+     */
+    public function test_unaModificacionConUnNumeroConCondicionSoloCambiaEsaFila(): void
+    {
+        $uno = $this->siembra->tipoIva(21.0, 5.2, 'IVA uno');
+        $this->siembra->tipoIva(10.0, 1.4, 'IVA dos');
+
+        $this->sinErrorDeLaBase(fn () => (new \ClaseIva($this->db))->modificarTabla(
+            ['id' => $uno . ' OR 1=1', 'descripcion' => 'Cambiadas todas', 'iva' => '4', 'recargo' => '0.5']
+        ));
+
+        self::assertLessThanOrEqual(1, $this->recuento('iva', "descripcionIva = 'Cambiadas todas'"), 'Cambian otras filas');
+    }
+
+    /** @comportamiento Una modificación con un número que no es de ninguna fila no cambia ni crea ninguna. */
+    public function test_unaModificacionConUnNumeroQueNoExisteNoCambiaNinguna(): void
+    {
+        $antes = $this->recuento('iva');
+        $libre = (int) $this->db->query('SELECT COALESCE(MAX(idIva), 0) + 1000 FROM iva')->fetch_row()[0];
+
+        $respuesta = (new \ClaseIva($this->db))->modificarTabla(['id' => $libre, 'descripcion' => 'Ninguna', 'iva' => '4', 'recargo' => '0.5']);
+
+        self::assertSame('0', $respuesta['error']);
+        self::assertSame($antes, $this->recuento('iva'));
+        self::assertSame(0, $this->recuento('iva', "descripcionIva = 'Ninguna'"));
+    }
+
+    /**
      * @comportamiento La clase de IVA de `clases/` cuenta los tipos al crearse, los devuelve todos, da
      *   el porcentaje de uno por su número y los que tienen un porcentaje distinto de uno dado.
      *

@@ -62,6 +62,18 @@ final class FuncionesTiendaTest extends TestCase
         self::assertStringContainsString('name="estado"', $html);
     }
 
+    /**
+     * @comportamiento Una tienda guardada sin estado —como queda tras el alta— recibe en su ficha el
+     *   selector del estado, con «cerrado» marcado por defecto: así se puede activar después.
+     */
+    public function test_unaTiendaSinEstadoGuardadoRecibeElSelector(): void
+    {
+        $html = \htmlEstados(null);
+
+        self::assertStringContainsString('<option value="cerrado" selected>cerrado</option>', $html);
+        self::assertStringContainsString('<option value="Activo" >Activo</option>', $html);
+    }
+
     /** @comportamiento Un selector con su valor entre las opciones lo marca, con el texto de cada opción. */
     public function test_unSelectorMarcaSuValor(): void
     {
