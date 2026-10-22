@@ -234,6 +234,35 @@ final class AccesoDatosIntegracionTest extends CasoIntegracion
         self::assertSame('UPDATE tabla_que_no_existe SET a = 1', $modelo->getFallo()['consulta']);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado clases/ClaseTFModelo.php:156-158
+     *
+     * @group esperado
+     * @group datos
+     * @group medio
+     *
+     * @que-ocurre-hoy Al actualizar, un valor nulo se escribe como cadena vacía, salvo que quien
+     *   llama pida omitir los nulos: la columna no queda nula.
+     * @que-deberia-ocurrir Que el nulo se guarde como nulo.
+     * @por-que-ocurre Cada valor se pone entre comillas simples, también el nulo, que queda en «''».
+     * @como-deberia-funcionar Escribir NULL sin comillas cuando el valor es nulo, o pasar los valores
+     *   como parámetros de una sentencia preparada.
+     */
+    public function test_D11_actualizarUnValorNuloDejaLaColumnaNula(): void
+    {
+        $id = $this->permiso('mod_prueba', 'vista.php');
+
+        set_error_handler(static fn (): bool => true, E_DEPRECATED);
+        try {
+            self::tfModelo()->actualizar(['vista' => null], "id = $id");
+        } finally {
+            restore_error_handler();
+        }
+
+        self::assertSame(['vista' => null], $this->fila($id, 'vista'), 'Un nulo tiene que guardarse como nulo.');
+    }
+
     // --- ModeloP ----------------------------------------------------------
 
     /** @comportamiento Una consulta devuelve sus filas y deja la sentencia, sin error. */
@@ -387,6 +416,84 @@ final class AccesoDatosIntegracionTest extends CasoIntegracion
         );
     }
 
+    /**
+     * @comportamiento Prestada una conexión, las operaciones siguientes van por ella; devuelta la
+     *   anterior, vuelven por la de siempre.
+     */
+    public function test_P8_unaConexionPrestadaLlevaLasOperacionesHastaQueSeDevuelve(): void
+    {
+        $prestada = new \mysqli();
+        $anterior = \ModeloP::usarConexion($prestada);
+        try {
+            self::assertSame($this->db, $anterior);
+            self::assertSame($prestada, \ModeloP::getDbo());
+            self::assertSame($prestada, self::tfModelo()->conexionBDTPV());
+        } finally {
+            \ModeloP::usarConexion($anterior);
+        }
+
+        self::assertSame($this->db, \ModeloP::getDbo());
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/claseModeloP.php:35
+     * @codigo-afectado modulos/claseModeloP.php:68-72
+     *
+     * @group esperado
+     * @group datos
+     * @group bajo
+     *
+     * @que-ocurre-hoy La sentencia y el error de la última consulta se guardan en un único sitio
+     *   para todas las clases: una clase que pregunta por los suyos lee los de la última que
+     *   consultó, aunque fuera otra.
+     * @que-deberia-ocurrir Que cada clase lea la sentencia y el error de su propia consulta.
+     * @por-que-ocurre El resultado es una propiedad estática de la base, que se escribe con el
+     *   nombre de la base y no con el de la clase que consulta.
+     * @como-deberia-funcionar Guardar el resultado en cada objeto, o devolverlo con la consulta.
+     */
+    public function test_P9_cadaClaseLeeLaSentenciaDeSuPropiaConsulta(): void
+    {
+        $una = self::modeloP();
+        $otra = self::modelo();
+
+        $una->consultar('SELECT 1 FROM permisos WHERE id = 0');
+        $otra->leer('SELECT 2 FROM permisos WHERE id = 0');
+
+        self::assertSame('SELECT 1 FROM permisos WHERE id = 0', $una->getSQLConsulta(), 'La primera clase tiene que leer su propia sentencia.');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/claseModeloP.php:81-88
+     *
+     * @group esperado
+     * @group datos
+     * @group alto
+     *
+     * @que-ocurre-hoy Si quien llama recoge el error de una consulta rechazada, las clases de datos
+     *   le dicen que no hubo error y le dan la sentencia de la operación anterior.
+     * @que-deberia-ocurrir Que después de un rechazo `hayErrorConsulta()` diga que hubo error y
+     *   `getSQLConsulta()` dé la sentencia rechazada.
+     * @por-que-ocurre La misma que la del caso P6: la excepción sale antes de guardar el resultado,
+     *   y queda el de la operación anterior.
+     * @como-deberia-funcionar Recoger la excepción en la consulta y guardar su error y su sentencia.
+     */
+    public function test_P10_trasUnRechazoRecogidoElResultadoEsElDelRechazo(): void
+    {
+        $modelo = self::modeloP();
+        $modelo->consultar('SELECT vista FROM permisos WHERE id = 0');
+
+        try {
+            $modelo->consultar('SELECT * FROM tabla_que_no_existe');
+        } catch (\mysqli_sql_exception $excepcion) {
+            // Quien llama recoge el error, como haría una pantalla que no quiere terminar.
+        }
+
+        self::assertTrue(\ModeloP::hayErrorConsulta(), 'Tras un rechazo, el resultado tiene que decir que hubo error.');
+        self::assertSame('SELECT * FROM tabla_que_no_existe', \ModeloP::getSQLConsulta());
+    }
+
     // --- Modelo -----------------------------------------------------------
 
     /**
@@ -416,6 +523,49 @@ final class AccesoDatosIntegracionTest extends CasoIntegracion
         self::assertSame("INSERT permisos SET idUsuario = '{$this->usuario}', modulo = 'mod_modelo', permiso = '1'", $insertada);
         self::assertSame("UPDATE permisos SET permiso = '0' WHERE id = $id", $actualizada);
         self::assertSame(['permiso' => '0'], $this->fila($id, 'permiso'));
+    }
+
+    /** @comportamiento Pedido solo el texto, insertar y actualizar devuelven la sentencia sin escribir. */
+    public function test_M3_pedidoSoloElTextoDevuelveLaSentenciaSinEscribir(): void
+    {
+        $id = $this->permiso('mod_prueba', 'vista.php');
+        $modelo = self::modelo();
+
+        $insertada = $modelo->insertar(['idUsuario' => $this->usuario, 'modulo' => 'mod_solo_texto', 'permiso' => 1], true);
+        $actualizada = $modelo->actualizar(['permiso' => 0], "id = $id", true);
+
+        self::assertSame("INSERT permisos SET idUsuario = '{$this->usuario}', modulo = 'mod_solo_texto', permiso = '1'", $insertada);
+        self::assertSame("UPDATE permisos SET permiso = '0' WHERE id = $id", $actualizada);
+        self::assertSame('0', $this->db->query("SELECT COUNT(*) FROM permisos WHERE modulo = 'mod_solo_texto'")->fetch_row()[0]);
+        self::assertSame(['permiso' => '1'], $this->fila($id, 'permiso'));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/claseModelo.php:38-47
+     *
+     * @group esperado
+     * @group datos
+     * @group alto
+     *
+     * @que-ocurre-hoy Una escritura que la base rechaza no devuelve el error en la respuesta, como
+     *   hace la clase con las que acepta: llega como excepción, y quien llama no la recoge.
+     * @que-deberia-ocurrir Que la respuesta traiga la sentencia y el error de la base.
+     * @por-que-ocurre La misma que la del caso D10: `mysqli` lanza el error como excepción.
+     * @como-deberia-funcionar Recoger la excepción en la escritura y ponerla en la respuesta.
+     */
+    public function test_M4_unaEscrituraRechazadaDevuelveElErrorEnLaRespuesta(): void
+    {
+        $fallo = null;
+        try {
+            $respuesta = self::modelo()->escribir('UPDATE tabla_que_no_existe SET a = 1');
+        } catch (\mysqli_sql_exception $excepcion) {
+            $fallo = $excepcion->getMessage();
+        }
+
+        self::assertNull($fallo, 'El error de la base no puede escapar como excepción.');
+        self::assertSame('UPDATE tabla_que_no_existe SET a = 1', $respuesta['consulta']);
+        self::assertNotSame('0', $respuesta['error']);
     }
 
     // --- Apoyos -----------------------------------------------------------
@@ -493,14 +643,14 @@ final class AccesoDatosIntegracionTest extends CasoIntegracion
                 return $this->consultaDML($sql);
             }
 
-            public function insertar(array $datos)
+            public function insertar(array $datos, bool $soloSQL = false)
             {
-                return $this->insert($datos);
+                return $this->insert($datos, $soloSQL);
             }
 
-            public function actualizar($datos, $condicion)
+            public function actualizar($datos, $condicion, bool $soloSQL = false)
             {
-                return $this->update($datos, $condicion);
+                return $this->update($datos, $condicion, $soloSQL);
             }
         };
     }

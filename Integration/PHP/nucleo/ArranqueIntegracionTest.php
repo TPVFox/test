@@ -118,6 +118,90 @@ final class ArranqueIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento Sin `configuracion.php` junto a `inicial.php`, el arranque escribe el motivo y
+     *   termina: no abre la sesión ni deja ninguno de sus globales.
+     */
+    public function test_A5_sinConfiguracionElArranqueTerminaConElMotivo(): void
+    {
+        $salida = self::ejecutarCopiaDeInicial(null);
+
+        self::assertStringContainsString('No existe fichero de configuracion', $salida);
+        self::assertStringNotContainsString('sesion abierta', $salida);
+    }
+
+    /**
+     * @comportamiento Con una configuración cuya ruta del producto no existe, el arranque escribe el
+     *   motivo y termina antes de cargar la sesión.
+     */
+    public function test_A6_conUnaRutaDelProductoQueNoExisteElArranqueTerminaConElMotivo(): void
+    {
+        $salida = self::ejecutarCopiaDeInicial('<?php $RutaServidor = "/ruta/que/no/existe"; $HostNombre = "/producto";');
+
+        self::assertStringContainsString('Error en ruta completa URLCom', $salida);
+        self::assertStringNotContainsString('sesion abierta', $salida);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado inicial.php:15-33
+     *
+     * @group esperado
+     * @group arranque
+     * @group bajo
+     *
+     * @que-ocurre-hoy Cuando falta la configuración, o su ruta del producto no existe, el arranque
+     *   escribe en la página la ruta completa del servidor.
+     * @que-deberia-ocurrir Que diga que la instalación no está configurada sin enseñar rutas del
+     *   servidor, y que el detalle quede en el registro de errores.
+     * @por-que-ocurre El motivo se compone con la ruta y se escribe con `print_r()` antes de
+     *   terminar.
+     * @como-deberia-funcionar Escribir un mensaje sin rutas y mandar la ruta al registro de errores.
+     */
+    public function test_A7_elMotivoDeUnArranqueFallidoNoEnsenaRutasDelServidor(): void
+    {
+        $sinConfiguracion = self::ejecutarCopiaDeInicial(null, $carpeta);
+        $rutaQueNoExiste = self::ejecutarCopiaDeInicial('<?php $RutaServidor = "/ruta/que/no/existe"; $HostNombre = "/producto";');
+
+        self::assertStringNotContainsString($carpeta, $sinConfiguracion, 'Sin configuración, la página no enseña la carpeta de la instalación.');
+        self::assertStringNotContainsString('/ruta/que/no/existe', $rutaQueNoExiste, 'Con la ruta mal, la página no enseña la ruta configurada.');
+    }
+
+    /**
+     * @comportamiento Si la sesión ya está construida en la petición, cargar otra vez `inicial.php`
+     *   no la vuelve a construir: se quedan la sesión y los globales que había.
+     */
+    public function test_A8_conLaSesionYaConstruidaInicialNoLaVuelveAConstruir(): void
+    {
+        $guion = '$_SESSION = []; $thisTpv = "la de antes"; require ' . var_export(RUTA_TPVFOX . '/inicial.php', true) . ';'
+            . ' echo "\n", json_encode(["thisTpv" => $thisTpv, "Usuario" => isset($Usuario), "BDTpv" => isset($BDTpv)]);';
+        exec(escapeshellarg(PHP_BINARY) . ' -d display_errors=stderr -r ' . escapeshellarg($guion) . ' 2>/dev/null', $salida, $codigo);
+
+        self::assertSame(0, $codigo);
+        self::assertSame(['thisTpv' => 'la de antes', 'Usuario' => false, 'BDTpv' => false], json_decode((string) end($salida), true));
+    }
+
+    /**
+     * Ejecuta en un PHP aparte una copia de `inicial.php` en una carpeta temporal, con la
+     * configuración que se le dé —o sin ella— y devuelve lo que escribe. Si llega a abrir la sesión,
+     * escribe además «sesion abierta».
+     */
+    private static function ejecutarCopiaDeInicial(?string $configuracion, ?string &$carpeta = null): string
+    {
+        $carpeta = sys_get_temp_dir() . '/tpvfox-arranque-' . bin2hex(random_bytes(4));
+        mkdir($carpeta);
+        copy(RUTA_TPVFOX . '/inicial.php', $carpeta . '/inicial.php');
+        if ($configuracion !== null) {
+            file_put_contents($carpeta . '/configuracion.php', $configuracion);
+        }
+        $guion = '$_SESSION = []; require ' . var_export($carpeta . '/inicial.php', true) . '; echo "sesion abierta";';
+        exec(escapeshellarg(PHP_BINARY) . ' -d display_errors=stderr -r ' . escapeshellarg($guion) . ' 2>/dev/null', $salida);
+        array_map('unlink', glob($carpeta . '/*') ?: []);
+        rmdir($carpeta);
+
+        return implode("\n", $salida);
+    }
+
+    /**
      * Ejecuta `inicial.php` en un PHP aparte, sin sesión, y devuelve lo que deja definido.
      *
      * @return array<string,mixed>

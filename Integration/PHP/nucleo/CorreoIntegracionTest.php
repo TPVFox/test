@@ -104,6 +104,65 @@ final class CorreoIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @estado rojo
+     * @codigo-afectado clases/CorreoElectronico.php:41-51
+     *
+     * @group esperado
+     * @group correo
+     * @group bajo
+     *
+     * @que-ocurre-hoy Si quien llama no cargó antes la clase base de acceso a datos, leer los datos
+     *   del correo termina la petición con un error fatal.
+     * @que-deberia-ocurrir Que lea los datos sin depender de lo que haya cargado quien llama.
+     * @por-que-ocurre La clase de la tienda incluye su base con la variable global de la ruta, que
+     *   dentro del método no existe: la base no se carga y la clase de la tienda no puede declararse.
+     * @como-deberia-funcionar Incluir la clase de la tienda fuera del método, o con rutas que no
+     *   dependan de globales.
+     */
+    public function test_sinLaClaseBaseCargadaLeerLosDatosNoTerminaLaPeticion(): void
+    {
+        $salida = self::ejecutarConElCorreo('CorreoElectronico::leerConfiguracion(); echo "datos leidos";');
+
+        self::assertStringContainsString('datos leidos', $salida, 'Leer los datos no puede terminar la petición.');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado clases/CorreoElectronico.php:1
+     *
+     * @group esperado
+     * @group correo
+     * @group bajo
+     *
+     * @que-ocurre-hoy Incluir la clase del correo escribe un salto de línea en la salida de la
+     *   petición, antes de cualquier cabecera o del JSON que vaya a devolver.
+     * @que-deberia-ocurrir Que incluirla no escriba nada.
+     * @por-que-ocurre El fichero empieza con una línea en blanco antes de `<?php`, y todo lo que queda
+     *   fuera del bloque de PHP se escribe tal cual.
+     * @como-deberia-funcionar Que el fichero empiece por `<?php`.
+     */
+    public function test_incluirLaClaseDelCorreoNoEscribeNada(): void
+    {
+        $salida = self::ejecutarConElCorreo('', false);
+
+        self::assertSame('', $salida, 'Incluir la clase no puede escribir en la salida.');
+    }
+
+    /**
+     * Ejecuta el guion en un PHP aparte después de incluir la clase del correo, sin cargar antes la
+     * clase base de acceso a datos, y devuelve lo que escribe tal cual, saltos de línea incluidos.
+     * Pedido sin errores, los manda fuera.
+     */
+    private static function ejecutarConElCorreo(string $guion, bool $conErrores = true): string
+    {
+        $codigo = '$URLCom = ' . var_export(RUTA_TPVFOX, true) . ';'
+            . ' $RutaServidor = ' . var_export(dirname(RUTA_TPVFOX), true) . '; $HostNombre = ' . var_export('/' . basename(RUTA_TPVFOX), true) . ';'
+            . ' include $URLCom . "/clases/CorreoElectronico.php"; ' . $guion;
+        $errores = $conErrores ? ' 2>&1' : ' 2>/dev/null';
+        return (string) shell_exec(escapeshellarg(PHP_BINARY) . ' -d display_errors=stderr -r ' . escapeshellarg($codigo) . $errores);
+    }
+
+    /**
      * Ejecuta la llamada recogiendo los avisos de PHP en lugar de dejar que la suite los convierta en
      * error.
      *

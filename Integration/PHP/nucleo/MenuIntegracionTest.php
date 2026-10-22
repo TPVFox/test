@@ -132,6 +132,34 @@ final class MenuIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_menu/menu.php:55-58
+     *
+     * @group esperado
+     * @group pantalla
+     * @group bajo
+     *
+     * @que-ocurre-hoy Si el usuario no tiene la última pantalla de un grupo del menú, el grupo queda
+     *   sin cerrar en el HTML, y el navegador lo cierra por su cuenta.
+     * @que-deberia-ocurrir Que cada grupo que se pinta quede cerrado, tenga o no la última pantalla.
+     * @por-que-ocurre El cierre del grupo se escribe solo si la última comprobación de permiso fue
+     *   buena, y en un grupo esa es la de su última pantalla.
+     * @como-deberia-funcionar Cerrar el grupo siempre que se haya abierto.
+     */
+    public function test_M5_unGrupoSinSuUltimaPantallaQuedaCerrado(): void
+    {
+        $usuario = $this->usuario(9);
+        new \ClasePermisos($usuario, $this->db);
+        $this->db->query("UPDATE permisos SET permiso = 0 WHERE idUsuario = {$usuario['id']} AND modulo = 'mod_informes' AND vista = 'POSStock.php' AND accion IS NULL");
+
+        $html = $this->pintarMenu($usuario);
+        $izquierda = substr($html, (int) strpos($html, 'navbar-left'), (int) strpos($html, 'navbar-right') - (int) strpos($html, 'navbar-left'));
+
+        self::assertStringContainsString('/modulos/mod_informes/ListaInformes.php', $izquierda, 'La primera pantalla del grupo se enlaza.');
+        self::assertSame(substr_count($izquierda, '<li'), substr_count($izquierda, '</li>'), 'Cada grupo que se abre tiene que cerrarse.');
+    }
+
+    /**
      * Pinta el menú con los globales que deja `inicial.php`: la sesión con los permisos del usuario,
      * el usuario, la tienda y la ruta del producto.
      *

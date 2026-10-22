@@ -139,6 +139,29 @@ describe('perder el foco o hacer clic', () => {
     window.controlEventos(evento('click'));
     expect(window.controladorAcciones).toHaveBeenCalledTimes(1);
   });
+
+  /**
+   * @etiquetas estado-actual teclado
+   *
+   * @comportamiento El control de Intro solo lo leen y lo marcan perder el foco y el clic: pulsar
+   *   Intro lanza la acción sin marcarlo, y perder el foco después la vuelve a lanzar. Sin el
+   *   control, cada clic y cada pérdida del foco la lanzan.
+   */
+  test('el control de Intro solo lo marcan perder el foco y el clic', () => {
+    window.cajaPrueba.parametros = { pulsado_intro: 'No' };
+
+    window.controlEventos(evento('keydown', 13));
+    expect(window.cajaPrueba.parametros.pulsado_intro).toBe('No');
+    window.controlEventos(evento('blur'));
+    expect(window.controladorAcciones).toHaveBeenCalledTimes(2);
+    expect(window.cajaPrueba.parametros.pulsado_intro).toBe('Si');
+
+    delete window.cajaPrueba.parametros;
+    window.controladorAcciones.mockClear();
+    window.controlEventos(evento('click'));
+    window.controlEventos(evento('blur'));
+    expect(window.controladorAcciones).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('una caja que la pantalla no declara', () => {
@@ -158,5 +181,44 @@ describe('una caja que la pantalla no declara', () => {
 
     expect(() => window.controlEventos(evento('blur'))).not.toThrow();
     expect(window.alert).toHaveBeenCalledWith(' Objeto a crear no reconocido ');
+  });
+
+  /**
+   * @etiquetas estado-actual teclado
+   *
+   * @comportamiento Pulsar una tecla en un campo cuya caja no está declarada avisa de que el objeto
+   *   no se reconoce y no lanza nada.
+   */
+  test('con una tecla, avisa y no lanza nada', () => {
+    document.getElementById('campo').dataset.obj = 'cajaQueNoExiste';
+
+    window.controlEventos(evento('keydown', 13));
+
+    expect(window.alert).toHaveBeenCalledWith(' Objeto a crear no reconocido ');
+    expect(window.controladorAcciones).not.toHaveBeenCalled();
+  });
+});
+
+describe('una acción con «Accion» que trae código', () => {
+  /**
+   * @etiquetas esperado teclado bajo
+   * @estado rojo
+   * @codigo-afectado lib/js/teclado.js:108-113
+   *
+   * @que-ocurre-hoy El nombre de una acción con «Accion» se ejecuta como código: si el nombre que
+   *   llega de los parámetros del módulo trae algo más que el nombre de una función, eso también se
+   *   ejecuta.
+   * @que-deberia-ocurrir Que solo se llame a una función declarada con ese nombre, y que un nombre
+   *   que no lo es no ejecute nada.
+   * @por-que-ocurre La llamada se compone pegando el nombre y se lanza con `eval`.
+   * @como-deberia-funcionar Buscar la función por su nombre en la página y llamarla, sin `eval`.
+   */
+  test('no ejecuta el código del nombre', () => {
+    window.cajaPrueba.acciones[40] = "AccionBajar;window.marca='ejecutado';AccionBajar";
+    delete window.marca;
+
+    window.controlEventos(evento('keydown', 40));
+
+    expect(window.marca).toBeUndefined();
   });
 });

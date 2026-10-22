@@ -83,6 +83,22 @@ final class PermisosIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento Que el usuario sea administrador no cambia lo que ya tiene: un permiso suyo
+     *   puesto a 0 sigue a 0 en la siembra siguiente; el grupo 9 solo decide el valor de lo que se
+     *   da de alta.
+     */
+    public function test_S8_aUnAdministradorLaSiembraNoLeCambiaUnPermisoQueYaTiene(): void
+    {
+        $usuario = $this->usuario(9);
+        new \ClasePermisos($usuario, $this->db);
+        $this->db->query("UPDATE permisos SET permiso = 0 WHERE idUsuario = {$usuario['id']} AND modulo = 'mod_producto' AND vista = 'producto.php' AND accion IS NULL");
+
+        new \ClasePermisos($usuario, $this->db);
+
+        self::assertSame(0, $this->filas($usuario['id'])['mod_producto|producto.php|']);
+    }
+
+    /**
      * @estado rojo
      * @codigo-afectado clases/ClasePermisos.php:117-125
      *

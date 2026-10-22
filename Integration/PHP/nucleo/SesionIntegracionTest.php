@@ -374,6 +374,50 @@ final class SesionIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento Con su contraseña pero con dos filas de índices, el usuario no entra: la
+     *   sesión exige exactamente una y avisa con el número que encuentra.
+     *
+     * @runInSeparateProcess
+     * @preserveGlobalState disabled
+     */
+    public function test_T13_unUsuarioConDosFilasDeIndicesNoEntra(): void
+    {
+        $nombre = $this->nombreNuevo();
+        $id = $this->usuario($nombre, 'clave-correcta');
+        $tienda = $this->tiendaPrincipalActiva();
+        $this->db->query("INSERT INTO indices (idTienda, idUsuario, numticket, tempticket) VALUES ($tienda, $id, 0, 0)");
+
+        $sesion = $this->peticion(['usr' => $nombre, 'pwd' => 'clave-correcta']);
+
+        self::assertSame('Error', $_SESSION['estadoTpv']);
+        self::assertArrayNotHasKey('usuarioTpv', $_SESSION);
+        self::assertSame(['Error al obtener indice de usuario:2'], self::mensajes($sesion));
+    }
+
+    /**
+     * @comportamiento Si el contador de intentos de la sesión vale más que cero, la petición vuelve a
+     *   comprobar la tienda y aplica el control final: una sesión que ha perdido su tienda, sin
+     *   ninguna principal activa, pasa a errónea. Nada del producto escribe ese contador.
+     *
+     * @runInSeparateProcess
+     * @preserveGlobalState disabled
+     */
+    public function test_T14_conElContadorDeIntentosEscritoElControlFinalSeAplica(): void
+    {
+        $nombre = $this->nombreNuevo();
+        $this->usuario($nombre, 'clave-correcta');
+        $this->peticion(['usr' => $nombre, 'pwd' => 'clave-correcta']);
+        self::assertSame('Correcto', $_SESSION['estadoTpv'], 'Primero entra.');
+
+        $this->db->query("UPDATE tiendas SET estado = 'Inactivo' WHERE tipoTienda = 'principal'");
+        unset($_SESSION['tiendaTpv']);
+        $_SESSION['N_intentos_acceso'] = 1;
+        $this->peticion();
+
+        self::assertSame('Erroneo', $_SESSION['estadoTpv']);
+    }
+
+    /**
      * Construye la sesión de una petición, con el formulario de acceso que se le pase, sobre la
      * conexión del caso.
      *

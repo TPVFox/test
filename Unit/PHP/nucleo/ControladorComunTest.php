@@ -185,4 +185,96 @@ final class ControladorComunTest extends TestCase
 
         self::assertStringNotContainsString('<script>alert(document.cookie)</script>', $html, 'El parámetro no puede salir como script.');
     }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado controllers/Controladores.php:329
+     *
+     * @group esperado
+     * @group pantalla
+     * @group alto
+     *
+     * @que-ocurre-hoy El contador de recargas de la dirección se escribe tal cual dentro del
+     *   `onClick` del enlace «Volver»: un enlace preparado con código en el contador lo ejecuta, con
+     *   la sesión de quien lo abre, al pulsar «Volver».
+     * @que-deberia-ocurrir Que el contador solo pueda ser un número.
+     * @por-que-ocurre Si la pantalla no se ha recargado, el contador se toma de la dirección sin
+     *   tratarlo y se pega en el atributo.
+     * @como-deberia-funcionar Tomar el contador como un entero positivo.
+     */
+    public function test_unContadorConCodigoNoSeEjecutaEnVolver(): void
+    {
+        $_SERVER['REQUEST_URI'] = '/tpvfox/modulos/mod_producto/producto.php';
+        $_SERVER['HTTP_REFERER'] = 'http://localhost/tpvfox/modulos/mod_producto/ListaProductos.php';
+        $_GET = ['historyJS' => '1);alert(document.cookie);//'];
+
+        $html = (new \ControladorComun())->getHtmlLinkVolver();
+
+        self::assertStringNotContainsString('alert(document.cookie)', $html, 'El contador no puede llevar código al enlace.');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado controllers/Controladores.php:303-314
+     * @codigo-afectado controllers/Controladores.php:328-336
+     *
+     * @group esperado
+     * @group pantalla
+     * @group bajo
+     *
+     * @que-ocurre-hoy Tras recargar una pantalla, su dirección se queda con el contador de recargas.
+     *   Si esa dirección se abre después desde otra página, o en una pestaña nueva, «Volver»
+     *   retrocede en el historial las páginas que dice el contador en lugar de ir a la página de la
+     *   que se viene, o a la carpeta del módulo si no hay origen.
+     * @que-deberia-ocurrir Que el contador solo cuente si se viene de la misma pantalla.
+     * @por-que-ocurre El enlace usa el contador siempre que la dirección lo traiga, sin mirar de
+     *   dónde se viene.
+     * @como-deberia-funcionar Usar el contador solo cuando el origen es la misma pantalla y, si no,
+     *   quitarlo de la dirección.
+     */
+    public function test_conElContadorEnLaDireccionYOtroOrigenVolverLlevaAlOrigen(): void
+    {
+        $_SERVER['REQUEST_URI'] = '/tpvfox/modulos/mod_producto/producto.php?id=7&historyJS=2';
+        $_SERVER['HTTP_REFERER'] = 'http://localhost/tpvfox/modulos/mod_producto/ListaProductos.php?pagina=3';
+        $_GET = ['id' => '7', 'historyJS' => '2'];
+        $desdeOtraPagina = (new \ControladorComun())->getHtmlLinkVolver();
+
+        unset($_SERVER['HTTP_REFERER']);
+        $_GET = ['id' => '7', 'historyJS' => '2'];
+        $sinOrigen = (new \ControladorComun())->getHtmlLinkVolver();
+
+        self::assertStringContainsString('href="/tpvfox/modulos/mod_producto/ListaProductos.php?pagina=3"', $desdeOtraPagina, 'Desde otra página, «Volver» lleva a esa página.');
+        self::assertStringContainsString('href="/tpvfox/modulos/mod_producto"', $sinOrigen, 'Sin origen, «Volver» lleva a la carpeta del módulo.');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado controllers/Controladores.php:307-309
+     *
+     * @group esperado
+     * @group pantalla
+     * @group bajo
+     *
+     * @que-ocurre-hoy Si al recargar una pantalla su dirección trae un contador de recargas que no
+     *   es un número, la pantalla termina con un error de PHP.
+     * @que-deberia-ocurrir Que el contador que no es un número se trate como si no estuviera.
+     * @por-que-ocurre Se le suma uno al valor de la dirección sin comprobar que es un número.
+     * @como-deberia-funcionar Tomar el contador como un entero positivo.
+     */
+    public function test_unContadorQueNoEsUnNumeroNoHaceFallarLaPantalla(): void
+    {
+        $_SERVER['REQUEST_URI'] = '/tpvfox/modulos/mod_producto/producto.php?historyJS=dos';
+        $_SERVER['HTTP_REFERER'] = 'http://localhost/tpvfox/modulos/mod_producto/producto.php';
+        $_GET = ['historyJS' => 'dos'];
+
+        $fallo = null;
+        try {
+            $html = (new \ControladorComun())->getHtmlLinkVolver();
+        } catch (\TypeError $error) {
+            $fallo = $error->getMessage();
+        }
+
+        self::assertNull($fallo, 'Un contador que no es un número no puede hacer fallar la pantalla.');
+        self::assertStringContainsString('onClick="history.go(-2);"', $html);
+    }
 }

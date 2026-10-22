@@ -212,6 +212,63 @@ final class ParametrosTest extends TestCase
         self::assertStringContainsString('Error en carga de fichero ' . $fichero, $salida);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado controllers/parametros.php:37-46
+     *
+     * @group esperado
+     * @group parametros
+     * @group bajo
+     *
+     * @que-ocurre-hoy Si un `parametros.xml` incluye otros ficheros y se guarda, al cargarlo la vez
+     *   siguiente lo incluido aparece dos veces.
+     * @que-deberia-ocurrir Que lo incluido esté una sola vez, haya copia guardada o no.
+     * @por-que-ocurre La copia guardada ya lleva lo incluido, y al cargarla se vuelven a añadir los
+     *   ficheros que declara.
+     * @como-deberia-funcionar Guardar sin lo incluido, o no volver a añadir lo que la copia ya trae.
+     */
+    public function test_unaCopiaGuardadaConIncluidosLosTraeUnaSolaVez(): void
+    {
+        $incluido = $this->fichero('incluido.xml', '<?xml version="1.0"?><extra><dato>x</dato></extra>');
+        $fichero = $this->fichero('parametros.xml', str_replace('</parametros>', "<includes><fichero>$incluido</fichero></includes></parametros>", self::PARAMETROS));
+        self::assertTrue((new \ClaseParametros($fichero))->save());
+
+        $releidos = new \ClaseParametros($fichero);
+
+        self::assertSame(['x'], $releidos->Xpath('extra/dato', 'Valores'), 'Lo incluido tiene que estar una sola vez.');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado controllers/parametros.php:27-34
+     *
+     * @group esperado
+     * @group parametros
+     * @group medio
+     *
+     * @que-ocurre-hoy Un parámetro que una actualización añade al `parametros.xml` no llega a una
+     *   instalación que ya guardó sus parámetros: se sigue cargando la copia guardada, que no lo
+     *   tiene.
+     * @que-deberia-ocurrir Que el parámetro nuevo llegue, conservando lo que la instalación guardó.
+     * @por-que-ocurre Si hay copia guardada, se carga en lugar del fichero versionado, y el fichero
+     *   versionado ya no se lee.
+     * @como-deberia-funcionar Cargar el fichero versionado y poner encima lo guardado, o guardar solo
+     *   lo que cambia.
+     */
+    public function test_unParametroNuevoDelFicheroLlegaAunqueHayaCopiaGuardada(): void
+    {
+        $fichero = $this->fichero('parametros.xml', self::PARAMETROS);
+        $parametros = new \ClaseParametros($fichero);
+        $parametros->setNodeValue('/parametros/configuracion/filtro', 'todos');
+        self::assertTrue($parametros->save());
+        $this->fichero('parametros.xml', str_replace('<version>1.0</version>', '<version>1.0</version><nuevo>1</nuevo>', self::PARAMETROS));
+
+        $releidos = new \ClaseParametros($fichero);
+
+        self::assertSame(['todos'], $releidos->Xpath('configuracion/filtro', 'Valores'), 'Lo guardado se conserva.');
+        self::assertSame(['1'], $releidos->Xpath('datos_generales/nuevo', 'Valores'), 'El parámetro nuevo de la actualización tiene que llegar.');
+    }
+
     private function fichero(string $nombre, string $contenido): string
     {
         $ruta = $this->carpeta . '/' . $nombre;

@@ -49,6 +49,72 @@ final class ImpresionIntegracionTest extends TestCase
     }
 
     /**
+     * @estado rojo
+     * @codigo-afectado plugins/paginacion/ClasePaginacion.php:149-157
+     * @codigo-afectado clases/ClasePermisos.php:146-151
+     *
+     * @group esperado
+     * @group impresion
+     * @group bajo
+     *
+     * @que-ocurre-hoy En una ejecución por línea de órdenes, después de imprimir, la paginación, los
+     *   permisos, el menú y los complementos ya no encuentran la ruta del producto: la librería de PDF
+     *   cambia la raíz del servidor al cargarse, y esas clases la deducen de ella.
+     * @que-deberia-ocurrir Que imprimir no cambie dónde se encuentra el producto.
+     * @por-que-ocurre La librería pone la raíz del servidor a «/» si está vacía, como en línea de
+     *   órdenes, y esas clases quitan la raíz de su propia ruta para deducir la del producto: con
+     *   «/», quitan todas las barras.
+     * @como-deberia-funcionar Que el núcleo tome la ruta del producto de un solo sitio, sin la raíz
+     *   del servidor.
+     */
+    public function test_imprimirNoCambiaDondeSeEncuentraElProducto(): void
+    {
+        require_once RUTA_TPVFOX . '/plugins/paginacion/ClasePaginacion.php';
+        $paginacion = new \PluginClasePaginacion('/tpvfox/modulos/mod_prueba/ListaPrueba.php');
+
+        $paginacion->obtenerRutaProyecto();
+
+        self::assertSame('', $_SERVER['DOCUMENT_ROOT'], 'La raíz del servidor de la línea de órdenes no cambia al imprimir.');
+        self::assertSame(realpath(RUTA_TPVFOX), realpath($paginacion->HostNombre), 'La paginación tiene que encontrar el producto.');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado plugins/paginacion/ClasePaginacion.php:149-157
+     * @codigo-afectado clases/ClasePermisos.php:146-151
+     *
+     * @group esperado
+     * @group impresion
+     * @group bajo
+     *
+     * @que-ocurre-hoy En una petición del servidor web cuya raíz no acaba en barra, después de
+     *   imprimir, la paginación y las demás clases que deducen la ruta del producto la dan sin la
+     *   barra del principio.
+     * @que-deberia-ocurrir Que imprimir no cambie la ruta del producto que dan esas clases.
+     * @por-que-ocurre La librería de PDF añade una barra al final de la raíz del servidor al
+     *   cargarse, y esas clases quitan la raíz de su propia ruta: con la barra, se llevan también la
+     *   del principio de la ruta del producto.
+     * @como-deberia-funcionar Que el núcleo tome la ruta del producto de un solo sitio, sin la raíz
+     *   del servidor.
+     */
+    public function test_conLaRaizDelServidorWebImprimirNoCambiaLaRutaDelProducto(): void
+    {
+        $guion = '$_SERVER["DOCUMENT_ROOT"] = ' . var_export(dirname(RUTA_TPVFOX), true) . ';'
+            . ' $RutaServidor = $_SERVER["DOCUMENT_ROOT"]; $HostNombre = ' . var_export('/' . basename(RUTA_TPVFOX), true) . ';'
+            . ' require $RutaServidor . $HostNombre . "/plugins/paginacion/ClasePaginacion.php";'
+            . ' $paginacion = new PluginClasePaginacion("/listado.php");'
+            . ' $paginacion->obtenerRutaProyecto(); $antes = $paginacion->HostNombre;'
+            . ' require $RutaServidor . $HostNombre . "/clases/imprimir.php";'
+            . ' $paginacion->obtenerRutaProyecto();'
+            . ' echo json_encode(["antes" => $antes, "despues" => $paginacion->HostNombre]);';
+        exec(escapeshellarg(PHP_BINARY) . ' -d display_errors=stderr -r ' . escapeshellarg($guion) . ' 2>/dev/null', $salida);
+        $rutas = json_decode((string) end($salida), true);
+
+        self::assertSame('/' . basename(RUTA_TPVFOX) . '/', $rutas['antes'], 'Antes de imprimir, la ruta del producto empieza por barra.');
+        self::assertSame($rutas['antes'], $rutas['despues'], 'Imprimir no puede cambiar la ruta del producto.');
+    }
+
+    /**
      * @comportamiento El guion de impresión con cabecera escribe en la carpeta temporal un PDF con la
      *   cabecera y el cuerpo del documento.
      */

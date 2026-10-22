@@ -152,6 +152,92 @@ final class ControladorComunIntegracionTest extends CasoIntegracion
         self::assertSame('Usuario', $leida['tipo_configuracion'] ?? null);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado controllers/Controladores.php:213-224
+     *
+     * @group esperado
+     * @group configuracion
+     * @group bajo
+     *
+     * @que-ocurre-hoy Con dos configuraciones guardadas para el mismo usuario y módulo, guardar la
+     *   que se leyó da de alta una fila más.
+     * @que-deberia-ocurrir Que guardar reescriba la configuración del usuario, sin añadir filas.
+     * @por-que-ocurre Con dos filas, la lectura no marca de quién es la configuración, y guardar sin
+     *   esa marca da de alta.
+     * @como-deberia-funcionar Una clave única por usuario y módulo, y guardar sobre ella.
+     */
+    public function test_C7_conDosConfiguracionesGuardadasGuardarNoAnadeOtra(): void
+    {
+        $this->db->query("INSERT INTO modulos_configuracion (idusuario, nombre_modulo, configuracion, fecha) VALUES ({$this->usuario}, '" . self::MODULO . "', '{\"orden\":\"precio\"}', NOW()), ({$this->usuario}, '" . self::MODULO . "', '{\"orden\":\"precio\"}', NOW())");
+        $leida = $this->controlador->obtenerConfiguracion(['orden' => 'nombre'], self::MODULO, $this->usuario);
+        $leida['orden'] = 'familia';
+
+        set_error_handler(static fn (): bool => true, E_WARNING);
+        try {
+            $this->controlador->GrabarConfiguracionModulo(self::MODULO, $this->usuario, $leida);
+        } finally {
+            restore_error_handler();
+        }
+
+        self::assertLessThanOrEqual(2, $this->filasDeConfiguracion($this->usuario), 'Guardar no puede añadir otra fila.');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado controllers/Controladores.php:213-224
+     *
+     * @group esperado
+     * @group configuracion
+     * @group bajo
+     *
+     * @que-ocurre-hoy Si el usuario tiene abiertas dos pantallas del mismo módulo sin configuración
+     *   guardada y guarda en las dos, quedan dos filas: desde entonces su configuración no se lee.
+     * @que-deberia-ocurrir Que la segunda reescriba lo que guardó la primera.
+     * @por-que-ocurre Guardar decide si da de alta o reescribe con la marca que la pantalla leyó al
+     *   abrirse, no con lo que hay en la tabla cuando guarda.
+     * @como-deberia-funcionar Una clave única por usuario y módulo, y dar de alta o reescribir según
+     *   exista la fila al guardar.
+     */
+    public function test_C8_dosPantallasQueGuardanSinConfiguracionDejanUnaSolaFila(): void
+    {
+        $unaPantalla = $this->controlador->obtenerConfiguracion(['orden' => 'nombre'], self::MODULO, $this->usuario);
+        $otraPantalla = $this->controlador->obtenerConfiguracion(['orden' => 'nombre'], self::MODULO, $this->usuario);
+
+        $this->controlador->GrabarConfiguracionModulo(self::MODULO, $this->usuario, ['orden' => 'precio'] + $unaPantalla);
+        $this->controlador->GrabarConfiguracionModulo(self::MODULO, $this->usuario, ['orden' => 'familia'] + $otraPantalla);
+
+        self::assertSame(1, $this->filasDeConfiguracion($this->usuario), 'Tiene que quedar una sola configuración del usuario.');
+        self::assertSame('familia', $this->controlador->obtenerConfiguracion(['orden' => 'nombre'], self::MODULO, $this->usuario)['orden']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado controllers/Controladores.php:213-224
+     *
+     * @group esperado
+     * @group configuracion
+     * @group bajo
+     *
+     * @que-ocurre-hoy Si la configuración del usuario se borra —desde la ficha del usuario— mientras
+     *   tiene abierta una pantalla del módulo, lo que guarde después en esa pantalla no se guarda, y
+     *   la respuesta dice que no afectó a ninguna fila.
+     * @que-deberia-ocurrir Que se guarde.
+     * @por-que-ocurre La pantalla leyó que la configuración era del usuario, y guardar con esa marca
+     *   solo reescribe; sin fila, no hay nada que reescribir.
+     * @como-deberia-funcionar Dar de alta o reescribir según exista la fila al guardar.
+     */
+    public function test_C9_unaConfiguracionBorradaMientrasSeEditaSeGuardaIgual(): void
+    {
+        $this->controlador->GrabarConfiguracionModulo(self::MODULO, $this->usuario, ['orden' => 'precio', 'tipo_configuracion' => 'Modulo']);
+        $pantalla = $this->controlador->obtenerConfiguracion(['orden' => 'nombre'], self::MODULO, $this->usuario);
+        $this->db->query("DELETE FROM modulos_configuracion WHERE idusuario = {$this->usuario} AND nombre_modulo = '" . self::MODULO . "'");
+
+        $this->controlador->GrabarConfiguracionModulo(self::MODULO, $this->usuario, ['orden' => 'familia'] + $pantalla);
+
+        self::assertSame('familia', $this->controlador->obtenerConfiguracion(['orden' => 'nombre'], self::MODULO, $this->usuario)['orden'], 'Lo guardado tiene que quedar guardado.');
+    }
+
     private function usuarioNuevo(): int
     {
         $nombre = 'prueba_config_' . bin2hex(random_bytes(3));

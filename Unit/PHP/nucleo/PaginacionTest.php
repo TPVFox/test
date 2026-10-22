@@ -322,6 +322,128 @@ final class PaginacionTest extends TestCase
         self::assertStringNotContainsString('lomo"<b>', $paginacion->htmlordenar('a.nombre'), 'En las flechas de orden.');
     }
 
+    /**
+     * @comportamiento La condición y el orden se guardan en la clase y cada llamada parte de lo que
+     *   dejó la anterior: pedida la condición con OR, se queda con OR aunque después se pida con AND,
+     *   y cada llamada que fija el orden añade el suyo. Los listados de hoy fijan el orden una sola
+     *   vez.
+     */
+    public function test_laCondicionYElOrdenDependenDelOrdenDeLasLlamadas(): void
+    {
+        $paginacion = self::paginacion(['buscar' => 'lomo']);
+        $paginacion->SetCamposControler(['a.nombre', 'a.ref']);
+        $conOr = $paginacion->GetFiltroWhere('OR');
+
+        self::assertSame($conOr, $paginacion->GetFiltroWhere(), 'Después de OR, pedirla con AND no la rehace.');
+        self::assertStringContainsString(' OR ', $paginacion->GetFiltroWhere());
+
+        $dosVeces = self::paginacion();
+        $dosVeces->SetOrderConsulta('a.nombre');
+        $dosVeces->SetOrderByConsulta('a.fecha:ASC');
+        self::assertSame(' ORDER BY a.nombre DESC ORDER BY a.fecha ASC', $dosVeces->GetFiltroWhere());
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado plugins/paginacion/ClasePaginacion.php:29-34
+     *
+     * @group esperado
+     * @group listado
+     * @group bajo
+     *
+     * @que-ocurre-hoy Una página de la dirección que no es un número hace fallar el listado con un
+     *   error de PHP.
+     * @que-deberia-ocurrir Que se tome la primera página.
+     * @por-que-ocurre La página se guarda tal como llega y se opera con ella para calcular desde qué
+     *   registro se lee; PHP 8 no opera con un texto que no es un número.
+     * @como-deberia-funcionar Tomar la página como un entero positivo y, si no lo es, la primera.
+     */
+    public function test_unaPaginaQueNoEsUnNumeroSeTomaComoLaPrimera(): void
+    {
+        $fallo = null;
+        try {
+            $paginacion = self::paginacion(['pagina' => 'dos']);
+        } catch (\TypeError $error) {
+            $fallo = $error->getMessage();
+        }
+
+        self::assertNull($fallo, 'Una página que no es un número no puede hacer fallar el listado.');
+        self::assertEquals(1, $paginacion->GetPagActual());
+        self::assertSame(0, $paginacion->GetDesde());
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado plugins/paginacion/ClasePaginacion.php:29-34
+     * @codigo-afectado plugins/paginacion/ClasePaginacion.php:56-73
+     *
+     * @group esperado
+     * @group listado
+     * @group bajo
+     *
+     * @que-ocurre-hoy Con una página de la dirección mayor que las que tiene el listado, la consulta
+     *   pide registros que no existen: el listado sale vacío, con enlaces a páginas que tampoco
+     *   existen.
+     * @que-deberia-ocurrir Que se tome la última página del listado.
+     * @por-que-ocurre La página no se compara con el total de páginas, que se calcula después.
+     * @como-deberia-funcionar Al conocer el total, llevar la página a la última si la pasa.
+     */
+    public function test_unaPaginaMayorQueElTotalSeTomaComoLaUltima(): void
+    {
+        $paginacion = self::paginacion(['pagina' => '10']);
+
+        $paginacion->SetCantidadRegistros(100);
+
+        self::assertSame(' LIMIT 40 OFFSET 80', $paginacion->GetLimitConsulta(), 'Tiene que leerse la última página.');
+        self::assertStringNotContainsString('pagina=9"', $paginacion->htmlPaginado(), 'Sin enlaces a páginas que no existen.');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado plugins/paginacion/ClasePaginacion.php:306-318
+     *
+     * @group esperado
+     * @group listado
+     * @group bajo
+     *
+     * @que-ocurre-hoy Con un filtro aplicado, buscar desde el formulario de búsqueda lo pierde: el
+     *   listado sale con lo buscado y sin el filtro. El formulario de filtro, en cambio, sí conserva
+     *   lo buscado.
+     * @que-deberia-ocurrir Que buscar conserve el filtro aplicado.
+     * @por-que-ocurre El formulario de búsqueda solo envía lo buscado.
+     * @como-deberia-funcionar Enviar con la búsqueda el filtro aplicado, como el formulario de filtro
+     *   envía lo buscado.
+     */
+    public function test_buscarConservaElFiltroAplicado(): void
+    {
+        $paginacion = self::paginacion(['filtro' => 'Guardado']);
+
+        self::assertStringContainsString('name="filtro" value="Guardado"', $paginacion->htmlBuscar(), 'La búsqueda tiene que llevar el filtro.');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado plugins/paginacion/ClasePaginacion.php:306-339
+     *
+     * @group esperado
+     * @group listado
+     * @group bajo
+     *
+     * @que-ocurre-hoy Con el listado ordenado desde sus flechas, buscar o filtrar lo devuelve al orden
+     *   de por defecto. Los enlaces de página y las flechas sí conservan el orden.
+     * @que-deberia-ocurrir Que buscar y filtrar conserven el orden elegido.
+     * @por-que-ocurre Ninguno de los dos formularios envía el orden.
+     * @como-deberia-funcionar Enviar el orden elegido con los dos formularios.
+     */
+    public function test_buscarYFiltrarConservanElOrden(): void
+    {
+        $paginacion = self::paginacion(['orden' => 'a.fecha:ASC']);
+        $paginacion->SetOrderByConsulta('a.fecha:ASC');
+
+        self::assertStringContainsString('name="orden" value="a.fecha:ASC"', $paginacion->htmlBuscar(), 'La búsqueda tiene que llevar el orden.');
+        self::assertStringContainsString('name="orden" value="a.fecha:ASC"', $paginacion->htmlFiltrar(['Guardado']), 'El filtro tiene que llevar el orden.');
+    }
+
     /** @param array<string,string> $get */
     private static function paginacion(array $get = []): \PluginClasePaginacion
     {
