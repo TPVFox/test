@@ -302,6 +302,19 @@ final class ClasesTablasPrincipalesIntegracionTest extends CasoIntegracion
         self::assertNotContains((string) $id, array_column($tipos->MenosPrincipal($id)['datos'], 'id'));
     }
 
+    /** @comportamiento Las formas de pago sin la principal son todas las demás que haya. */
+    public function test_lasFormasDePagoSinLaPrincipalSonLasDemas(): void
+    {
+        $principal = $this->formaDePago('Pago principal');
+        $otra = $this->formaDePago('Pago otro');
+
+        $demas = array_column((new \FormasPago())->formadePagoSinPrincipal($principal), 'id');
+
+        self::assertContains((string) $otra, $demas);
+        self::assertNotContains((string) $principal, $demas);
+        self::assertCount($this->recuento('formasPago') - 1, $demas);
+    }
+
     private function formaDePago(string $descripcion): int
     {
         $sentencia = $this->db->prepare('INSERT INTO formasPago (descripcion) VALUES (?)');

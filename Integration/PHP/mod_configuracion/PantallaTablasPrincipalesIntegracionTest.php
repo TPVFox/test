@@ -169,6 +169,27 @@ final class PantallaTablasPrincipalesIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
+     * @codigo-afectado modulos/mod_configuracion/tareas.php:14-53
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Una petición de guardado sin descripción da de alta una fila vacía: solo el
+     *   navegador avisa de que falta.
+     * @que-deberia-ocurrir Que la petición de fondo rechace una fila sin descripción.
+     * @por-que-ocurre La comprobación de la descripción está en el navegador, y la petición de fondo
+     *   guarda lo que recibe.
+     * @como-deberia-funcionar Comprobar la descripción también al guardar.
+     */
+    public function test_unaFilaSinDescripcionNoSeGuarda(): void
+    {
+        $peticion = $this->ejecutar('tareas.php', ['pulsado' => 'ModificarTabla', 'dedonde' => 'forma', 'id' => '0', 'descripcion' => '', 'iva' => '', 'recargo' => '']);
+
+        self::assertSame(0, $peticion['filas'], 'Se guardó una fila sin descripción');
+    }
+
+    /**
+     * @estado rojo
      * @codigo-afectado modulos/mod_configuracion/funciones.php:22-50, 58-79, 85-112
      *
      * @group defecto

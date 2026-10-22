@@ -289,6 +289,28 @@ final class PantallasTiendaIntegracionTest extends CasoIntegracion
      * @codigo-afectado modulos/mod_tienda/tienda.php:81-99
      *
      * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Una petición de la ficha sin el NIF, la razón social ni el teléfono da de alta
+     *   una tienda con esos datos vacíos: solo el navegador los exige, y el guardado no los comprueba,
+     *   aunque su comentario diga que deben llegar cubiertos.
+     * @que-deberia-ocurrir Que el guardado rechace la ficha sin sus datos obligatorios y lo avise.
+     * @por-que-ocurre Los campos obligatorios se marcan en el formulario; el guardado escribe lo que
+     *   recibe.
+     * @como-deberia-funcionar Comprobar al guardar que llegan los datos obligatorios.
+     */
+    public function test_guardarLaFichaSinSusDatosObligatoriosNoLaDaDeAlta(): void
+    {
+        $pantalla = $this->pintar('tienda.php', [], $this->formulario(['nif' => '', 'razonsocial' => '', 'telefono' => '']));
+
+        self::assertNull($this->tiendaDe($pantalla, ''), 'Se dio de alta una tienda sin razón social');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_tienda/tienda.php:81-99
+     *
+     * @group defecto
      * @group permisos
      * @group forzado
      * @group medio
