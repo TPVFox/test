@@ -3,9 +3,10 @@
 /**
  * Las peticiones de fondo de las incidencias (`modulos/mod_incidencias/tareas.php`) en un PHP
  * aparte, desde la carpeta del módulo, como las sirve el servidor: lo que escriben en la salida de
- * errores no lo ve un recorrido.
+ * errores no lo ve un recorrido, y lo que guardan con la sesión se lee dentro de una transacción que
+ * se deshace al terminar, sin dejarlo en la base.
  *
- * La sesión y lo que responden con ella y sin ella se prueban en los recorridos del módulo.
+ * Lo que responden con la sesión y sin ella se prueba en los recorridos del módulo.
  */
 
 declare(strict_types=1);
@@ -13,6 +14,7 @@ declare(strict_types=1);
 namespace TPVFox\Test\Integration\ModIncidencias;
 
 use TPVFox\Test\CasoIntegracion;
+use TPVFox\Test\Siembra\Siembra;
 
 final class TareasIncidenciasIntegracionTest extends CasoIntegracion
 {
@@ -64,6 +66,37 @@ final class TareasIncidenciasIntegracionTest extends CasoIntegracion
 
         self::assertStringNotContainsString('Undefined array key "configuracion"', $errores);
         self::assertStringNotContainsString('foreach() argument must be of type array|object', $errores);
+    }
+
+    /** @comportamiento Guardar con un usuario elegido lo añade a los datos de la incidencia. */
+    public function test_guardarConUsuarioElegidoLoAnadeALosDatos(): void
+    {
+        $usuario = (new Siembra($this->db))->usuarioPorDefecto();
+
+        $datos = self::guardarConSesion($usuario, [
+            'pulsado' => 'nuevaIncidencia', 'datos' => '{"vista":"listado Incidencias"}', 'dedonde' => 'mod_incidencia',
+            'estado' => '0', 'mensaje' => 'Con usuario elegido', 'usuarioSelec' => (string) $usuario,
+        ]);
+
+        self::assertSame(['vista' => 'listado Incidencias', 'usuarioSelec' => (string) $usuario], json_decode($datos, true));
+    }
+
+    /**
+     * Da un alta con las tareas en un PHP aparte, con la sesión del usuario que se indique, dentro de
+     * una transacción que se deshace al terminar, y devuelve los datos con que quedó guardada.
+     *
+     * @param array<string,string> $peticion
+     */
+    private static function guardarConSesion(int $usuario, array $peticion): string
+    {
+        $sesion = ['estadoTpv' => 'Correcto', 'usuarioTpv' => ['id' => $usuario, 'group_id' => 1, 'login' => 'pruebas']];
+        $guion = '$_SESSION = ' . var_export($sesion, true) . '; $_POST = ' . var_export($peticion, true) . ';'
+            . ' $_SERVER["DOCUMENT_ROOT"] = ""; chdir(' . var_export(RUTA_TPVFOX . '/modulos/mod_incidencias', true) . ');'
+            . ' require "./../../inicial.php"; $BDTpv->begin_transaction();'
+            . ' ob_start(); require "tareas.php"; ob_end_clean();'
+            . ' echo $BDTpv->query("SELECT datos FROM modulo_incidencia WHERE id = " . (int) $respuesta["id"])->fetch_row()[0];';
+
+        return (string) shell_exec(escapeshellarg(PHP_BINARY) . ' -d display_errors=stderr -r ' . escapeshellarg($guion) . ' 2>/dev/null');
     }
 
     /**

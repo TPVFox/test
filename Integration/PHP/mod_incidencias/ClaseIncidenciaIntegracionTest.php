@@ -79,6 +79,41 @@ final class ClaseIncidenciaIntegracionTest extends CasoIntegracion
         self::assertSame(['0' => 'No resuelto', '1' => 'Resuelto', '2' => 'Pendiente', '9' => 'No resuelto'], $estados);
     }
 
+    /** @comportamiento Dos incidencias nuevas dadas de alta con la misma clase toman números seguidos. */
+    public function test_dosAltasConLaMismaClaseTomanNumerosSeguidos(): void
+    {
+        $incidencias = $this->incidencias();
+        $primera = $this->numeroDe($incidencias->addIncidencia('mod_incidencia', '{}', 'La primera', '0', 0)['id']);
+        $segunda = $this->numeroDe($incidencias->addIncidencia('mod_incidencia', '{}', 'La segunda', '0', 0)['id']);
+
+        self::assertSame($primera + 1, $segunda);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_incidencias/clases/ClaseIncidencia.php:118-119
+     *
+     * @group defecto
+     * @group numeracion
+     * @group bajo
+     *
+     * @que-ocurre-hoy Una respuesta a un número de incidencia que no existe se guarda con ese número:
+     *   abre una incidencia fuera de la numeración, y el listado cuenta las que no hay.
+     * @que-deberia-ocurrir Que una respuesta solo se guarde si su incidencia existe.
+     * @por-que-ocurre El alta usa el número recibido sin comprobar que tenga alguna anotación.
+     * @como-deberia-funcionar Comprobar que el número existe antes de guardar la respuesta.
+     */
+    public function test_unaRespuestaAUnNumeroQueNoExisteNoSeGuarda(): void
+    {
+        $inexistente = 100 + (int) $this->db->query('SELECT COALESCE(MAX(num_incidencia), 0) FROM modulo_incidencia')->fetch_row()[0];
+        $incidencias = $this->incidencias();
+
+        self::capturando(fn () => $incidencias->addIncidencia('mod_incidencia', '{}', 'Respuesta sin incidencia', '1', $inexistente));
+
+        $guardadas = (int) $this->db->query('SELECT COUNT(*) FROM modulo_incidencia WHERE num_incidencia = ' . $inexistente)->fetch_row()[0];
+        self::assertSame(0, $guardadas, 'La respuesta a un número que no existe se guardó');
+    }
+
     /** @comportamiento El alta guarda el usuario de la sesión, el origen, el mensaje, los datos y la fecha del momento. */
     public function test_elAltaGuardaElUsuarioDeLaSesionYLoRecibido(): void
     {
@@ -502,6 +537,86 @@ final class ClaseIncidenciaIntegracionTest extends CasoIntegracion
 
         preg_match('#id="inci_fecha" value="([^"]*)"#', $ventana, $fecha);
         self::assertMatchesRegularExpression('#^\d{4}-\d{2}-\d{2}$#', $fecha[1]);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_incidencias/clases/ClaseIncidencia.php:168-175
+     * @codigo-afectado modulos/mod_incidencias/clases/ClaseIncidencia.php:204-215
+     *
+     * @group defecto
+     * @group entrada
+     * @group bajo
+     *
+     * @que-ocurre-hoy Con el selector de usuarios configurado y un usuario por defecto negativo, la
+     *   ventana pinta el selector vacío y deja dos avisos de PHP.
+     * @que-deberia-ocurrir Que el selector, si se pinta, ofrezca los usuarios, sin avisos.
+     * @por-que-ocurre La lista de usuarios solo se lee si el usuario por defecto no es negativo, y el
+     *   selector se pinta siempre que esté configurado.
+     * @como-deberia-funcionar Leer la lista siempre que se pinte el selector.
+     */
+    public function test_conUnUsuarioPorDefectoNegativoElSelectorOfreceLosUsuarios(): void
+    {
+        $avisos = [];
+        set_error_handler(static function (int $nivel, string $mensaje) use (&$avisos): bool {
+            $avisos[] = $mensaje;
+
+            return true;
+        }, E_WARNING);
+        try {
+            $ventana = $this->incidencias()->htmlModalIncidencia('{}', 'mod_incidencia', $this->configuracion('Si', -1), 'No resuelto', 0);
+        } finally {
+            restore_error_handler();
+        }
+
+        self::assertSame([], $avisos);
+        self::assertStringContainsString('<option value=', $ventana);
+    }
+
+    /** @comportamiento Un documento enseña las incidencias de su origen, y no las de otro con la misma vista y el mismo identificador. */
+    public function test_unDocumentoEnsenaSoloLasIncidenciasDeSuOrigen(): void
+    {
+        $this->siembra->incidencia('mod_compras', ['vista' => 'albaran', 'idReal' => '98764'], 'De compras');
+        $this->siembra->incidencia('mod_venta', ['vista' => 'albaran', 'idReal' => '98764'], 'De ventas');
+
+        $adjuntas = $this->incidencias()->incidenciasAdjuntas('98764', 'mod_compras', 'albaran');
+
+        self::assertSame(['De compras'], array_column($adjuntas, 'mensaje'));
+    }
+
+    /** @comportamiento Un documento no enseña las incidencias de otro cuyo identificador empieza igual. */
+    public function test_unDocumentoNoEnsenaLasDeOtroQueEmpiezaIgual(): void
+    {
+        $this->siembra->incidencia('mod_compras', ['vista' => 'albaran', 'idReal' => '98765'], 'Del documento');
+        $this->siembra->incidencia('mod_compras', ['vista' => 'albaran', 'idReal' => '987650'], 'De otro que empieza igual');
+
+        $adjuntas = $this->incidencias()->incidenciasAdjuntas('98765', 'mod_compras', 'albaran');
+
+        self::assertSame(['Del documento'], array_column($adjuntas, 'mensaje'));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_incidencias/clases/ClaseIncidencia.php:242
+     *
+     * @group defecto
+     * @group adjuntos
+     * @group alto
+     *
+     * @que-ocurre-hoy Una incidencia de un documento cuyos datos llevan el identificador antes que la
+     *   vista no aparece en el documento: el resultado sale vacío, sin error.
+     * @que-deberia-ocurrir Que se encuentre, porque la vista y el identificador son los mismos.
+     * @por-que-ocurre La búsqueda compara el texto de los datos con la vista seguida del
+     *   identificador, en ese orden y sin nada entre medias.
+     * @como-deberia-funcionar Comparar sobre los valores decodificados, no sobre el texto.
+     */
+    public function test_unDocumentoEnsenaSuIncidenciaConLosDatosEnOtroOrden(): void
+    {
+        $this->siembra->incidencia('mod_compras', ['idReal' => '98766', 'vista' => 'albaran'], 'Datos en otro orden');
+
+        $adjuntas = $this->incidencias()->incidenciasAdjuntas('98766', 'mod_compras', 'albaran');
+
+        self::assertSame(['Datos en otro orden'], array_column($adjuntas, 'mensaje'));
     }
 
     private function incidencias(): \ClaseIncidencia

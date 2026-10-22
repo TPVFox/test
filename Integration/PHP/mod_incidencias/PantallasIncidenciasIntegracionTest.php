@@ -329,6 +329,104 @@ final class PantallasIncidenciasIntegracionTest extends CasoIntegracion
         self::assertFalse(str_contains($pantalla['html'], "abrirModalIndicencia('incidencia'"), 'Sin el permiso de responder se ofrece «Responder incidencia»');
     }
 
+    /** @comportamiento El listado pinta 40 incidencias por página: con 41, la segunda página tiene una. */
+    public function test_laSegundaPaginaDelListadoTieneLasQueNoCabenEnLaPrimera(): void
+    {
+        $preparacion = ['DELETE FROM modulo_incidencia'];
+        for ($i = 0; $i < 41; $i++) {
+            $preparacion[] = $this->alta('Incidencia ' . $i, '{}', 'No resuelto', ':numero + ' . $i);
+        }
+
+        $pantalla = $this->pintar('ListadoIncidencias.php', ['pagina' => '2'], $preparacion);
+
+        self::assertSame(1, substr_count($pantalla['html'], '<td class="rowUsuario">'));
+    }
+
+    /** @comportamiento La ficha de un número sin anotaciones sale vacía, sin avisos. */
+    public function test_laFichaDeUnNumeroSinAnotacionesSaleVacia(): void
+    {
+        $pantalla = $this->pintar('incidencia.php', ['id' => ':numero']);
+
+        self::assertMatchesRegularExpression('#Datos de la incidencia Nº \d+</h2>#', $pantalla['html']);
+        self::assertStringNotContainsString('id="Estado"', $pantalla['html']);
+        self::assertStringNotContainsString('Warning', $pantalla['errores']);
+    }
+
+    /** @comportamiento Un usuario asignado que no existe no se enseña en la ficha. */
+    public function test_unAsignadoQueNoExisteNoSeEnsena(): void
+    {
+        $pantalla = $this->pintar('incidencia.php', ['id' => ':numero'], [$this->alta('Asignada a nadie', '{"usuarioSelec":"-1"}')]);
+
+        self::assertStringContainsString('Asignada a nadie', $pantalla['html']);
+        self::assertStringNotContainsString('id="usuarioAsig"', $pantalla['html']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_incidencias/ListadoIncidencias.php:92
+     * @codigo-afectado modulos/mod_incidencias/acces.xml:5
+     *
+     * @group defecto
+     * @group permisos
+     * @group medio
+     *
+     * @que-ocurre-hoy Un usuario sin el permiso de modificar incidencias ve «Modificar» en el listado:
+     *   el permiso se declara en el módulo, pero nadie lo comprueba.
+     * @que-deberia-ocurrir Que sin el permiso no se ofrezca modificar.
+     * @por-que-ocurre El listado no consulta los permisos de sus acciones.
+     * @como-deberia-funcionar Ofrecer cada acción según su permiso.
+     */
+    public function test_sinPermisoDeModificarNoSeOfreceModificar(): void
+    {
+        $pantalla = $this->pintar('ListadoIncidencias.php', [], [$this->quitarPermiso('ListadoIncidencias.php', 'modificar')]);
+
+        self::assertFalse(str_contains($pantalla['html'], "metodoClick('Ver','incidencia')"), 'Sin el permiso de modificar se ofrece «Modificar»');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado head.php:17-26
+     * @codigo-afectado modulos/mod_incidencias/ListadoIncidencias.php:6-7
+     *
+     * @group defecto
+     * @group permisos
+     * @group alto
+     *
+     * @que-ocurre-hoy Un usuario con sesión pero sin el permiso de la vista del listado lo abre por su
+     *   dirección y lee las incidencias, con el nombre de los trabajadores y el texto libre.
+     * @que-deberia-ocurrir Que el listado no se sirva sin su permiso de vista.
+     * @por-que-ocurre Ni la cabecera común ni el listado consultan el permiso de la vista servida.
+     * @como-deberia-funcionar Comprobar el permiso de la vista antes de pintarla.
+     */
+    public function test_sinPermisoDeVistaNoSeSirveElListado(): void
+    {
+        $pantalla = $this->pintar('ListadoIncidencias.php', [], [$this->quitarPermisoDeVista('ListadoIncidencias.php'), $this->alta('Solo para quien puede verla')]);
+
+        self::assertFalse(str_contains($pantalla['html'], 'Solo para quien puede verla'), 'Sin el permiso de la vista se sirve el listado');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado head.php:17-26
+     * @codigo-afectado modulos/mod_incidencias/incidencia.php:6-7
+     *
+     * @group defecto
+     * @group permisos
+     * @group alto
+     *
+     * @que-ocurre-hoy Un usuario con sesión pero sin el permiso de la vista de la ficha la abre por su
+     *   dirección y lee todas las anotaciones de un número.
+     * @que-deberia-ocurrir Que la ficha no se sirva sin su permiso de vista.
+     * @por-que-ocurre Ni la cabecera común ni la ficha consultan el permiso de la vista servida.
+     * @como-deberia-funcionar Comprobar el permiso de la vista antes de pintarla.
+     */
+    public function test_sinPermisoDeVistaNoSeSirveLaFicha(): void
+    {
+        $pantalla = $this->pintar('incidencia.php', ['id' => ':numero'], [$this->quitarPermisoDeVista('incidencia.php'), $this->alta('Solo para quien puede verla')]);
+
+        self::assertFalse(str_contains($pantalla['html'], 'Solo para quien puede verla'), 'Sin el permiso de la vista se sirve la ficha');
+    }
+
     /**
      * Pinta una pantalla del módulo en un PHP aparte y devuelve su HTML y lo que escribe en la salida
      * de errores.
@@ -381,6 +479,12 @@ final class PantallasIncidenciasIntegracionTest extends CasoIntegracion
             $this->db->real_escape_string($datos),
             $this->db->real_escape_string($estado)
         );
+    }
+
+    /** La sentencia que quita al usuario de pruebas el permiso de una vista del módulo. */
+    private function quitarPermisoDeVista(string $vista): string
+    {
+        return "UPDATE permisos SET permiso = 0 WHERE idUsuario = :usuario AND modulo = 'mod_incidencias' AND vista = '$vista' AND accion IS NULL";
     }
 
     /** La sentencia que quita al usuario de pruebas el permiso de una acción del módulo. */
