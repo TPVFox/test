@@ -163,6 +163,68 @@ final class ExistenciasIntegracionTest extends CasoIntegracion
         self::assertSame(date('Y-m-d'), $fila['dia']);
     }
 
+    /** @comportamiento Un movimiento de un producto que no existe no crea su ficha ni se aplica. */
+    public function test_unMovimientoDeUnProductoQueNoExisteNoCreaSuFicha(): void
+    {
+        $tienda = $this->siembra->tiendaPorDefecto();
+        $noExiste = (int) $this->unValor('SELECT COALESCE(MAX(idArticulo), 0) + 1000 FROM articulos');
+
+        $resultado = \alArticulosStocks::actualizarStock($noExiste, $tienda, 3, K_STOCKARTICULO_RESTA);
+
+        self::assertFalse($resultado);
+        self::assertSame(0, $this->fichas($noExiste));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/clases/ClaseArticulosStocks.php:115-133
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Una venta o una compra posteriores a una regularización borran de la ficha de
+     *   existencias quién regularizó y cuándo: apuntan el usuario 0 y la fecha del movimiento.
+     * @que-deberia-ocurrir Que la ficha siga diciendo quién hizo la última regularización y cuándo.
+     * @por-que-ocurre Cada movimiento escribe la fecha y el usuario de la regularización junto con la
+     *   existencia.
+     * @como-deberia-funcionar Escribir esos campos solo al regularizar.
+     */
+    public function test_unMovimientoPosteriorNoBorraQuienRegularizoNiCuando(): void
+    {
+        $usuario = $this->siembra->usuarioPorDefecto();
+        $id = $this->siembra->articulo('Manzana');
+        $ficha = $this->siembra->existenciaRegistrada($id, 10.0);
+        $this->db->query("UPDATE articulosStocks SET fechaRegularizacion = '2026-03-01 10:00:00', usuarioRegularizacion = {$usuario} WHERE id = {$ficha}");
+
+        \alArticulosStocks::actualizarStock($id, $this->siembra->tiendaPorDefecto(), 2, K_STOCKARTICULO_RESTA);
+
+        $fila = $this->db->query("SELECT fechaRegularizacion, usuarioRegularizacion FROM articulosStocks WHERE id = {$ficha}")->fetch_assoc();
+        self::assertSame(['2026-03-01 10:00:00', (string) $usuario], [$fila['fechaRegularizacion'], (string) $fila['usuarioRegularizacion']]);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/clases/ClaseArticulosStocks.php:21-38
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Un número de producto con una condición añadida lee la ficha de existencias de
+     *   otro producto.
+     * @que-deberia-ocurrir Que no lea ninguna: ese número no es el de un producto.
+     * @por-que-ocurre El producto y la tienda se pegan a la consulta sin convertirlos.
+     * @como-deberia-funcionar Tomar el producto y la tienda como números, o pasarlos como parámetros.
+     */
+    public function test_unNumeroConUnaCondicionNoLeeOtraFicha(): void
+    {
+        $id = $this->siembra->articulo('Manzana');
+        $this->siembra->existenciaRegistrada($id, 4.0);
+
+        $leida = \alArticulosStocks::leer('0 OR 1=1', $this->siembra->tiendaPorDefecto());
+
+        self::assertEmpty($leida);
+    }
+
     private function fichas(int $idArticulo): int
     {
         return (int) $this->unValor("SELECT COUNT(*) FROM articulosStocks WHERE idArticulo = {$idArticulo}");
