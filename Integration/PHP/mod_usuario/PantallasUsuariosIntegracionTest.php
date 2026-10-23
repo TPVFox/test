@@ -122,9 +122,9 @@ final class PantallasUsuariosIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_usuario/usuario.php:285
-     * @codigo-afectado modulos/mod_usuario/usuario.php:299
-     * @codigo-afectado modulos/mod_usuario/usuario.php:304
+     * @codigo-afectado modulos/mod_usuario/usuario.php:171
+     * @codigo-afectado modulos/mod_usuario/usuario.php:185
+     * @codigo-afectado modulos/mod_usuario/usuario.php:190
      *
      * @group defecto
      * @group salida
@@ -145,7 +145,7 @@ final class PantallasUsuariosIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_usuario/usuario.php:231-239
+     * @codigo-afectado modulos/mod_usuario/usuario.php:117-125
      *
      * @group defecto
      * @group alto
@@ -171,7 +171,7 @@ final class PantallasUsuariosIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_usuario/usuario.php:217
+     * @codigo-afectado modulos/mod_usuario/usuario.php:103
      *
      * @group defecto
      * @group bajo
