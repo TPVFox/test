@@ -101,6 +101,19 @@ final class ValidacionTemperaturasTest extends TestCase
     }
 
     /**
+     * @comportamiento Las reglas de varias lecturas se cumplen igual por debajo de la media: dos seguidas a
+     *   más de dos desviaciones por debajo son una tendencia, y cuatro a más de una, un cambio progresivo.
+     */
+    public function test_porDebajoDeLaMediaTambienHayTendenciaYCambioProgresivo(): void
+    {
+        $tendencia = $this->conReferencia([1.5, 1.5], 4, 1);
+        $progresivo = $this->conReferencia([2.5, 2.5, 2.5, 2.5], 4, 1);
+
+        self::assertSame(['1:2s', '2:2s'], $tendencia['reglas']);
+        self::assertSame('4:1s', $progresivo['reglas'][3]);
+    }
+
+    /**
      * @estado rojo
      * @codigo-afectado modulos/mod_temperaturas/clases/ClaseValidacion.php:79-155
      *
