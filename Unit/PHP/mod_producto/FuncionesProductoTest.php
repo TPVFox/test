@@ -199,6 +199,25 @@ final class FuncionesProductoTest extends TestCase
         self::assertSame('danger', $sinNombre['comprobaciones'][0]['tipo']);
     }
 
+    /**
+     * @comportamiento Un producto nuevo no lleva número; el proveedor principal se conserva aunque no
+     *   tenga referencia ni coste, y a otro le basta la referencia.
+     */
+    public function test_elNuevoNoLlevaNumeroYElPrincipalSinDatosSeConserva(): void
+    {
+        $post = [
+            'cref_tienda_principal' => '', 'id' => '0', 'articulo_name' => 'Kiwi', 'check_pro' => '3',
+            'idProveedor_3' => '3', 'prov_cref_3' => '', 'prov_coste_3' => '0',
+            'idProveedor_4' => '4', 'prov_cref_4' => 'R-4', 'prov_coste_4' => '0',
+        ];
+
+        $datos = \prepararandoPostProducto($post, $this->claseDeArticulos());
+
+        self::assertArrayNotHasKey('idArticulo', $datos);
+        self::assertSame(['3', '4'], array_column($datos['proveedores_costes'], 'idProveedor'));
+        self::assertArrayNotHasKey('comprobaciones', $datos);
+    }
+
     /** @comportamiento La selección de productos se guarda en la sesión: se marca, se desmarca, se alterna y se vacía. */
     public function test_laSeleccionDeProductosEnLaSesion(): void
     {
@@ -272,6 +291,18 @@ final class FuncionesProductoTest extends TestCase
         self::assertSame('Si', $resultado['proveedores'][1]['ultimo_pro']);
         self::assertArrayNotHasKey('ultimo_pro', $resultado['proveedores'][0]);
         self::assertSame(0, \comprobarUltimaCompraProveedor([])['coste_ultimo']);
+    }
+
+    /** @comportamiento Con la misma fecha, el último proveedor es el primero de la lista. */
+    public function test_conLaMismaFechaElUltimoProveedorEsElPrimero(): void
+    {
+        $resultado = \comprobarUltimaCompraProveedor([
+            ['idProveedor' => '3', 'coste' => '1.0', 'fechaActualizacion' => '2026-02-01'],
+            ['idProveedor' => '4', 'coste' => '1.5', 'fechaActualizacion' => '2026-02-01'],
+        ]);
+
+        self::assertSame('1.0', $resultado['coste_ultimo']);
+        self::assertSame('Si', $resultado['proveedores'][0]['ultimo_pro']);
     }
 
     /**
