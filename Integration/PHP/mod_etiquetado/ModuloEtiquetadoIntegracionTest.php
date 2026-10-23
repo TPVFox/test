@@ -173,6 +173,29 @@ final class ModuloEtiquetadoIntegracionTest extends CasoIntegracion
         self::assertSame('1', $this->valor("SELECT COUNT(*) FROM modulo_etiquetado_temporal WHERE id = {$otro}"));
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_etiquetado/clases/modulo_etiquetado.php:93-112
+     *
+     * @group defecto
+     * @group listado
+     * @group bajo
+     *
+     * @que-ocurre-hoy Un lote cuyo producto ya no existe desaparece del listado: sus etiquetas quedan
+     *   guardadas, pero no se pueden ver, modificar ni volver a imprimir.
+     * @que-deberia-ocurrir Que el lote siga en el listado, aunque falte su producto.
+     * @por-que-ocurre El listado une cada lote con su producto, y sin producto la unión no da la fila.
+     * @como-deberia-funcionar Unir el producto sin exigir que exista.
+     */
+    public function test_unLoteCuyoProductoYaNoExisteSigueEnElListado(): void
+    {
+        $etiquetado = new \Modulo_etiquetado($this->db);
+        $etiquetado->addLoteGuardado(['idArticulo' => (int) $this->valor('SELECT MAX(idArticulo) + 1 FROM articulos')] + $this->lote(0));
+        $id = (int) $this->valor('SELECT MAX(id) FROM modulo_etiquetado');
+
+        self::assertCount(1, $etiquetado->todasEtiquetasLimite(' WHERE a.id = ' . $id));
+    }
+
     /** @return array<string, mixed> */
     private function temporal(): array
     {

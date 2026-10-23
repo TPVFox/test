@@ -265,6 +265,79 @@ final class PantallasEtiquetadoIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
+     * @codigo-afectado modulos/mod_etiquetado/etiquetaCodBarras.php:84-109
+     * @codigo-afectado modulos/mod_etiquetado/etiquetaCodBarras.php:378-382
+     *
+     * @group defecto
+     * @group listado
+     * @group medio
+     *
+     * @que-ocurre-hoy La ficha de un número que no es de ningún temporal —uno que ya se guardó o se canceló
+     *   en otra ventana— termina con un error de PHP, sin pintarse.
+     * @que-deberia-ocurrir Que avise de que el temporal no existe.
+     * @por-que-ocurre La lectura no trae el temporal, y la ficha cuenta sus líneas sin comprobarlo.
+     * @como-deberia-funcionar Comprobar que la lectura trae el temporal antes de usarlo.
+     */
+    public function test_laFichaDeUnTemporalQueNoExisteAvisa(): void
+    {
+        $pantalla = $this->pintar('etiquetaCodBarras.php', ['tActual' => '999999']);
+
+        self::assertStringNotContainsString('Fatal error', $pantalla['errores']);
+        self::assertStringContainsString('alert-', $pantalla['html']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_etiquetado/etiquetaCodBarras.php:186-198
+     *
+     * @group defecto
+     * @group estados
+     * @group bajo
+     *
+     * @que-ocurre-hoy Cancelar los cambios de un lote guardado borra el temporal y deja el lote «Sin
+     *   guardar», aunque no cambió.
+     * @que-deberia-ocurrir Que el lote vuelva a «Guardado».
+     * @por-que-ocurre El primer cambio deja el lote «Sin guardar», y cancelar solo borra el temporal.
+     * @como-deberia-funcionar Devolver el lote del que sale el temporal a «Guardado» al cancelar.
+     */
+    public function test_cancelarLosCambiosDeUnLoteLoDejaGuardado(): void
+    {
+        $cancelar = $this->pintar('etiquetaCodBarras.php', ['tActual' => ':t1'], ['Cancelar' => 'Cancelar'], [
+            ...$this->producto('Pan de molde'),
+            ...$this->lote([$this->linea('Pan')]),
+            "UPDATE modulo_etiquetado SET estado = 'Sin guardar' WHERE id = :l1",
+            $this->temporal([$this->linea('Pan'), $this->linea('Pan')], ':l1'),
+        ], ['estado' => 'SELECT estado FROM modulo_etiquetado WHERE id = :l1']);
+
+        self::assertSame('Guardado', $cancelar['consultas']['estado']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_etiquetado/etiquetaCodBarras.php:117-153
+     *
+     * @group defecto
+     * @group importes
+     * @group medio
+     *
+     * @que-ocurre-hoy Guardar un lote cuya línea trae el código de otro precio —el de 1 € en una línea de
+     *   3,50 €— lo guarda así, y la etiqueta se imprime con ese código.
+     * @que-deberia-ocurrir Que el lote guardado lleve en cada línea el código de su precio.
+     * @por-que-ocurre Las líneas se guardan tal como las manda el navegador, sin recalcular su código.
+     * @como-deberia-funcionar Calcular el precio y el código de cada línea en el servidor al guardar.
+     */
+    public function test_guardarNoDejaUnCodigoQueNoEsElDeSuPrecio(): void
+    {
+        $guardar = $this->pintar('etiquetaCodBarras.php', ['tActual' => ':t1'], ['Guardar' => 'Guardar', 'fechaCad' => '2026-11-15'], [
+            ...$this->producto('Pan de molde'),
+            $this->temporal([['codBarras' => '2112345001005'] + $this->linea('Pan')]),
+        ], ['lineas' => 'SELECT productos FROM modulo_etiquetado WHERE idArticulo = :p1']);
+
+        self::assertNotContains('2112345001005', array_column((array) json_decode((string) $guardar['consultas']['lineas'], true), 'codBarras'));
+    }
+
+    /**
+     * @estado rojo
      * @codigo-afectado modulos/mod_etiquetado/etiquetaCodBarras.php:42-44
      * @codigo-afectado modulos/mod_etiquetado/clases/modulo_etiquetado.php:212-214
      *

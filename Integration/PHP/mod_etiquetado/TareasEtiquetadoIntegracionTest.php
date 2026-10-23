@@ -149,6 +149,60 @@ final class TareasEtiquetadoIntegracionTest extends CasoIntegracion
         self::assertSame(2, substr_count($this->texto(), "\f"));
     }
 
+    /** @comportamiento Por unidad, la etiqueta lleva el PVP de la línea, sin el precio por kilo ni el peso. */
+    public function test_porUnidadLaEtiquetaLlevaElPvpSinPrecioPorKiloNiPeso(): void
+    {
+        $this->ejecutar(['pulsado' => 'imprimirEtiquetas', 'lotes' => [':l1']], [...$this->producto('Pan de molde'), $this->lote(2)]);
+        $texto = $this->texto();
+
+        self::assertSame(2, substr_count($texto, 'PVP: 3.50€'));
+        self::assertStringNotContainsString('Precio kilo', $texto);
+        self::assertStringNotContainsString('Peso:', $texto);
+        self::assertSame(2, substr_count(str_replace(' ', '', $texto), '2112345003504'));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado controllers/planImprimirCodBarras.php:36-41
+     *
+     * @group defecto
+     * @group impreso
+     * @group medio
+     *
+     * @que-ocurre-hoy Imprimir un lote que no existe escribe un PDF con una hoja en blanco, deja avisos de
+     *   PHP y responde dónde está, como si hubiera etiquetas.
+     * @que-deberia-ocurrir Que diga que el lote no existe.
+     * @por-que-ocurre La lectura del lote no trae filas, y el guion de impresión recorre sus líneas sin
+     *   comprobarlo.
+     * @como-deberia-funcionar Comprobar que la lectura trae el lote antes de imprimirlo.
+     */
+    public function test_imprimirUnLoteQueNoExisteAvisa(): void
+    {
+        $imprimir = $this->ejecutar(['pulsado' => 'imprimirEtiquetas', 'lotes' => ['999999']]);
+
+        self::assertArrayHasKey('error', (array) $imprimir['respuesta']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_etiquetado/tareas.php:14-169
+     *
+     * @group defecto
+     * @group validacion
+     * @group medio
+     *
+     * @que-ocurre-hoy Una orden que la petición no conoce responde una lista vacía, sin decir nada.
+     * @que-deberia-ocurrir Que responda un error.
+     * @por-que-ocurre Las órdenes se atienden en un `switch` sin caso por defecto.
+     * @como-deberia-funcionar Responder un error para cualquier otra orden.
+     */
+    public function test_unaOrdenDesconocidaRespondeUnError(): void
+    {
+        $orden = $this->ejecutar(['pulsado' => 'borrarLote']);
+
+        self::assertArrayHasKey('error', (array) $orden['respuesta']);
+    }
+
     /**
      * @estado rojo
      * @codigo-afectado modulos/mod_etiquetado/tareas.php:1-11
