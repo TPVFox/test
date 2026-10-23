@@ -121,6 +121,29 @@ describe('en el listado de usuarios', () => {
     expect(conClave.peticiones[0].data).toEqual({ pulsado: 'confirmarCambiarAnoUsuarios', idsSeleccionados: [1, 7], nuevaContrasena: 'Ano-2027' });
     expect(conClave.recargas).toBe(1);
   });
+
+  /**
+   * @etiquetas esperado medio
+   * @estado rojo
+   * @codigo-afectado modulos/mod_usuario/funciones.js:195-294
+   *
+   * @que-ocurre-hoy Si la petición de una confirmación falla, la pantalla no avisa: el modal se queda como
+   *   estaba y no se sabe si la acción se hizo.
+   * @que-deberia-ocurrir Que avise de que la acción no se pudo hacer.
+   * @por-que-ocurre Las confirmaciones solo atienden la respuesta correcta de la petición.
+   * @como-deberia-funcionar Atender también el fallo de la petición y avisar con un mensaje.
+   */
+  test('confirmar, si la petición falla, avisa de que no se hizo', () => {
+    const pagina = paginaDePrueba();
+    pagina.contexto.checkID = ['7'];
+
+    pagina.contexto.confirmarEliminarUsuarios();
+    if (pagina.peticiones[0].error) {
+      pagina.peticiones[0].error({ status: 500 }, 'error', 'Internal Server Error');
+    }
+
+    expect(pagina.avisos).toHaveLength(1);
+  });
 });
 
 describe('en la ficha del usuario', () => {
