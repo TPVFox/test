@@ -54,6 +54,14 @@ final class FuncionesProductoIntegracionTest extends CasoIntegracion
         self::assertSame(array_search((string) $frutas, array_column($arbol, 'id'), true) + 1, array_search((string) $secas, array_column($arbol, 'id'), true));
     }
 
+    /** @comportamiento Sin familias, el árbol del filtro está vacío. */
+    public function test_sinFamiliasElArbolDelFiltroEstaVacio(): void
+    {
+        self::assertSame('0', $this->unValor('SELECT COUNT(*) FROM familias'));
+
+        self::assertSame([], \selectFamilias(0, '', [], $this->db));
+    }
+
     /**
      * @comportamiento Un recálculo de precio que ya tiene otro posterior en el histórico se marca «Sin
      *   revisar»; uno sin posteriores no cambia.

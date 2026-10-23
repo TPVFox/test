@@ -159,6 +159,16 @@ final class FuncionesProductoTest extends TestCase
         self::assertStringNotContainsString('name="articulo_name"', $html['htmlCheck']);
     }
 
+    /** @comportamiento Sin columna por defecto, la configuración no da campo por defecto ni avisa. */
+    public function test_sinColumnaPorDefectoNoHayCampoPorDefecto(): void
+    {
+        $html = \HtmlListadoCheckMostrar([(object) ['nombre' => 'codBarras', 'valor' => 'Si', 'descripcion' => 'Código']]);
+
+        self::assertArrayNotHasKey('campo_defecto', $html);
+        self::assertArrayNotHasKey('error', $html);
+        self::assertSame('<option value="codBarras">Código</option>', $html['htmlOption']);
+    }
+
     /** @comportamiento Con dos columnas de búsqueda por defecto seguidas, la configuración avisa del error. */
     public function test_dosColumnasPorDefectoSeguidasSeAvisan(): void
     {
@@ -277,6 +287,24 @@ final class FuncionesProductoTest extends TestCase
         self::assertStringContainsString('Ref: KIWI-1 Codbarras: 8410000000017', $a7);
         self::assertStringContainsString('Tecla:<br>', $conTecla);
         self::assertStringContainsString('Referencia:<br>', $conReferencia);
+    }
+
+    /**
+     * @comportamiento Las etiquetas que no caben en una hoja pasan a la siguiente; una fila completa no
+     *   se rellena; pedir la tecla de un producto que no la tiene pinta solo el nombre.
+     */
+    public function test_lasEtiquetasQueNoCabenPasanALaHojaSiguiente(): void
+    {
+        $producto = ['idArticulo' => '15', 'articulo_name' => 'Kiwi', 'pvpCiva' => '2.42', 'cref_tienda_principal' => 'KIWI-1',
+            'codBarras' => ['8410000000017'], 'numEtiquetas' => 3, 'proveedor_principal' => ['idProveedor' => '3']];
+
+        $a5 = \ImprimirEtiquetas([$producto], 'A5')['html'];
+        $a8 = \ImprimirEtiquetas([$producto], 'A8', 2)['html'];
+
+        self::assertSame(1, substr_count($a5, '</table><table border="1px">'));
+        self::assertSame(1, substr_count($a8, '<tr><td align="center"'));
+        self::assertStringNotContainsString('<td></td>', $a8);
+        self::assertStringNotContainsString('Tecla:', $a8);
     }
 
     /** @comportamiento El proveedor al que se compró por última vez es el de la fecha más reciente, y su coste, el último. */
