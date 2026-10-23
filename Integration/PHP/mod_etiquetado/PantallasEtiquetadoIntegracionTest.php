@@ -79,6 +79,42 @@ final class PantallasEtiquetadoIntegracionTest extends CasoIntegracion
         self::assertSame(['Pan'], array_column($this->productosDelJavaScript($pantalla['html']), 'nombre'));
     }
 
+    /** @comportamiento La ficha de un lote guardado por peso enseña su tipo, sin poder cambiarlo. */
+    public function test_laFichaDeUnLotePorPesoEnsenaSuTipo(): void
+    {
+        $pantalla = $this->pintar('etiquetaCodBarras.php', ['id' => ':l1'], [], [...$this->producto('Queso tierno'), ...$this->lote([$this->linea('Queso')]), "UPDATE modulo_etiquetado SET tipo = '2' WHERE id = :l1"]);
+
+        self::assertStringContainsString('<input type="text" name="tipo" id="tipo" value="Por peso" readonly>', $pantalla['html']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_etiquetado/etiquetaCodBarras.php:268
+     * @codigo-afectado modulos/mod_etiquetado/etiquetaCodBarras.php:404-424
+     *
+     * @group defecto
+     * @group listado
+     * @group medio
+     *
+     * @que-ocurre-hoy La ficha de un lote guardado deja la columna de las cantidades como «Tipo», sin decir
+     *   si son unidades o pesos, y la de un temporal no marca su tipo en el desplegable; su JavaScript
+     *   recibe un nombre que no existe en lugar del tipo.
+     * @que-deberia-ocurrir Que la columna diga «Unidad» o «Peso», y que el desplegable marque el tipo del
+     *   temporal.
+     * @por-que-ocurre La ficha incluye el menú a mitad de la página, y el menú usa una variable con el mismo
+     *   nombre que la del tipo: lo que la ficha escribe después ya no tiene el tipo del lote.
+     * @como-deberia-funcionar Leer el tipo en una variable que el menú no toque, o escribir lo que depende
+     *   del tipo antes de incluir el menú.
+     */
+    public function test_laFichaTitulaLaColumnaYMarcaElTipoDelLote(): void
+    {
+        $lote = $this->pintar('etiquetaCodBarras.php', ['id' => ':l1'], [], [...$this->producto('Queso tierno'), ...$this->lote([$this->linea('Queso')]), "UPDATE modulo_etiquetado SET tipo = '2' WHERE id = :l1"]);
+        $temporal = $this->pintar('etiquetaCodBarras.php', ['tActual' => ':t1'], [], [...$this->producto('Pan de molde'), $this->temporal([$this->linea('Pan')])]);
+
+        self::assertStringContainsString("$('#tipoTabla').html(\"Peso\");", $lote['html']);
+        self::assertMatchesRegularExpression('/option\[value=" \+ 1 \+ "\]|<option value=.1. selected/', $temporal['html']);
+    }
+
     /** @comportamiento La ficha de un temporal lo enseña con su número, para seguir armándolo. */
     public function test_laFichaDeUnTemporalLoEnsena(): void
     {
@@ -151,6 +187,28 @@ final class PantallasEtiquetadoIntegracionTest extends CasoIntegracion
         $guardar = $this->pintar('etiquetaCodBarras.php', ['tActual' => ':t1'], ['Guardar' => 'Guardar', 'fechaCad' => '2026-11-15'], [...$this->producto('Pan de molde'), $this->temporal([$this->linea('Activa'), $this->linea('Quitada', 'Eliminado')])], ['lineas' => 'SELECT productos FROM modulo_etiquetado WHERE idArticulo = :p1']);
 
         self::assertSame(['Activa'], array_column(array_values((array) json_decode((string) $guardar['consultas']['lineas'], true)), 'nombre'));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_etiquetado/etiquetaCodBarras.php:110-153
+     *
+     * @group defecto
+     * @group guardado
+     * @group bajo
+     *
+     * @que-ocurre-hoy Guardar un lote con todas sus líneas quitadas lo guarda sin ninguna etiqueta, sin
+     *   avisar, aunque el guardado dice que en ese caso muestra un error.
+     * @que-deberia-ocurrir Que no se guarde y se avise de que el lote no tiene líneas.
+     * @por-que-ocurre Guardar quita las líneas quitadas y no mira si queda alguna.
+     * @como-deberia-funcionar Comprobar que queda alguna línea activa antes de guardar, y avisar si no.
+     */
+    public function test_guardarUnLoteSinLineasActivasAvisa(): void
+    {
+        $guardar = $this->pintar('etiquetaCodBarras.php', ['tActual' => ':t1'], ['Guardar' => 'Guardar', 'fechaCad' => '2026-11-15'], [...$this->producto('Pan de molde'), $this->temporal([$this->linea('Quitada', 'Eliminado'), $this->linea('Quitada', 'Eliminado')])], ['lotes' => 'SELECT COUNT(*) FROM modulo_etiquetado WHERE idArticulo = :p1']);
+
+        self::assertSame('0', $guardar['consultas']['lotes']);
+        self::assertStringContainsString('alert-', $guardar['html']);
     }
 
     /**
