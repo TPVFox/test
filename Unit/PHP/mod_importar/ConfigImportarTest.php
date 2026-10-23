@@ -41,7 +41,7 @@ final class ConfigImportarTest extends TestCase
     }
 
     /**
-     * @comportamiento Los vacíos y la fecha de la última venta no se copian cuando no traen valor; el
+     * @comportamiento Los campos `VACIOS` y `FECHA_UL` no se copian cuando traen «None»; el
      *   registro anota los nulos, los errores, el código y estado de cada artículo y sus diferencias, pero
      *   no la sentencia que falló.
      */
