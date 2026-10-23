@@ -264,6 +264,32 @@ final class ImportarDbfIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
+     * @codigo-afectado modulos/mod_importar/clases/ClaseImportarDbf.php:410-427
+     *
+     * @group defecto
+     * @group importar
+     * @group medio
+     *
+     * @que-ocurre-hoy Un artículo nuevo se crea con el IVA que trae el fichero aunque ese tipo no esté en la
+     *   tabla de IVA de la instalación: la venta copiará a sus líneas un IVA que la tienda no tiene.
+     * @que-deberia-ocurrir Que un artículo nuevo con un IVA que no está en la tabla de IVA no se cree, y se
+     *   marque como error.
+     * @por-que-ocurre Antes de crear, la fusión comprueba el nombre y los precios; el IVA no, como anuncia el
+     *   comentario que lo deja pendiente.
+     * @como-deberia-funcionar Comprobar que el IVA del artículo está en la tabla de IVA antes de crearlo.
+     */
+    public function test_unArticuloNuevoConUnIvaQueNoExisteNoSeCrea(): void
+    {
+        $importar = $this->clase();
+
+        $estado = $importar->ControllerNewUpdate($this->articuloDbf(['CODIGO' => '7007', 'IVA' => '7']));
+
+        self::assertSame('error', $estado);
+        self::assertNull($this->catalogo('7007'));
+    }
+
+    /**
+     * @estado rojo
      * @codigo-afectado modulos/mod_importar/clases/ClaseImportarDbf.php:440-447
      *
      * @group defecto
