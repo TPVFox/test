@@ -172,6 +172,32 @@ final class MayorProductosIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
+     * @codigo-afectado modulos/mod_productos/DetalleMayor.php:225
+     * @codigo-afectado modulos/mod_productos/DetalleMayor.php:309
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy Con movimientos en el mismo mes de dos años y otros entre medias, el total del mayor y
+     *   sus tablas por mes pierden los del primer año.
+     * @que-deberia-ocurrir Que el total sume todos los movimientos, y las tablas den cada mes de cada año.
+     * @por-que-ocurre Las cuentas de cada mes se guardan por el número del mes, y el del segundo año
+     *   reemplaza al del primero.
+     * @como-deberia-funcionar Guardarlas por el año y el mes.
+     */
+    public function test_elTotalCuentaElMismoMesDeCadaAno(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => ':p1', 'fecha_inicial' => '2025-01-01', 'fecha_final' => '2026-12-31'], [
+            ...$this->producto('Kiwi'), ...$this->terceros(), ...$this->compra('2025-01-10 10:00:00', 10),
+            ...$this->ticket('2025-02-10 10:00:00', 3), ...$this->ticket('2026-01-10 10:00:00', 2),
+        ]);
+
+        preg_match('#<b>Total</b></td>\s*<td><b>([^<]*)</b></td>\s*<td><b>([^<]*)</b></td>#', $pantalla['html'], $total);
+        self::assertSame(['10', '5'], array_slice($total, 1));
+    }
+
+    /**
+     * @estado rojo
      * @codigo-afectado modulos/mod_productos/DetalleMayor.php:17
      * @codigo-afectado modulos/mod_producto/clases/ClaseArticulos.php:214
      *
