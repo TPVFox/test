@@ -213,6 +213,27 @@ final class PantallasImportarIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_importar/tareas.php:25-27,38
+     *
+     * @group defecto
+     * @group importar
+     * @group bajo
+     *
+     * @que-ocurre-hoy La orden de borrar el fichero no hace nada y responde una variable sin definir: deja un
+     *   aviso de PHP y responde nulo, como si la orden no se conociera.
+     * @que-deberia-ocurrir Que la orden de borrar el fichero lo borre y lo diga, o que no se atienda.
+     * @por-que-ocurre Su caso del `switch` está vacío, y la respuesta solo se define en los otros dos.
+     * @como-deberia-funcionar Borrar el fichero subido y responder el resultado, o retirar la orden.
+     */
+    public function test_borrarElFicheroRespondeSinAvisos(): void
+    {
+        $respuesta = $this->ejecutar('tareas.php', ['pulsado' => 'borrar_fichero'], [$this->registrar('Fusionado')]);
+
+        self::assertStringNotContainsString('Undefined', $respuesta['errores']);
+    }
+
+    /**
      * @comportamiento La subida sin fichero no mueve nada ni lee estructura alguna: avisa de que no se subió
      *   ningún fichero.
      */

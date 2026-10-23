@@ -219,6 +219,23 @@ final class ImportarDbfIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento Un artículo marcado como nulo que ya está en el catálogo se actualiza igual que los
+     *   demás: la configuración solo filtra los nulos al crear.
+     */
+    public function test_unArticuloNuloQueYaExisteSeActualiza(): void
+    {
+        $importar = $this->clase();
+        $idArticulo = $this->siembra->articulo('Aceite viejo', ['iva' => 10, 'ultimoCoste' => 3.0, 'beneficio' => 10]);
+        $this->siembra->precioYTienda($idArticulo, 4.00, 3.50, 1, ['crefTienda' => '1001']);
+        $this->siembra->existenciaRegistrada($idArticulo, 5.0, 1);
+
+        $estado = $importar->ControllerNewUpdate($this->articuloDbf(['NULO' => '1']));
+
+        self::assertSame('actualizado', $estado);
+        self::assertSame('Aceite de oliva', $this->catalogo('1001')['articulo_name']);
+    }
+
+    /**
      * @estado rojo
      * @codigo-afectado modulos/mod_importar/clases/ClaseImportarDbf.php:440-447
      *
