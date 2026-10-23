@@ -291,6 +291,29 @@ final class PantallasSeleccionIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString(';Kiwi;', $exportacion['html']);
     }
 
+    /**
+     * @comportamiento Un seleccionado que ya no existe, leído antes que otro, no cambia la fila del
+     *   siguiente: su nombre, su precio, su coste y su existencia son los suyos.
+     */
+    public function test_unSeleccionadoQueNoExisteNoCambiaLaFilaDelSiguiente(): void
+    {
+        $pantalla = $this->pintar('ListaSeleccion.php', [], [...$this->producto('Kiwi'), $this->existencias(5)], ['999999', ':p1']);
+
+        self::assertStringContainsString('<td>Kiwi</td>', $pantalla['html']);
+        self::assertStringContainsString('<td>1.21€</td>', $pantalla['html']);
+        self::assertStringContainsString('<td>1.00€</td>', $pantalla['html']);
+        self::assertMatchesRegularExpression('/<td>\s*5\s*<\/td>/', $pantalla['html']);
+    }
+
+    /** @comportamiento Sin sesión, la lista pide el acceso y no enseña los productos que tenga seleccionados el invitado. */
+    public function test_sinSesionLaListaNoEnsenaLaSeleccion(): void
+    {
+        $pantalla = $this->pintar('ListaSeleccion.php', [], $this->producto('Kiwi'), [':p1'], null, false);
+
+        self::assertStringNotContainsString('<td>Kiwi</td>', $pantalla['html']);
+        self::assertStringNotContainsString('class="checkSelect"', $pantalla['html']);
+    }
+
     /** @return list<string> */
     private function producto(string $nombre, string $tipo = 'unidad'): array
     {
