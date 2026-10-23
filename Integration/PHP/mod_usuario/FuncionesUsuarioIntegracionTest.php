@@ -64,6 +64,19 @@ final class FuncionesUsuarioIntegracionTest extends CasoIntegracion
         self::assertSame(' No se a encontrado usuario', $sinIndice['error']);
     }
 
+    /** @comportamiento Un usuario con índices en dos tiendas se lee igual, con los números de uno de ellos. */
+    public function test_unUsuarioConIndicesEnDosTiendasSeLeeConUnoDeEllos(): void
+    {
+        $ana = $this->usuario('ana');
+        $otra = $this->idTienda + 1;
+        $this->db->query("INSERT INTO indices (idTienda, idUsuario, numticket, tempticket) VALUES ({$this->idTienda}, {$ana}, 7, 3), ({$otra}, {$ana}, 40, 2)");
+
+        $leido = \verSelec($this->db, $ana, 'usuarios');
+
+        self::assertSame('ana', $leido['username']);
+        self::assertContains($leido['numticket'] . '|' . $leido['tempticket'], ['7|3', '40|2']);
+    }
+
     /**
      * @comportamiento El alta guarda el usuario con su contraseña en md5, y crea su índice a cero en la
      *   tienda indicada.
@@ -205,6 +218,31 @@ final class FuncionesUsuarioIntegracionTest extends CasoIntegracion
 
         self::assertStringNotContainsString(self::SCRIPT, $html);
         self::assertStringContainsString(htmlspecialchars(self::SCRIPT), $html);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/funciones.php:27-45
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy Un número de usuario con una condición añadida trae a otro usuario: la ficha de
+     *   modificar lo enseña como si fuera el pedido.
+     * @que-deberia-ocurrir Que el número se tome como número, y uno que no es de ningún usuario no traiga
+     *   ninguno.
+     * @por-que-ocurre La lectura pega el número a la consulta sin convertirlo.
+     * @como-deberia-funcionar Convertir el número en entero antes de componer la consulta, o pasarlo como
+     *   dato.
+     */
+    public function test_unNumeroConUnaCondicionNoTraeNingunUsuario(): void
+    {
+        $ana = $this->usuario('ana');
+        $this->db->query("INSERT INTO indices (idTienda, idUsuario, numticket, tempticket) VALUES ({$this->idTienda}, {$ana}, 0, 0)");
+
+        $leido = \verSelec($this->db, '0 OR 1=1', 'usuarios');
+
+        self::assertSame(' No se a encontrado usuario', $leido['error'] ?? null);
     }
 
     /** @return array<string, string> */
