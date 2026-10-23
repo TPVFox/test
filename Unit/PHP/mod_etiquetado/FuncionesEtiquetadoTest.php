@@ -103,7 +103,7 @@ final class FuncionesEtiquetadoTest extends TestCase
      *
      * @group defecto
      * @group impreso
-     * @group medio
+     * @group alto
      *
      * @que-ocurre-hoy Una referencia de la tienda que no tiene cinco cifras da un código de otra longitud:
      *   no es un EAN-13, y el TPV no lo desglosa.

@@ -223,7 +223,7 @@ final class TareasEtiquetadoIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group impreso
-     * @group bajo
+     * @group medio
      *
      * @que-ocurre-hoy Recalcular el código sin tipo elegido responde un código vacío y deja un aviso de PHP.
      * @que-deberia-ocurrir Que responda un error: sin tipo no hay código.
@@ -244,7 +244,7 @@ final class TareasEtiquetadoIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group impreso
-     * @group bajo
+     * @group medio
      *
      * @que-ocurre-hoy Contar las etiquetas de un lote que no existe termina la petición con un error de PHP,
      *   y la pantalla no imprime ni avisa.
@@ -311,7 +311,7 @@ final class TareasEtiquetadoIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group impreso
-     * @group medio
+     * @group bajo
      *
      * @que-ocurre-hoy Todas las impresiones escriben el mismo fichero: la de un usuario sustituye a la de
      *   otro que imprima a la vez, y puede abrir las etiquetas del otro.

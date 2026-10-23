@@ -270,7 +270,7 @@ final class PantallasEtiquetadoIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group entrada
-     * @group medio
+     * @group alto
      *
      * @que-ocurre-hoy La ficha abierta con un número de lote con una condición añadida enseña otro lote.
      * @que-deberia-ocurrir Que un número que no es de ningún lote no enseñe ninguno.
@@ -314,7 +314,7 @@ final class PantallasEtiquetadoIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group permisos
-     * @group medio
+     * @group alto
      *
      * @que-ocurre-hoy Sin los permisos de crear, modificar e imprimir, el listado ofrece añadir, modificar e
      *   imprimir.

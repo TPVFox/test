@@ -129,7 +129,7 @@ final class ModuloEtiquetadoIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group entrada
-     * @group medio
+     * @group alto
      *
      * @que-ocurre-hoy Una fecha de caducidad con unas comillas dobles termina con un error de la base, y el
      *   temporal no se crea.
