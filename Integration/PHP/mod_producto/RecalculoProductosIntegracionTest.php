@@ -521,6 +521,81 @@ final class RecalculoProductosIntegracionTest extends CasoIntegracion
         self::assertMatchesRegularExpression('/<button type="button"[^>]*onclick="limpiarSeleccionRecalculo\(\)"/', $pantalla['html']);
     }
 
+    /**
+     * @comportamiento Un número de albarán con una condición añadida en la dirección se toma como el número
+     *   que lleva delante: la pantalla enseña solo las líneas de ese albarán, no las de los demás.
+     */
+    public function test_unNumeroDeAlbaranConUnaCondicionNoEnsenaOtrosAlbaranes(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran OR 1=1'], [], [
+            ...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2),
+            ...$this->albaran('Frutas del Sur'), ...$this->producto('Pera'), $this->historico(1, 2),
+        ]);
+
+        self::assertStringContainsString('<td>Pera</td>', $pantalla['html']);
+        self::assertStringNotContainsString('<td>Kiwi</td>', $pantalla['html']);
+        self::assertSame('', $pantalla['errores']);
+    }
+
+    /** @comportamiento Un producto sin referencia del proveedor del albarán sale con la referencia vacía, sin avisos. */
+    public function test_unProductoSinReferenciaDelProveedorSaleSinElla(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], [], [...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2)]);
+
+        self::assertMatchesRegularExpression('/<td>Kiwi<\/td>\s*<td><\/td>\s*<td>2\.0000<\/td>/', $pantalla['html']);
+        self::assertSame('', $pantalla['errores']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_productos/Recalculo_precios.php:23
+     * @codigo-afectado modulos/mod_productos/Recalculo_precios.php:43
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Sin sesión, la pantalla pide el acceso sin enseñar el recálculo, pero deja avisos de
+     *   PHP: el del usuario de la sesión, que no hay, el del nombre de la caché y los del menú del acceso.
+     * @que-deberia-ocurrir Que pida el acceso sin avisos, como las demás pantallas.
+     * @por-que-ocurre La pantalla toma el usuario de la sesión sin mirar si lo hay, y deja sin usuario al
+     *   menú, al que el arranque había dado el de invitado.
+     * @como-deberia-funcionar Usar el usuario que deja el arranque, o comprobar la sesión antes de leer nada.
+     */
+    public function test_sinSesionLaPantallaPideElAccesoSinAvisos(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], [], [...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2)], [], false);
+
+        self::assertStringNotContainsString('<td>Kiwi</td>', $pantalla['html']);
+        self::assertSame('', $pantalla['errores']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado clases/articulos.php:144
+     * @codigo-afectado modulos/mod_productos/template/view_recalculo.php:172
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy Con el producto a precios distintos en dos tiendas, la pantalla enseña como precio
+     *   actual el de la tienda de número más bajo, que puede no ser la de la sesión.
+     * @que-deberia-ocurrir Que enseñe el precio de la tienda de la sesión, el que el recálculo cambia.
+     * @por-que-ocurre La lectura del precio busca solo por el producto, sin la tienda, y toma la primera
+     *   fila, que por el índice de la tabla es la de la tienda de número más bajo.
+     * @como-deberia-funcionar Leer el precio de la tienda de la sesión.
+     */
+    public function test_laPantallaEnsenaElPrecioActualDeLaTiendaDeLaSesion(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], [], [
+            ...$this->albaran(), $this->producto('Kiwi')[0],
+            'INSERT INTO articulosPrecios (idArticulo, pvpCiva, pvpSiva, idTienda) VALUES (:pN, 9.68, 8, :tienda - 1)',
+            'INSERT INTO articulosPrecios (idArticulo, pvpCiva, pvpSiva, idTienda) VALUES (:pN, 2.42, 2, :tienda)',
+            $this->historico(1, 2),
+        ]);
+
+        self::assertMatchesRegularExpression('/<td>Kiwi<\/td>(\s*<td>[^<]*<\/td>){5}\s*<td>2\.4200<\/td>/', $pantalla['html']);
+    }
+
     /** @return list<string> */
     private function albaran(string $proveedor = 'Frutas del Norte'): array
     {
