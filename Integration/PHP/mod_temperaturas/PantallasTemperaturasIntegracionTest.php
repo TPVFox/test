@@ -668,6 +668,53 @@ final class PantallasTemperaturasIntegracionTest extends CasoIntegracion
         self::assertSame('0', $anotacion['consultas']['lecturas']);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_temperaturas/temperatura.php:72-79
+     *
+     * @group defecto
+     * @group entrada
+     * @group medio
+     *
+     * @que-ocurre-hoy Una temperatura fuera de lo que admite la caja —de −50 a 150 °C—, enviada en el
+     *   formulario, se anota: 200 °C quedan en el registro como una lectura más.
+     * @que-deberia-ocurrir Que una temperatura fuera de lo que admite la caja no se anote, y se diga.
+     * @por-que-ocurre Solo la caja del navegador limita lo que se teclea; la pantalla anota cualquier
+     *   número que quepa en la columna.
+     * @como-deberia-funcionar Comprobar en la pantalla el mismo rango que anuncia la caja antes de anotar.
+     */
+    public function test_unaTemperaturaFueraDeLoQueAdmiteLaCajaNoSeAnota(): void
+    {
+        $anotacion = $this->pintar('temperatura.php', [], ['action' => 'update_temperaturas', 'temperatura' => [':d1' => '200']], [
+            $this->dispositivo('Cámara', 'activo', 4),
+        ], ['lecturas' => 'SELECT COUNT(*) FROM temperaturas WHERE idDispositivo = :d1']);
+
+        self::assertSame('0', $anotacion['consultas']['lecturas']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_temperaturas/temperatura.php:27-38
+     *
+     * @group defecto
+     * @group entrada
+     * @group bajo
+     *
+     * @que-ocurre-hoy La ficha marca el nombre y la ubicación como obligatorios, pero el formulario enviado
+     *   sin ellos da de alta un dispositivo sin nombre ni ubicación.
+     * @que-deberia-ocurrir Que un dispositivo sin nombre o sin ubicación no se dé de alta, y se diga.
+     * @por-que-ocurre Solo el navegador exige los dos campos; la pantalla guarda lo que recibe.
+     * @como-deberia-funcionar Comprobar en la pantalla que llegan el nombre y la ubicación antes de guardar.
+     */
+    public function test_unDispositivoSinNombreNiUbicacionNoSeDaDeAlta(): void
+    {
+        $alta = $this->pintar('temperatura.php', [], $this->ficha('', '', 'activo', '4'), [], [
+            'alta' => "SELECT COUNT(*) FROM dispositivos WHERE nombre = ''",
+        ]);
+
+        self::assertSame('0', $alta['consultas']['alta']);
+    }
+
     private function dispositivo(string $nombre, string $estado, float $maximo): string
     {
         return "INSERT INTO dispositivos (nombre, ubicacion, estado, temp_max) VALUES ('{$nombre}', 'Obrador', '{$estado}', {$maximo})";
