@@ -3,12 +3,14 @@
 /**
  * La clase de la reorganización (`modulos/mod_reorganizacion/clases/ClaseReorganizar.php`): las lecturas
  * que usa el cierre de stock anual —las familias con existencias, sus subfamilias, los productos que
- * cerrar de cada una, el nivel de una familia y los datos de un producto para su línea de cierre— y la
- * de una familia por su número.
+ * cerrar de cada una, el nivel de una familia y los datos de un producto para su línea de cierre—, la
+ * de una familia por su número, y las del mantenimiento: contar los productos, leer los usuarios, leer
+ * los productos de la tienda web y obtener su complemento.
  *
  * La clase hereda de la base de modelos y consulta con la conexión que comparte el producto, que aquí es
- * la del caso, dentro de su transacción. Las familias, los productos y sus existencias los da de alta el
- * propio caso; el cierre lee la tienda 1, así que las existencias se ponen en ella.
+ * la del caso, dentro de su transacción. Las familias, los productos, sus existencias y la tienda web los
+ * da de alta el propio caso; el cierre lee la tienda 1, así que las existencias se ponen en ella. Ningún
+ * caso se conecta a una tienda web.
  */
 
 declare(strict_types=1);
@@ -128,6 +130,106 @@ final class ClaseReorganizarIntegracionTest extends CasoIntegracion
         $familia = (new \ClaseReorganizar())->buscarFamiliaId($this->familias['citricos']);
 
         self::assertSame(['Cítricos', (string) $this->familias['frutas']], [$familia['familiaNombre'], (string) $familia['familiaPadre']]);
+    }
+
+    /**
+     * @comportamiento Contar los productos da los del catálogo; los de la tienda web, los que tienen ficha en
+     *   ella.
+     */
+    public function test_contarLosProductosDelCatalogoYDeLaTiendaWeb(): void
+    {
+        $web = $this->siembra->tienda($this->ano(), 'web');
+        $producto = $this->siembra->articulo('Naranja');
+        $this->db->query("INSERT INTO articulosTiendas (idArticulo, idTienda, idVirtuemart, estado) VALUES ({$producto}, {$web}, 77, 'Activo')");
+        $reorganizar = new \ClaseReorganizar();
+        $catalogo = (int) $this->db->query('SELECT COUNT(*) FROM articulos')->fetch_row()[0];
+
+        self::assertSame($catalogo, (int) $reorganizar->contar());
+        $reorganizar->setIdTiendaWeb($web);
+        self::assertSame(1, (int) $reorganizar->contar('web'));
+    }
+
+    /** @comportamiento Los usuarios se leen todos, sin su contraseña. */
+    public function test_losUsuariosSeLeenSinSuContrasena(): void
+    {
+        $usuarios = (new \ClaseReorganizar())->obtenerUsuarios();
+        $idUsuario = $this->siembra->usuarioPorDefecto();
+
+        self::assertContains((string) $idUsuario, array_map('strval', array_column($usuarios, 'id')));
+        self::assertSame(['id', 'username', 'group_id', 'estado', 'nombre'], array_keys($usuarios[0]));
+    }
+
+    /**
+     * @comportamiento Los productos de la tienda web se leen por tandas con su número en la tienda web, sus
+     *   existencias y su precio sin IVA.
+     */
+    public function test_losProductosDeLaTiendaWebSeLeenConSuExistenciaYSuPrecio(): void
+    {
+        [$web, $producto] = $this->productoEnLaWeb();
+        $reorganizar = new \ClaseReorganizar();
+        $reorganizar->setIdTiendaWeb($web);
+
+        $fila = array_values(array_filter($reorganizar->obtenerIdsWeb(0, 1000)['datos'], static fn ($fila) => (int) $fila['idArticulo'] === $producto))[0];
+
+        self::assertSame(['77', 4.0, 2.5], [(string) $fila['idVirtuemart'], (float) $fila['stockOn'], (float) $fila['pvpSiva']]);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_reorganizacion/clases/ClaseReorganizar.php:55-72
+     *
+     * @group defecto
+     * @group existencias
+     * @group medio
+     *
+     * @que-ocurre-hoy Si un producto de la tienda web tiene existencias en dos tiendas, leer los productos
+     *   de la tienda web termina con un error de la base, y no se sube ninguno.
+     * @que-deberia-ocurrir Que el producto se lea una vez, con las existencias de la tienda que se envían a
+     *   la web.
+     * @por-que-ocurre La existencia y el precio se leen con una subconsulta que no filtra la tienda, y con
+     *   dos filas no se puede tomar ninguna.
+     * @como-deberia-funcionar Leer la existencia y el precio de la tienda que corresponde.
+     */
+    public function test_unProductoConExistenciasEnDosTiendasSeLeeParaLaTiendaWeb(): void
+    {
+        [$web, $producto] = $this->productoEnLaWeb();
+        $this->siembra->existenciaRegistrada($producto, 9, $this->siembra->tiendaPorDefecto());
+        $reorganizar = new \ClaseReorganizar();
+        $reorganizar->setIdTiendaWeb($web);
+
+        try {
+            $filas = $reorganizar->obtenerIdsWeb(0, 1000)['datos'];
+        } catch (\Throwable $error) {
+            self::fail('La lectura termina con un error: ' . get_class($error));
+        }
+
+        self::assertCount(1, array_filter($filas, static fn ($fila) => (int) $fila['idArticulo'] === $producto));
+    }
+
+    /** @comportamiento El complemento de la tienda web se obtiene por el nombre de su clase; otro, no. */
+    public function test_elComplementoDeLaTiendaWebSeObtienePorSuNombre(): void
+    {
+        $reorganizar = new \ClaseReorganizar();
+
+        self::assertIsObject($reorganizar->SetPlugin('ClaseVirtuemart'));
+        self::assertFalse($reorganizar->SetPlugin('ClaseQueNoExiste'));
+    }
+
+    /**
+     * Un producto con ficha en una tienda web, número 77 en ella, existencias 4 en la tienda 1 y precio
+     * sin IVA 2,5 en la tienda principal.
+     *
+     * @return array{0:int, 1:int}
+     */
+    private function productoEnLaWeb(): array
+    {
+        $web = $this->siembra->tienda($this->ano(), 'web');
+        $producto = $this->siembra->articulo('Naranja');
+        $this->db->query("INSERT INTO articulosTiendas (idArticulo, idTienda, idVirtuemart, estado) VALUES ({$producto}, {$web}, 77, 'Activo')");
+        $this->siembra->existenciaRegistrada($producto, 4, 1);
+        $this->siembra->precioYTienda($producto, 2.75, 2.5);
+
+        return [$web, $producto];
     }
 
     /** Un producto de la familia indicada por su nombre, con sus existencias en la tienda 1. */
