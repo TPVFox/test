@@ -86,6 +86,25 @@ final class PantallasTemperaturasIntegracionTest extends CasoIntegracion
         self::assertSame('', $pantalla['errores']);
     }
 
+    /**
+     * @comportamiento Sin los permisos de crear y de modificar dispositivos y de registrar temperaturas, la
+     *   pantalla enseña los dispositivos sin el botón de añadir, sin la caja de la nueva lectura y sin la
+     *   columna de acciones.
+     */
+    public function test_sinPermisosLaPantallaNoOfreceElAltaNiLasCajasNiLasAcciones(): void
+    {
+        $pantalla = $this->pintar('temperatura.php', [], [], [
+            $this->dispositivo('Cámara', 'activo', 4),
+            $this->quitarPermiso('crearDispositivo'), $this->quitarPermiso('modificarDispositivo'), $this->quitarPermiso('registrarTemperatura'),
+        ]);
+
+        self::assertStringContainsString('<td>Cámara</td><td>Obrador</td><td>activo</td>', $pantalla['html']);
+        self::assertStringNotContainsString('temperatura.php?new', $pantalla['html']);
+        self::assertStringNotContainsString("name='temperatura[", $pantalla['html']);
+        self::assertStringNotContainsString('<th>Acciones</th>', $pantalla['html']);
+        self::assertStringNotContainsString('temperatura.php?edit=', $pantalla['html']);
+    }
+
     /** @comportamiento Un dispositivo se da de alta desde su ficha con su nombre, su ubicación, su estado y su máximo. */
     public function test_unDispositivoSeDaDeAlta(): void
     {

@@ -214,6 +214,39 @@ final class ClaseTemperaturaIntegracionTest extends CasoIntegracion
         self::assertSame([], $this->temperaturas()->getTemperaturasDispositivo($camara)['datos']);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_temperaturas/clases/ClaseTemperatura.php:60-71
+     *
+     * @group defecto
+     * @group guardado
+     * @group alto
+     *
+     * @que-ocurre-hoy Una temperatura fuera del rango de la columna —mil grados, que la caja del navegador no
+     *   deja teclear pero el formulario puede enviar— la rechaza la base: la anotación termina con una
+     *   excepción, y las anotadas antes en la misma llamada quedan guardadas.
+     * @que-deberia-ocurrir Que la anotación diga cuáles no se guardaron, sin terminar, y que las de una
+     *   llamada se guarden todas o ninguna.
+     * @por-que-ocurre La clase anota cada temperatura con su propia sentencia, sin transacción, y no recoge
+     *   el rechazo de la base, que llega como excepción.
+     * @como-deberia-funcionar Anotar las de una llamada en una transacción, recoger el rechazo y devolverlo
+     *   como error.
+     */
+    public function test_unaTemperaturaFueraDelRangoDeLaColumnaSeDevuelveComoError(): void
+    {
+        $camara = $this->dispositivo('Cámara', '4');
+        $vitrina = $this->dispositivo('Vitrina', '8');
+
+        $respuesta = $this->intentar(fn () => $this->temperaturas()->addTemperaturas([
+            ['idDispositivo' => $camara, 'temperatura' => 3.4, 'idUsuario' => $this->idUsuario],
+            ['idDispositivo' => $vitrina, 'temperatura' => 1000, 'idUsuario' => $this->idUsuario],
+        ]));
+
+        self::assertIsArray($respuesta);
+        self::assertArrayHasKey('error', $respuesta);
+        self::assertSame([], $this->temperaturas()->getTemperaturasDispositivo($camara)['datos']);
+    }
+
     private function temperaturas(): \ClaseTemperatura
     {
         return new \ClaseTemperatura($this->db);

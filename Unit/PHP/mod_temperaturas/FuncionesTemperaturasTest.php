@@ -41,4 +41,21 @@ final class FuncionesTemperaturasTest extends TestCase
         self::assertSame(['2026-10-21 08:00:00', '2026-10-21 20:00:00', null], array_column($conUltima, 'ultimo_registro'));
         self::assertSame('5.50', $dispositivos[0]['ultima_temperatura']);
     }
+
+    /**
+     * @comportamiento Con dos lecturas del mismo dispositivo a la misma hora, la última es la que llega
+     *   primero en la lista.
+     */
+    public function test_conDosLecturasALaMismaHoraLaUltimaEsLaPrimeraDeLaLista(): void
+    {
+        $dispositivos = [['idDispositivo' => '1']];
+        $lecturas = [
+            ['idDispositivo' => '1', 'temperatura' => '4.00', 'fechaRegistro' => '2026-10-21 08:00:00'],
+            ['idDispositivo' => '1', 'temperatura' => '6.00', 'fechaRegistro' => '2026-10-21 08:00:00'],
+        ];
+
+        $conUltima = agregarUltimasTemperaturas($dispositivos, $lecturas);
+
+        self::assertSame('4.00', $conUltima[0]['ultima_temperatura']);
+    }
 }
