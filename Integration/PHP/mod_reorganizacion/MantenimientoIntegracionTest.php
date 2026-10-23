@@ -257,6 +257,24 @@ final class MantenimientoIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento A un administrador, los permisos que le faltan se le crean concedidos, aunque el de
+     *   partida no lo esté.
+     */
+    public function test_alAdministradorLeFaltanPermisosYSeLeCreanConcedidos(): void
+    {
+        $reorganizar = $this->ejecutar(['pulsado' => 'reorganizarPermisosModulos', 'inicial' => ':indice', 'total' => '1'], [
+            'UPDATE usuarios SET group_id = 9 WHERE id = :usuario',
+            "DELETE FROM permisos WHERE idUsuario = :usuario AND modulo = 'mod_reorganizacion' AND accion = 'subir_stock_web'",
+        ], true, [
+            'creado' => "SELECT permiso FROM permisos WHERE idUsuario = :usuario AND modulo = 'mod_reorganizacion' AND accion = 'subir_stock_web'",
+            'partida' => "SELECT permiso FROM permisos WHERE idUsuario = 0 AND modulo = 'mod_reorganizacion' AND accion = 'subir_stock_web'",
+        ]);
+
+        self::assertSame(['1', '0'], [$reorganizar['consultas']['creado'], $reorganizar['consultas']['partida']]);
+        self::assertSame(1, $reorganizar['respuesta']['creados']);
+    }
+
+    /**
      * @estado rojo
      * @codigo-afectado modulos/mod_reorganizacion/tareas.php:117-193
      *
