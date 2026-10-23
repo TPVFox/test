@@ -32,8 +32,9 @@ final class ImportarDbfIntegracionTest extends CasoIntegracion
         $this->incluirTPVFox('/app/helpers.php');
         $this->incluirTPVFox('/clases/ClaseTFModelo.php');
         $this->siembra = new Siembra($this->db);
-        // La fusión escribe siempre en la tienda 1; la base de pruebas no la trae con ese id.
-        $this->siembra->tiendaConId(1, '2026');
+        // La fusión escribe siempre en la tienda 1; la base de pruebas no la trae con ese id, y la principal
+        // de la instalación es otra: el caso siembra la 1 como tienda aparte.
+        $this->siembra->tiendaConId(1, '2026', 'otra');
         $this->siembra->usuarioPorDefecto();
         $this->rutaRegistro = (string) sys_get_temp_dir() . '/importar-' . bin2hex(random_bytes(3));
         @mkdir($this->rutaRegistro);
@@ -269,5 +270,84 @@ final class ImportarDbfIntegracionTest extends CasoIntegracion
             . "WHERE a.articulo_name = 'Aceite de oliva' AND p.id IS NULL"
         )->fetch_row()[0];
         self::assertSame('0', (string) $aMedias);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_importar/clases/ClaseImportarDbf.php:440-447
+     * @codigo-afectado modulos/mod_importar/clases/ClaseImportarDbf.php:495-528
+     *
+     * @group defecto
+     * @group importar
+     * @group alto
+     *
+     * @que-ocurre-hoy Un artículo nuevo se crea con su precio, su ficha de tienda y su stock en la tienda 1,
+     *   aunque la principal de la instalación sea otra; donde no existe una tienda 1, el alta falla a medias.
+     * @que-deberia-ocurrir Que el artículo se cree en la tienda principal de la instalación.
+     * @por-que-ocurre La búsqueda y las inserciones de precio, tienda y stock llevan `idTienda=1` escrito en
+     *   el código.
+     * @como-deberia-funcionar Tomar la tienda principal de la sesión o de la configuración.
+     */
+    public function test_unArticuloNuevoSeCreaEnLaTiendaPrincipal(): void
+    {
+        $importar = $this->clase();
+        $principal = (int) $this->db->query("SELECT idTienda FROM tiendas WHERE tipoTienda = 'principal' AND estado = 'Activo' LIMIT 1")->fetch_row()[0];
+
+        $importar->ControllerNewUpdate($this->articuloDbf(['CODIGO' => '6006']));
+
+        $enLaPrincipal = $this->db->query("SELECT COUNT(*) FROM articulosTiendas WHERE crefTienda = '6006' AND idTienda = {$principal}")->fetch_row()[0];
+        self::assertSame('1', (string) $enLaPrincipal);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_importar/clases/ClaseImportarDbf.php:341-397
+     *
+     * @group defecto
+     * @group importar
+     * @group medio
+     *
+     * @que-ocurre-hoy Un código que está en dos artículos del catálogo no se marca como error: la fusión
+     *   devuelve un estado vacío, que no cuenta como ninguno de los estados de la importación.
+     * @que-deberia-ocurrir Que un código que no identifica un solo artículo se marque como error.
+     * @por-que-ocurre El estado de error solo se asigna dentro de la rama de un único artículo; con dos o
+     *   más, la rama que lo anota en el registro no lo asigna.
+     * @como-deberia-funcionar Asignar el estado de error cuando el código no da exactamente un artículo.
+     */
+    public function test_unCodigoRepetidoEnElCatalogoSeMarcaComoError(): void
+    {
+        $importar = $this->clase();
+        foreach (['Primero', 'Segundo'] as $nombre) {
+            $idArticulo = $this->siembra->articulo($nombre, ['iva' => 10]);
+            $this->siembra->precioYTienda($idArticulo, 4.40, 4.00, 1, ['crefTienda' => '7007']);
+        }
+
+        $estado = $importar->ControllerNewUpdate($this->articuloDbf(['CODIGO' => '7007']));
+
+        self::assertSame('error', $estado);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_importar/clases/ClaseImportarDbf.php:619-630
+     *
+     * @group defecto
+     * @group importar
+     * @group medio
+     *
+     * @que-ocurre-hoy Borrar el registro de una importación pega el id recibido en el texto de la sentencia:
+     *   un id que no es un número rompe la sentencia, que la base rechaza con una excepción.
+     * @que-deberia-ocurrir Que un id que no es un número se rechace como error, sin llegar a la base.
+     * @por-que-ocurre `EliminarRegistroTabla()` compone `... WHERE id=<id>` concatenando el valor, sin
+     *   comprobar que sea un número.
+     * @como-deberia-funcionar Comprobar que el id es un número entero, o pasarlo como dato de la sentencia.
+     */
+    public function test_unIdQueNoEsUnNumeroNoLlegaALaBase(): void
+    {
+        $importar = $this->clase();
+
+        $resultado = $this->intentar(fn () => $importar->EliminarRegistroTabla('abc'));
+
+        self::assertNotInstanceOf(\Throwable::class, $resultado);
     }
 }

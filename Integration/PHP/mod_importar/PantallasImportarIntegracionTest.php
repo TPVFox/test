@@ -211,4 +211,38 @@ final class PantallasImportarIntegracionTest extends CasoIntegracion
 
         self::assertStringNotContainsString('Undefined', $respuesta['errores']);
     }
+
+    /**
+     * @comportamiento La subida sin fichero no mueve nada ni lee estructura alguna: avisa de que no se subió
+     *   ningún fichero.
+     */
+    public function test_laSubidaSinFicheroAvisaDeQueNoSeSubioNinguno(): void
+    {
+        $pantalla = $this->ejecutar('upload.php', ['uploadBtn' => 'Enviar'], [$this->registrar('Fusionado')]);
+
+        self::assertStringContainsString('No subiste ficheros', $pantalla['html']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_importar/upload.php:62-89
+     *
+     * @group defecto
+     * @group importar
+     * @group alto
+     *
+     * @que-ocurre-hoy Con la última importación sin terminar, la subida no lo dice ni lo tiene en cuenta: el
+     *   aviso de que la importación anterior está en curso o quedó a medias no se enseña, y no impide
+     *   empezar otra.
+     * @que-deberia-ocurrir Que con la última importación sin terminar se avise y no se suba otra.
+     * @por-que-ocurre El estado de la última importación se anota en `$error`, y lo que se suma y se enseña
+     *   es `$errores`: la anotación se pierde.
+     * @como-deberia-funcionar Anotar el estado de la última importación en `$errores`, con los demás.
+     */
+    public function test_conLaUltimaImportacionSinTerminarLaSubidaLoAvisa(): void
+    {
+        $pantalla = $this->ejecutar('upload.php', ['uploadBtn' => 'Enviar'], [$this->registrar('Creado')]);
+
+        self::assertStringContainsString('NO SE ESTA EJECUTANDO', $pantalla['html']);
+    }
 }
