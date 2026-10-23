@@ -703,6 +703,153 @@ final class RecalculoProductosIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString('<td>Kiwi</td>', $pantalla['html']);
     }
 
+    /** @comportamiento Un albarán sin productos al peso no envía nada a las balanzas: no escribe ningún fichero. */
+    public function test_unProductoPorUnidadesNoSeEnviaALaBalanza(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '3.00'], [
+            ...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2), $this->referenciaDeLaTienda('123'), ...$this->balanzaConTecla(7),
+        ], [], true, null, true);
+
+        self::assertSame([], $pantalla['balanzas']);
+    }
+
+    /**
+     * @comportamiento Un producto al peso sin referencia de la tienda, o con el mismo precio, no se envía: la
+     *   balanza de envío recibe su fichero vacío.
+     */
+    public function test_unProductoAlPesoSinReferenciaOConElMismoPrecioNoSeEnvia(): void
+    {
+        $sinReferencia = $this->pintar(['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '15.00'], [
+            ...$this->albaran(), ...$this->producto('Queso', 12.10, 'peso'), $this->historico(5, 6), ...$this->balanzaConTecla(7),
+        ], [], true, null, true);
+        $mismoPrecio = $this->pintar(['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '12.10'], [
+            ...$this->albaran(), ...$this->producto('Queso', 12.10, 'peso'), $this->historico(5, 6), $this->referenciaDeLaTienda('123'), ...$this->balanzaConTecla(7),
+        ], [], true, null, true);
+
+        self::assertSame('', $sinReferencia['balanzas']['Balanzadepruebas' . $sinReferencia['ids'][':b1']] ?? null);
+        self::assertSame('', $mismoPrecio['balanzas']['Balanzadepruebas' . $mismoPrecio['ids'][':b1']] ?? null);
+    }
+
+    /** @comportamiento Una balanza solo de teclas recibe el producto que tiene tecla en ella, con su tecla. */
+    public function test_unaBalanzaSoloDeTeclasRecibeElProductoConSuTecla(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '15.00'], [
+            ...$this->albaran(), ...$this->producto('Queso', 12.10, 'peso'), $this->historico(5, 6), $this->referenciaDeLaTienda('123'), ...$this->balanzaSoloDeTeclas(7),
+        ], [], true, null, true);
+
+        self::assertStringContainsString('A000123007Queso', $pantalla['balanzas']['Balanzadeteclas' . $pantalla['ids'][':b1']] ?? '');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_productos/Recalculo_precios.php:109-122
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Con dos productos al peso en el albarán, el que no tiene tecla en una balanza solo de
+     *   teclas se le envía también si el anterior sí la tenía: la balanza recibe un producto que no lleva.
+     *   Con los productos en el otro orden, no se le envía.
+     * @que-deberia-ocurrir Que una balanza solo de teclas reciba solo los productos que tienen tecla en ella.
+     * @por-que-ocurre El envío añade la balanza del primer producto a la lista de balanzas, y la lista sigue
+     *   así para los productos siguientes.
+     * @como-deberia-funcionar Componer las balanzas de cada producto sin cambiar la lista de las de envío.
+     */
+    public function test_unaBalanzaSoloDeTeclasNoRecibeUnProductoSinTeclaEnElla(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '15.00', 'pvpRecomendado_2' => '20.00'], [
+            ...$this->albaran(),
+            ...$this->producto('Queso', 12.10, 'peso'), $this->historico(5, 6), $this->referenciaDeLaTienda('123'), ...$this->balanzaSoloDeTeclas(7),
+            ...$this->producto('Jamon', 18.15, 'peso'), $this->historico(8, 9), $this->referenciaDeLaTienda('124'),
+        ], [], true, null, true);
+        $fichero = $pantalla['balanzas']['Balanzadeteclas' . $pantalla['ids'][':b1']] ?? '';
+
+        self::assertStringContainsString('A000123007Queso', $fichero);
+        self::assertStringNotContainsString('A000124', $fichero);
+    }
+
+    /**
+     * @comportamiento Con dos productos al peso, el segundo, sin tecla en la balanza de envío, va sin la tecla
+     *   del primero: la tecla se vuelve a poner en blanco para cada producto y balanza.
+     */
+    public function test_elSegundoProductoNoHeredaLaTeclaDelPrimero(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '15.00', 'pvpRecomendado_2' => '20.00'], [
+            ...$this->albaran(),
+            ...$this->producto('Queso', 12.10, 'peso'), $this->historico(5, 6), $this->referenciaDeLaTienda('123'), ...$this->balanzaConTecla(7),
+            ...$this->producto('Jamon', 18.15, 'peso'), $this->historico(8, 9), $this->referenciaDeLaTienda('124'),
+        ], [], true, null, true);
+        $fichero = $pantalla['balanzas']['Balanzadepruebas' . $pantalla['ids'][':b1']] ?? '';
+
+        self::assertStringContainsString('A000123007Queso', $fichero);
+        self::assertStringContainsString('A000124000Jamon', $fichero);
+    }
+
+    /** @comportamiento Una balanza con secciones recibe el producto en el modo de secciones, con la sección de su tecla. */
+    public function test_unaBalanzaConSeccionesRecibeLaSeccionDeLaTecla(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '15.00'], [
+            ...$this->albaran(), ...$this->producto('Queso', 12.10, 'peso'), $this->historico(5, 6), $this->referenciaDeLaTienda('123'),
+            "INSERT INTO modulo_balanza (nombreBalanza, modelo, conSeccion, Grupo, `Dirección`, IP, soloPLUS) VALUES ('Balanza de secciones', 'Prueba', 'si', 0, 52, '127.0.0.1', 0)",
+            'INSERT INTO modulo_balanza_plus (idBalanza, plu, seccion, idArticulo) VALUES (:b1, 7, 3, :pN)',
+        ], [], true, null, true);
+        $fichero = $pantalla['balanzas']['Balanzadesecciones' . $pantalla['ids'][':b1']] ?? '';
+
+        self::assertMatchesRegularExpression('/^00H252A000123007Queso/m', $fichero);
+        self::assertMatchesRegularExpression('/^00H352.{41}03/m', $fichero);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_productos/Recalculo_precios.php:160-161
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy Un producto al peso guardado con el precio vacío —que el guardado toma como cero— termina
+     *   el guardado con una excepción del envío a la balanza: el precio ya está a cero y apuntado, y las
+     *   líneas del albarán quedan sin revisar y sin caché.
+     * @que-deberia-ocurrir Que el guardado no deje el producto a cero y termine, diciendo lo que no guardó.
+     * @por-que-ocurre El traductor de la balanza rechaza un registro sin precio con una excepción, y el
+     *   recálculo no la recoge; el precio cero llega porque el guardado no valida el precio recibido.
+     * @como-deberia-funcionar Validar el precio antes de guardar, y recoger el error del envío a la balanza.
+     */
+    public function test_unProductoAlPesoConElPrecioVacioNoTerminaElGuardado(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => ''], [
+            ...$this->albaran(), ...$this->producto('Queso', 12.10, 'peso'), $this->historico(5, 6), $this->referenciaDeLaTienda('123'), ...$this->balanzaConTecla(7),
+        ], ['linea' => 'SELECT estado FROM historico_precios WHERE id = :h1'], true, null, true);
+
+        self::assertSame('', $pantalla['errores']);
+        self::assertSame('Revisado', $pantalla['leido']['linea'][0]['estado']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_productos/Recalculo_precios.php:160-161
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy Un producto al peso con IVA cero termina el guardado con una excepción del envío a la
+     *   balanza: su precio ya está cambiado y apuntado, la balanza no lo recibe, y las líneas del albarán
+     *   quedan sin revisar y sin caché.
+     * @que-deberia-ocurrir Que se envíe a la balanza con IVA cero, como los demás, y el guardado termine.
+     * @por-que-ocurre El traductor de la balanza rechaza con una excepción el registro de los datos cuando el
+     *   IVA es cero, aunque sabe traducirlo, y el recálculo no la recoge.
+     * @como-deberia-funcionar Aceptar el IVA cero en el registro de los datos, y recoger el error del envío a
+     *   la balanza.
+     */
+    public function test_unProductoAlPesoConIvaCeroSeEnviaALaBalanza(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '15.00'], [
+            ...$this->albaran(), ...$this->producto('Pan', 10, 'peso', 0), $this->historico(5, 6), $this->referenciaDeLaTienda('125'), ...$this->balanzaConTecla(7),
+        ], [], true, null, true);
+
+        self::assertSame('', $pantalla['errores']);
+        self::assertStringContainsString('A000125007Pan', $pantalla['balanzas']['Balanzadepruebas' . $pantalla['ids'][':b1']] ?? '');
+    }
+
     /** @return list<string> */
     private function albaran(string $proveedor = 'Frutas del Norte'): array
     {
@@ -737,6 +884,15 @@ final class RecalculoProductosIntegracionTest extends CasoIntegracion
     private function referenciaDeLaTienda(string $referencia): string
     {
         return "INSERT INTO articulosTiendas (idArticulo, idTienda, crefTienda, estado) VALUES (:pN, :tienda, '{$referencia}', 'Activo')";
+    }
+
+    /** Una balanza solo de teclas, que no recibe los envíos generales, con su tecla para el último producto sembrado. */
+    private function balanzaSoloDeTeclas(int $plu): array
+    {
+        return [
+            "INSERT INTO modulo_balanza (nombreBalanza, modelo, conSeccion, Grupo, `Dirección`, IP, soloPLUS) VALUES ('Balanza de teclas', 'Prueba', 'no', 0, 51, '127.0.0.1', 1)",
+            "INSERT INTO modulo_balanza_plus (idBalanza, plu, seccion, idArticulo) VALUES (:b1, {$plu}, 0, :pN)",
+        ];
     }
 
     /** Una balanza a la que se envían los precios, con su tecla para el último producto sembrado. */
