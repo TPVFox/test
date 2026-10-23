@@ -237,10 +237,11 @@ final class TablaArticulosIntegracionTest extends CasoIntegracion
      * @codigo-afectado clases/ClaseTablaArticulos.php:533-542
      *
      * @group defecto
-     * @group alto
+     * @group bajo
      *
      * @que-ocurre-hoy Después de leer un producto que no existe, cualquier otro producto leído con la
-     *   misma clase devuelve el aviso grave en lugar de sus datos.
+     *   misma clase devuelve el aviso grave en lugar de sus datos. La clase de productos vacía después
+     *   los avisos, y lo que queda en ella es un aviso de estado falso.
      * @que-deberia-ocurrir Que cada lectura devuelva las comprobaciones de su producto.
      * @por-que-ocurre Las comprobaciones se acumulan en la clase y ninguna lectura las vacía; basta un
      *   aviso grave anterior para que la lista de datos se sustituya por el error.
