@@ -314,6 +314,53 @@ final class PantallasSeleccionIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString('class="checkSelect"', $pantalla['html']);
     }
 
+    /**
+     * @comportamiento Un seleccionado sin códigos de barras ni familias, exportado tras otro que los
+     *   tiene, sale con esas columnas vacías: no toma los del anterior.
+     */
+    public function test_unSeleccionadoSinCodigosNiFamiliasNoTomaLosDelAnterior(): void
+    {
+        $exportacion = $this->pintar('ExportarCsvProductos.php', [], [
+            ...$this->producto('Kiwi'),
+            "INSERT INTO articulosCodigoBarras (idArticulo, codBarras) VALUES (:p1, '8400000000011')",
+            "INSERT INTO familias (familiaNombre, familiaPadre, beneficiomedio, mostrar_tpv) VALUES ('Fruta', 0, 0, 1)",
+            'INSERT INTO articulosFamilias (idArticulo, idFamilia) VALUES (:p1, LAST_INSERT_ID())',
+            ...$this->producto('Pera'),
+        ], [':p1', ':p2']);
+
+        self::assertStringContainsString("\n" . $exportacion['ids'][':p2'] . ';Pera;;;1.00;', $exportacion['html']);
+    }
+
+    /** @comportamiento Un nombre con el separador o con comillas sale entre comillas, sin partir la línea en más columnas. */
+    public function test_unNombreConElSeparadorSaleEntreComillas(): void
+    {
+        $exportacion = $this->pintar('ExportarCsvProductos.php', [], $this->producto('Kiwi; verde'), [':p1']);
+
+        self::assertStringContainsString(';"Kiwi; verde";', $exportacion['html']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_productos/ExportarCsvProductos.php:6-7
+     * @codigo-afectado modulos/mod_productos/clases/ClaseSeleccionProductos.php:22-33
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Con el fichero de la selección dañado, la exportación termina con un error de PHP y
+     *   no da ningún fichero.
+     * @que-deberia-ocurrir Que la exportación diga que no pudo leer la selección.
+     * @por-que-ocurre La exportación lee la selección sin recoger el fallo, y la lectura de un fichero que
+     *   no es XML bien formado termina con un error de tipo.
+     * @como-deberia-funcionar Recoger el fallo de la lectura y comunicarlo.
+     */
+    public function test_unaSeleccionDanadaNoTerminaLaExportacion(): void
+    {
+        $exportacion = $this->pintar('ExportarCsvProductos.php', [], $this->producto('Kiwi'), [], '<seleccion><item idArticulo="1">');
+
+        self::assertStringNotContainsString('Fatal error', $exportacion['errores']);
+    }
+
     /** @return list<string> */
     private function producto(string $nombre, string $tipo = 'unidad'): array
     {
