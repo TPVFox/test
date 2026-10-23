@@ -163,6 +163,42 @@ final class ExistenciasIntegracionTest extends CasoIntegracion
         self::assertSame(date('Y-m-d'), $fila['dia']);
     }
 
+    /**
+     * @comportamiento Una regularización sin diferencia —las unidades contadas son las que había— deja
+     *   la existencia como estaba y apunta igual quién regularizó.
+     */
+    public function test_unaRegularizacionSinDiferenciaDejaLaExistenciaYApuntaQuien(): void
+    {
+        $usuario = $this->siembra->usuarioPorDefecto();
+        $id = $this->siembra->articulo('Manzana');
+        $ficha = $this->siembra->existenciaRegistrada($id, 10.0);
+
+        \alArticulosStocks::regularizaStock($id, $this->siembra->tiendaPorDefecto(), 0, $usuario);
+
+        $fila = $this->db->query("SELECT stockOn, usuarioRegularizacion FROM articulosStocks WHERE id = {$ficha}")->fetch_assoc();
+        self::assertSame(10.0, (float) $fila['stockOn']);
+        self::assertSame($usuario, (int) $fila['usuarioRegularizacion']);
+    }
+
+    /** @comportamiento Una regularización que llega con su fecha se anota con ella. */
+    public function test_unaRegularizacionConSuFechaSeAnotaConElla(): void
+    {
+        $id = $this->siembra->articulo('Manzana');
+
+        $anotada = \alArticulosStocks::grabarRegularizacion([
+            'idArticulo' => $id,
+            'idTienda' => $this->siembra->tiendaPorDefecto(),
+            'fechaRegularizacion' => '2026-03-01 10:00:00',
+            'stockActual' => 10,
+            'stockModif' => -3,
+            'stockFinal' => 7,
+            'stockOperacion' => K_STOCKARTICULO_SUMA,
+            'idUsuario' => $this->siembra->usuarioPorDefecto(),
+        ]);
+
+        self::assertSame('2026-03-01 10:00:00', $this->unValor("SELECT fechaRegularizacion FROM stocksRegularizacion WHERE id = {$anotada}"));
+    }
+
     /** @comportamiento Un movimiento de un producto que no existe no crea su ficha ni se aplica. */
     public function test_unMovimientoDeUnProductoQueNoExisteNoCreaSuFicha(): void
     {
