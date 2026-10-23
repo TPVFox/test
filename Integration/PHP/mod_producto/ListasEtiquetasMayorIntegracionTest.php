@@ -327,6 +327,118 @@ final class ListasEtiquetasMayorIntegracionTest extends CasoIntegracion
         }
     }
 
+    /**
+     * @comportamiento Imprimir varios productos da a cada uno su número de etiquetas, en el orden en que
+     *   llegan, y cada etiqueta con su nombre y su precio.
+     */
+    public function test_cadaProductoLlevaSuNumeroDeEtiquetas(): void
+    {
+        $formulario = ['pulsado' => 'imprimirEtiquetas', 'tamano' => 'A7', 'teclaOReferencia' => '1',
+            'productos' => '[{"idArticulo":":p1","numEtiquetas":"2"},{"idArticulo":":p2","numEtiquetas":"3"}]'];
+        $respuesta = json_decode($this->pintar('mod_producto', 'tareas.php', $formulario, [...$this->producto('Kiwi'), ...$this->producto('Pera')])['html'], true);
+
+        self::assertSame(['2', '3'], array_column($respuesta['productos'], 'numEtiquetas'));
+        self::assertSame(['Kiwi', 'Pera'], array_column($respuesta['productos'], 'articulo_name'));
+        self::assertSame(2, substr_count($respuesta['html'], 'Kiwi'));
+        self::assertSame(3, substr_count($respuesta['html'], 'Pera'));
+        self::assertSame(5, substr_count($respuesta['html'], '1,21</font>'));
+    }
+
+    /** @comportamiento Sin ningún producto marcado, la impresión escribe un fichero sin etiquetas y no da avisos. */
+    public function test_sinProductosMarcadosLaImpresionNoTieneEtiquetas(): void
+    {
+        $formulario = ['pulsado' => 'imprimirEtiquetas', 'tamano' => 'A7', 'teclaOReferencia' => '1', 'productos' => '[]'];
+        $impresion = $this->pintar('mod_producto', 'tareas.php', $formulario);
+        $respuesta = json_decode($impresion['html'], true);
+
+        self::assertSame([], $respuesta['productos']);
+        self::assertStringNotContainsString('<td', $respuesta['html']);
+        self::assertStringStartsWith('%PDF', (string) file_get_contents($this->carpeta . '/Etiquetaetiquetas.pdf'));
+        self::assertSame('', $impresion['errores']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/tareas/imprimirEtiquetas.php:7-9
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Imprimir las etiquetas de un producto que ya no existe saca una etiqueta vacía, con
+     *   el precio a cero, y avisos de PHP.
+     * @que-deberia-ocurrir Que solo se impriman las etiquetas de los productos que existen.
+     * @por-que-ocurre La impresión pone en la lista lo que devuelve la lectura de cada número sin mirar si
+     *   el producto existe, y la lectura de uno que no existe devuelve un producto vacío.
+     * @como-deberia-funcionar Saltar el número de un producto que no existe.
+     */
+    public function test_unProductoQueYaNoExisteNoSeImprime(): void
+    {
+        $formulario = ['pulsado' => 'imprimirEtiquetas', 'tamano' => 'A7', 'teclaOReferencia' => '1',
+            'productos' => '[{"idArticulo":"999999","numEtiquetas":"1"},{"idArticulo":":p1","numEtiquetas":"1"}]'];
+        $impresion = $this->pintar('mod_producto', 'tareas.php', $formulario, $this->producto('Kiwi'));
+        $respuesta = json_decode($impresion['html'], true);
+
+        self::assertSame(['Kiwi'], array_column($respuesta['productos'], 'articulo_name'));
+        self::assertStringNotContainsString('0,00</font>', $respuesta['html']);
+        self::assertSame('', $impresion['errores']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/tareas/imprimirEtiquetas.php:8
+     * @codigo-afectado clases/ClaseTablaArticulos.php:98-102
+     * @codigo-afectado modulos/mod_producto/ListaEtiquetas.php:13
+     * @codigo-afectado modulos/mod_producto/ListaEtiquetas.php:25-26
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Con un producto que ya no existe en la selección, imprimir las etiquetas desde la
+     *   lista no imprime ninguna: la petición termina con un error de la base de datos.
+     * @que-deberia-ocurrir Que se impriman las etiquetas de los demás productos marcados.
+     * @por-que-ocurre La lista pinta el producto que no existe como una fila marcada sin número, y su
+     *   caja de etiquetas tampoco lo lleva: imprimir lo envía con el número vacío, y la lectura del
+     *   producto lo pega a su consulta, que no se puede ejecutar.
+     * @como-deberia-funcionar Saltar en la impresión el producto sin número, y no pintarlo en la lista.
+     */
+    public function test_laFilaVaciaDeUnProductoQueYaNoExisteNoImpideImprimirLasDemas(): void
+    {
+        $formulario = ['pulsado' => 'imprimirEtiquetas', 'tamano' => 'A7', 'teclaOReferencia' => '1',
+            'productos' => '[{"idArticulo":"","numEtiquetas":"1"},{"idArticulo":":p1","numEtiquetas":"1"}]'];
+        $impresion = $this->pintar('mod_producto', 'tareas.php', $formulario, $this->producto('Kiwi'));
+
+        self::assertStringNotContainsString('Fatal error', $impresion['errores']);
+        self::assertStringContainsString('Kiwi', (string) (json_decode($impresion['html'], true)['html'] ?? ''));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/tareas/imprimirEtiquetas.php:9
+     * @codigo-afectado modulos/mod_producto/funciones.php:880
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Un número de etiquetas escrito con letras deja la impresión repitiendo la etiqueta
+     *   sin fin, hasta agotar la memoria del servidor o su tiempo: no imprime nada.
+     * @que-deberia-ocurrir Que un número de etiquetas que no es un número no imprima ninguna, o se avise, y
+     *   que la impresión termine.
+     * @por-que-ocurre El número llega tal como se escribe en la caja, y el reparto lo compara con un
+     *   contador: con letras, la comparación es de texto y siempre se cumple.
+     * @como-deberia-funcionar Tomar el número de etiquetas como un entero al recibirlo.
+     */
+    public function test_unNumeroDeEtiquetasQueNoEsUnNumeroNoDejaLaImpresionSinTerminar(): void
+    {
+        $formulario = ['pulsado' => 'imprimirEtiquetas', 'tamano' => 'A7', 'teclaOReferencia' => '1',
+            'productos' => '[{"idArticulo":":p1","numEtiquetas":"a"}]'];
+        $impresion = $this->pintar('mod_producto', 'tareas.php', $formulario, $this->producto('Kiwi'), null, true, '64M');
+        $respuesta = json_decode($impresion['html'], true);
+
+        self::assertStringNotContainsString('Fatal error', $impresion['errores']);
+        self::assertIsArray($respuesta);
+        self::assertStringNotContainsString('Kiwi', $respuesta['html']);
+    }
+
     /** @return list<string> */
     private function producto(string $nombre, string $tipo = 'unidad'): array
     {
@@ -355,14 +467,14 @@ final class ListasEtiquetasMayorIntegracionTest extends CasoIntegracion
      * Pinta una pantalla, o pide una orden a la petición de fondo, del módulo indicado, en un PHP aparte.
      * Tras sembrar la preparación pone en la sesión la selección de `mod_producto`, con los productos
      * indicados por su nombre; sin ella, la sesión no la tiene. Sin sesión, no hay usuario ni tienda, ni
-     * se cargan los permisos.
+     * se cargan los permisos. Con un límite de memoria, el PHP aparte no puede pasar de él.
      *
      * @param array<string, string> $formulario
      * @param list<string> $preparacion
      * @param ?list<string> $seleccion
      * @return array{html: string, errores: string, ids: array<string, string>}
      */
-    private function pintar(string $modulo, string $fichero, array $formulario = [], array $preparacion = [], ?array $seleccion = null, bool $conSesion = true): array
+    private function pintar(string $modulo, string $fichero, array $formulario = [], array $preparacion = [], ?array $seleccion = null, bool $conSesion = true, ?string $memoria = null): array
     {
         $sesion = $conSesion ? [
             'estadoTpv' => 'Correcto',
@@ -390,7 +502,8 @@ final class ListasEtiquetasMayorIntegracionTest extends CasoIntegracion
             . ' include ' . var_export($fichero, true) . ';';
 
         $errores = (string) tempnam(sys_get_temp_dir(), 'etiquetas');
-        exec(escapeshellarg(PHP_BINARY) . ' -d display_errors=stderr -d log_errors=0 -r ' . escapeshellarg($guion) . ' 2>' . escapeshellarg($errores), $salida);
+        $limite = $memoria !== null ? ' -d memory_limit=' . $memoria : '';
+        exec(escapeshellarg(PHP_BINARY) . $limite . ' -d display_errors=stderr -d log_errors=0 -r ' . escapeshellarg($guion) . ' 2>' . escapeshellarg($errores), $salida);
         [$html, $ids] = array_pad(explode('@@IDS@@', implode("\n", $salida), 2), 2, 'null');
         $pintada = ['html' => trim($html), 'errores' => (string) file_get_contents($errores), 'ids' => json_decode($ids, true) ?? []];
         unlink($errores);
