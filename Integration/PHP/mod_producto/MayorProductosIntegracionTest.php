@@ -62,7 +62,7 @@ final class MayorProductosIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_productos/DetalleMayor.php:30
+     * @codigo-afectado modulos/mod_productos/DetalleMayor.php:31
      *
      * @group defecto
      * @group medio
@@ -84,7 +84,7 @@ final class MayorProductosIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_productos/DetalleMayor.php:239
+     * @codigo-afectado modulos/mod_productos/DetalleMayor.php:246
      *
      * @group defecto
      * @group alto
@@ -106,7 +106,7 @@ final class MayorProductosIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_productos/DetalleMayor.php:250
+     * @codigo-afectado modulos/mod_productos/DetalleMayor.php:258
      *
      * @group defecto
      * @group alto
@@ -150,7 +150,7 @@ final class MayorProductosIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_productos/DetalleMayor.php:211
+     * @codigo-afectado modulos/mod_productos/DetalleMayor.php:215
      *
      * @group defecto
      * @group medio
@@ -173,7 +173,7 @@ final class MayorProductosIntegracionTest extends CasoIntegracion
     /**
      * @estado rojo
      * @codigo-afectado modulos/mod_productos/DetalleMayor.php:17
-     * @codigo-afectado modulos/mod_producto/clases/ClaseArticulos.php:213
+     * @codigo-afectado modulos/mod_producto/clases/ClaseArticulos.php:214
      *
      * @group defecto
      * @group medio
