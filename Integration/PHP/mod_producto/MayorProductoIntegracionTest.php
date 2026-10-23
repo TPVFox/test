@@ -232,6 +232,186 @@ final class MayorProductoIntegracionTest extends CasoIntegracion
         self::assertCount(1, $this->existencias($pantalla['html']));
     }
 
+    /** @comportamiento Sin fechas, el mayor enseña todos los movimientos del producto hasta hoy. */
+    public function test_sinFechasEnsenaTodosLosMovimientos(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => ':p1'], [
+            ...$this->producto('Kiwi'), ...$this->terceros(), ...$this->compra('2020-01-10 10:00:00', 10), ...$this->ticket('2026-01-10 10:00:00', 3),
+        ]);
+
+        self::assertSame(['10', '7'], $this->existencias($pantalla['html']));
+    }
+
+    /** @comportamiento El enlace de un ticket del mayor abre ese ticket. */
+    public function test_cadaTicketEnlazaConSuTicket(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => ':p1', 'fecha_inicial' => '2026-10-01', 'fecha_final' => '2026-10-31'], [
+            ...$this->producto('Kiwi'), ...$this->terceros(), ...$this->ticket('2026-10-02 10:00:00', 3),
+        ]);
+
+        self::assertStringContainsString('mod_tpv/ticketCobrado.php?id=' . $pantalla['ids'][':ticket'] . '"', $pantalla['html']);
+    }
+
+    /** @comportamiento Un producto al peso enseña sus entradas y salidas con tres decimales. */
+    public function test_unProductoAlPesoEnsenaTresDecimales(): void
+    {
+        $alPeso = array_map(static fn ($sql) => str_replace("'unidad'", "'peso'", $sql), $this->producto('Kiwi'));
+        $pantalla = $this->pintar(['idArticulo' => ':p1', 'fecha_inicial' => '2026-10-01', 'fecha_final' => '2026-10-31'], [
+            ...$alPeso, ...$this->terceros(), ...$this->compra('2026-10-01 10:00:00', 1.5),
+        ]);
+
+        self::assertStringContainsString('<td>1.500</td>', $pantalla['html']);
+    }
+
+    /**
+     * @comportamiento La fila que deja la existencia sin unidades se destaca, la de un cliente especial en
+     *   otro color, y el domingo se marca.
+     */
+    public function test_cadaFilaSeDestacaPorSuExistenciaSuClienteYSuDia(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => ':p1', 'fecha_inicial' => '2026-10-01', 'fecha_final' => '2026-10-31'], [
+            ...$this->producto('Kiwi'), ...$this->terceros(), ...$this->compra('2026-10-01 10:00:00', 10), ...$this->albaranDeVenta('2026-10-02 10:00:00', 12),
+            "INSERT INTO clientes (Nombre, estado) VALUES ('Cliente especial', 'Especial')", ...$this->ticket('2026-10-04 10:00:00', 1),
+        ]);
+
+        self::assertSame(1, preg_match_all('#<tr><td class="text-center"><b></b></td><td>2026-10-01#', $pantalla['html']));
+        self::assertSame(1, preg_match_all('#<tr class="bg-warning"><td class="text-center"><b></b></td><td>2026-10-02#', $pantalla['html']));
+        self::assertSame(1, preg_match_all('#<tr class="bg-danger"><td class="text-center"><b>X</b></td><td>2026-10-04#', $pantalla['html']));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/clases/ClaseProductos.php:158
+     * @codigo-afectado modulos/mod_producto/clases/ClaseProductos.php:363
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy El mayor de un producto que no existe lo avisa, pero deja un aviso de PHP.
+     * @que-deberia-ocurrir Que lo avise sin avisos de PHP.
+     * @por-que-ocurre La lectura del producto comprueba el estado sobre la respuesta vacía.
+     * @como-deberia-funcionar Comprobar el estado solo de un producto leído.
+     */
+    public function test_unProductoQueNoExisteLoDice(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => '999999', 'fecha_inicial' => '2026-10-01', 'fecha_final' => '2026-10-31']);
+
+        self::assertStringContainsString('No se encontró un producto con ese id', $pantalla['html']);
+        self::assertSame('', $pantalla['errores']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/DetalleMayor.php:16
+     * @codigo-afectado modulos/mod_producto/clases/ClaseArticulos.php:214
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Sin el número del producto en la dirección, la página termina con un error de la base.
+     * @que-deberia-ocurrir Que avise de que no se encontró el producto, como con un número que no existe.
+     * @por-que-ocurre Sin el número no se fijan ni el producto ni las fechas, y la lectura y el cálculo se
+     *   hacen igual.
+     * @como-deberia-funcionar Avisar y no pedir los movimientos si no llega el número.
+     */
+    public function test_sinNumeroDeProductoLoDice(): void
+    {
+        $pantalla = $this->pintar([]);
+
+        self::assertStringContainsString('No se encontró un producto con ese id', $pantalla['html']);
+        self::assertSame('', $pantalla['errores']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/DetalleMayor.php:40
+     * @codigo-afectado modulos/mod_producto/DetalleMayor.php:256
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Una existencia inicial con letras termina la página en el primer movimiento.
+     * @que-deberia-ocurrir Que avise de que la existencia no vale y pinte la página entera.
+     * @por-que-ocurre La existencia se toma tal como llega y se le suma la entrada del primer movimiento.
+     * @como-deberia-funcionar Tomar la existencia como número y avisar de la que no lo es.
+     */
+    public function test_unaExistenciaConLetrasNoTerminaLaPagina(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => ':p1', 'fecha_inicial' => '2026-10-01', 'fecha_final' => '2026-10-31', 'stock' => 'abc'], [
+            ...$this->producto('Kiwi'), ...$this->terceros(), ...$this->compra('2026-10-01 10:00:00', 10),
+        ]);
+
+        self::assertStringContainsString('</html>', $pantalla['html']);
+        self::assertSame('', $pantalla['errores']);
+    }
+
+    /** @comportamiento Sin sesión, la cabecera pide el acceso y no se pintan los movimientos. */
+    public function test_sinSesionPideElAccesoSinPintarLosMovimientos(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => ':p1', 'fecha_inicial' => '2026-10-01', 'fecha_final' => '2026-10-31'], [
+            ...$this->producto('Kiwi'), ...$this->terceros(), ...$this->compra('2026-10-01 10:00:00', 10),
+        ], false);
+
+        self::assertSame([], $this->existencias($pantalla['html']));
+        self::assertSame('', $pantalla['errores']);
+    }
+
+    /** @comportamiento Cada mes tiene su subtotal, y el total suma los de todos. */
+    public function test_cadaMesTieneSuSubtotalYElTotalLosSuma(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => ':p1', 'fecha_inicial' => '2026-10-01', 'fecha_final' => '2026-11-30'], [
+            ...$this->producto('Kiwi'), ...$this->terceros(), ...$this->compra('2026-10-01 10:00:00', 10), ...$this->ticket('2026-11-02 10:00:00', 3),
+        ]);
+
+        self::assertSame(2, substr_count($pantalla['html'], '<b>Subtotal</b>'));
+        self::assertSame(['10', '3'], array_slice($this->total($pantalla['html']), 0, 2));
+    }
+
+    /** @comportamiento Las ventas a un cliente especial se cuentan también aparte. */
+    public function test_lasVentasAUnClienteEspecialSeCuentanAparte(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => ':p1', 'fecha_inicial' => '2026-10-01', 'fecha_final' => '2026-10-31'], [
+            ...$this->producto('Kiwi'), ...$this->terceros(), ...$this->ticket('2026-10-02 10:00:00', 3),
+            "INSERT INTO clientes (Nombre, estado) VALUES ('Cliente especial', 'Especial')", ...$this->ticket('2026-10-03 10:00:00', 2),
+        ]);
+
+        self::assertSame('5', $this->total($pantalla['html'])[1]);
+        self::assertSame(1, preg_match('#<b>Especiales</b></td>\s*<td><b>0</b></td>\s*<td><b>2</b></td>#', $pantalla['html']));
+    }
+
+    /** @comportamiento Sin movimientos entre las dos fechas, el total sale a cero. */
+    public function test_sinMovimientosElTotalSaleACero(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => ':p1', 'fecha_inicial' => '2026-10-01', 'fecha_final' => '2026-10-31'], [...$this->producto('Kiwi')]);
+
+        self::assertSame(['0', '0', '0.00', '0.00'], $this->total($pantalla['html']));
+        self::assertSame('', $pantalla['errores']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/DetalleMayor.php:226
+     * @codigo-afectado modulos/mod_producto/DetalleMayor.php:305
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Los importes de cada mes y del total de un producto por unidades salen en euros
+     *   enteros: las compras de 3,63 € salen 4,00 € y las ventas de 2,42 €, 2,00 €.
+     * @que-deberia-ocurrir Que salgan con sus céntimos.
+     * @por-que-ocurre Las cuentas de cada mes redondean los importes con los decimales de las unidades del
+     *   producto, que por unidades son cero.
+     * @como-deberia-funcionar Redondear los importes a dos decimales.
+     */
+    public function test_losImportesDelTotalLlevanSusCentimos(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => ':p1', 'fecha_inicial' => '2026-10-01', 'fecha_final' => '2026-10-31'], [
+            ...$this->producto('Kiwi'), ...$this->terceros(), ...$this->compra('2026-10-01 10:00:00', 3), ...$this->ticket('2026-10-02 10:00:00', 1),
+        ]);
+
+        self::assertSame(['3.63', '2.42'], array_slice($this->total($pantalla['html']), 2, 2));
+    }
+
     /** @comportamiento Pedir la impresión de un producto que no existe responde que no existe. */
     public function test_imprimirUnProductoQueNoExisteLoDice(): void
     {
@@ -293,6 +473,14 @@ final class MayorProductoIntegracionTest extends CasoIntegracion
         preg_match_all('#<td>\d{4}-\d\d-\d\d[^<]*</td>(?:<td>[^<]*</td>){2}<td>(-?[\d.]+)</td>#', $html, $m);
 
         return $m[1];
+    }
+
+    /** @return list<string> Las entradas, las salidas, las compras y las ventas de la fila del total. */
+    private function total(string $html): array
+    {
+        preg_match('#<b>Total</b></td>\s*<td><b>([^<]*)</b></td>\s*<td><b>([^<]*)</b></td>\s*<td></td>\s*<td><b>([^<]*)</b></td>\s*<td><b>([^<]*)</b></td>#', $html, $m);
+
+        return array_slice($m, 1);
     }
 
     /** @return list<string> */
