@@ -98,7 +98,7 @@ final class MantenimientoIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group existencias
-     * @group medio
+     * @group alto
      *
      * @que-ocurre-hoy Regenerar el stock borra el mínimo y el máximo de existencias de cada producto de la
      *   tienda: los productos regenerados vuelven con cero en los dos.
@@ -149,7 +149,7 @@ final class MantenimientoIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group existencias
-     * @group alto
+     * @group medio
      *
      * @que-ocurre-hoy En una tienda que no tiene el número 1, regenerar el stock rehace las existencias de
      *   la tienda 1 con los movimientos de la tienda 1, y deja las de la sesión como estaban.
@@ -229,7 +229,7 @@ final class MantenimientoIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group validacion
-     * @group bajo
+     * @group medio
      *
      * @que-ocurre-hoy Pedir que se suban el stock y los precios sin una tienda web termina la petición con
      *   un error de la base, sin respuesta.

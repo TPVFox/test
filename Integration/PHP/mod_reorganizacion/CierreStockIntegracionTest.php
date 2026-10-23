@@ -110,7 +110,7 @@ final class CierreStockIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group guardado
-     * @group critico
+     * @group medio
      *
      * @que-ocurre-hoy Si el nombre de un producto tiene una letra con tilde justo en el carácter ochenta, el
      *   albarán de cierre de su familia se guarda con su total y sin ninguna línea: sus existencias no se
@@ -249,7 +249,7 @@ final class CierreStockIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group existencias
-     * @group alto
+     * @group medio
      *
      * @que-ocurre-hoy En una tienda que no tiene el número 1, el cierre no cierra ninguno de sus productos:
      *   busca las existencias en la tienda 1, y descuenta las que encuentre en la tienda de la sesión.
@@ -310,7 +310,7 @@ final class CierreStockIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group guardado
-     * @group critico
+     * @group alto
      *
      * @que-ocurre-hoy Cerrar una familia con un producto cuyo nombre lleva comillas dobles termina con un
      *   error de la base después de haber dejado sus existencias a cero: el albarán queda sin líneas y el
@@ -384,7 +384,7 @@ final class CierreStockIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group entrada
-     * @group critico
+     * @group alto
      *
      * @que-ocurre-hoy Cerrar a mano una familia cuyo número llega con una condición añadida cierra los
      *   productos con existencias de todas las familias.
@@ -408,7 +408,7 @@ final class CierreStockIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group validacion
-     * @group alto
+     * @group medio
      *
      * @que-ocurre-hoy Con cero productos por albarán en la configuración, cerrar a mano una familia termina
      *   con un error de división por cero y no dice nada.
@@ -454,7 +454,7 @@ final class CierreStockIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group validacion
-     * @group alto
+     * @group medio
      *
      * @que-ocurre-hoy Guardar la configuración con un número de productos por albarán que no es un entero
      *   positivo, o con un proveedor que no existe, la guarda igual y responde que se guardó.

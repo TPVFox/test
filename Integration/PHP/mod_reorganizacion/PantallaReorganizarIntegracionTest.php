@@ -106,7 +106,7 @@ final class PantallaReorganizarIntegracionTest extends CasoIntegracion
      *
      * @group defecto
      * @group pantalla
-     * @group bajo
+     * @group medio
      *
      * @que-ocurre-hoy La pantalla carga `js/AccionesDirectas.js` del módulo, que no existe: el navegador
      *   registra un error al abrirla.

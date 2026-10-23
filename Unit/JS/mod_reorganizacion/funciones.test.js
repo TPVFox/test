@@ -216,7 +216,7 @@ describe('las operaciones por tandas', () => {
   });
 
   /**
-   * @etiquetas esperado validacion medio
+   * @etiquetas esperado validacion alto
    * @estado rojo
    * @codigo-afectado modulos/mod_reorganizacion/funciones.js:210-220
    *
@@ -291,7 +291,7 @@ describe('la validación antes de cerrar', () => {
   });
 
   /**
-   * @etiquetas esperado pantalla bajo
+   * @etiquetas esperado pantalla alto
    * @estado rojo
    * @codigo-afectado modulos/mod_reorganizacion/funciones.js:820-847,871-893
    *
