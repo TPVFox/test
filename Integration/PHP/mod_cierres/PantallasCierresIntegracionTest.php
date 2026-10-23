@@ -205,6 +205,21 @@ final class PantallasCierresIntegracionTest extends CasoIntegracion
         self::assertEqualsCanonicalizing(['21', '10'], array_column($cierre['sumasIvas'], 'iva'));
     }
 
+    /** @comportamiento Los totales por forma de pago suman lo de todos los usuarios que cobraron con ella. */
+    public function test_losTotalesPorFormaDePagoSumanLosDeTodosLosUsuarios(): void
+    {
+        $preparacion = array_merge(
+            $this->usuario('dos', 'cierre_dos', 'Cajero Dos'),
+            $this->ticket('t1', (string) $this->idUsuario, 9101, '2031-05-10 11:00:00', 'Efectivo', [21 => 10.00]),
+            $this->ticket('t2', '@dos', 9201, '2031-05-10 12:00:00', 'Efectivo', [10 => 10.00]),
+        );
+
+        $pantalla = $this->ejecutar('CierreCaja.php', ['dedonde' => 'tpv'], [], $preparacion);
+
+        $this->sinAvisos($pantalla);
+        self::assertStringContainsString('<tr><td>Efectivo</td><td>23.10</td></tr>', $pantalla['html']);
+    }
+
     /** @comportamiento Con un ticket abierto, la pantalla lo avisa, lo enseña por usuario y no deja aceptar ni recalcular. */
     public function test_conUnTicketAbiertoNoSeDejaCerrar(): void
     {
@@ -537,6 +552,21 @@ final class PantallasCierresIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('<td>45.00</td>', $pantalla['html']);
         self::assertStringContainsString('<td><b>52.80</b></td>', $pantalla['html']);
         self::assertStringContainsString('<tr><td><b>Total:</b></td><td><b>52,80</b></td></tr>', $pantalla['html']);
+    }
+
+    /** @comportamiento Los totales de la vista por forma de pago suman lo de todos los usuarios del cierre. */
+    public function test_laVistaSumaPorFormaDePagoLoDeTodosLosUsuarios(): void
+    {
+        $preparacion = array_merge(
+            $this->usuario('dos', 'cierre_dos', 'Cajero Dos'),
+            $this->cierre('c1', '2031-05-10', '2031-05-10 09:15:30', 52.80, [21 => [43.64, 9.16]]),
+            ["INSERT INTO cierres_usuariosFormasPago (idCierre, idTienda, idUsuario, FormasPago, importe) VALUES (@c1, {$this->idTienda}, @dos, 'Efectivo', 10.00)"],
+        );
+
+        $pantalla = $this->ejecutar('VistaCierre.php', ['id' => '{@c1}'], [], $preparacion);
+
+        $this->sinAvisos($pantalla);
+        self::assertStringContainsString('<tr><td>Efectivo</td><td>62,80</td></tr>', $pantalla['html']);
     }
 
     /**

@@ -326,6 +326,37 @@ final class CierreDeCajaIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
+     * @codigo-afectado modulos/mod_cierres/funciones.php:157-175
+     * @codigo-afectado modulos/mod_cierres/funciones.php:118-150
+     *
+     * @group defecto
+     * @group cierres
+     * @group alto
+     *
+     * @que-ocurre-hoy Si dos cajas abren la pantalla del cierre y aceptan una tras otra, la segunda se
+     *   guarda con el total de todos sus tickets, también los que ya cerró la primera: esos tickets cuentan
+     *   en los dos cierres.
+     * @que-deberia-ocurrir Que un cierre solo recoja los tickets que siguen cobrados al guardarlo.
+     * @por-que-ocurre El guardado comprueba que alguno de los tickets enviados sigue cobrado, no que lo
+     *   estén todos, y guarda el total que llega de la página.
+     * @como-deberia-funcionar Calcular el cierre en el guardado con los tickets que siguen cobrados, dentro
+     *   de una transacción.
+     */
+    public function test_unCierreNoCuentaTicketsQueYaCerroOtro(): void
+    {
+        $this->ticket($this->cajeraUno, 9101, self::DIA . ' 11:00:00', 'Efectivo', [21 => 10.00]);
+        $primeraCaja = $this->cierreComoLaPantalla();
+        $this->ticket($this->cajeroDos, 9201, self::DIA . ' 12:00:00', 'Efectivo', [10 => 10.00]);
+        $segundaCaja = $this->cierreComoLaPantalla();
+        $this->guardar($primeraCaja);
+
+        $respuesta = $this->guardar($segundaCaja);
+
+        self::assertSame('11.0000', $this->valor("SELECT Total FROM cierres WHERE idCierre = {$respuesta['Proceso1']['idCierre']}"));
+    }
+
+    /**
+     * @estado rojo
      * @codigo-afectado modulos/mod_cierres/funciones.php:118-140
      * @codigo-afectado modulos/mod_cierres/CierreCaja.php:26,122-128
      *
