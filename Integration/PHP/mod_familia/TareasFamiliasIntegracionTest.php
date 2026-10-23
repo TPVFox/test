@@ -50,6 +50,38 @@ final class TareasFamiliasIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('Frutas secas', $respuesta['html']);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_familia/tareas.php:36-54; modulos/mod_familia/familia.php:430-432
+     *
+     * @group defecto
+     * @group guardado
+     * @group bajo
+     *
+     * @que-ocurre-hoy La ficha anuncia un beneficio medio de 0,01 como mínimo, y una petición con un
+     *   beneficio negativo graba la familia.
+     * @que-deberia-ocurrir Que el guardado rechace un beneficio por debajo del mínimo que anuncia la
+     *   ficha.
+     * @por-que-ocurre Nadie comprueba el beneficio: ni el navegador ni el guardado.
+     * @como-deberia-funcionar Comprobar el beneficio al guardar.
+     */
+    public function test_grabarConUnBeneficioMenorQueElMinimoNoGraba(): void
+    {
+        $peticion = $this->ejecutar($this->grabar(['nombrefamilia' => 'Con pérdida', 'beneficiomedio' => '-5']));
+
+        self::assertNull($this->familiaDe($peticion, 'Con pérdida'), 'Se grabó un beneficio negativo');
+    }
+
+    /** @comportamiento Las hijas de un padre negativo son ninguna: se responden vacías, sin consultar. */
+    public function test_lasHijasDeUnPadreNegativoSonNinguna(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'leerFamilias', 'idpadre' => '-1'], [$this->familia('Frutas')]);
+
+        self::assertSame([], $peticion['respuesta']['datos']);
+        self::assertSame('', $peticion['respuesta']['html']);
+        self::assertSame('', $peticion['errores']);
+    }
+
     /** @comportamiento La lista de todas las familias empieza por la raíz. */
     public function test_laListaDeTodasLasFamiliasEmpiezaPorLaRaiz(): void
     {

@@ -407,6 +407,36 @@ final class PantallasFamiliasIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString('Undefined variable', $pantalla['errores']);
     }
 
+    /**
+     * @comportamiento Sin tienda web, la ficha de una familia avisa de que la relación de una hija con
+     *   la web no se pudo comprobar.
+     */
+    public function test_laFichaAvisaDeUnaHijaConUnaRelacionQueNoSePuedeComprobar(): void
+    {
+        $pantalla = $this->pintar('familia.php', ['id' => ':f1'], [
+            $this->familia('Madre'),
+            $this->familia('Hija', ':f1'),
+            $this->familia('Otra'),
+            'INSERT INTO familiasTienda (idFamilia, idTienda, idFamilia_tienda) SELECT :f2, MIN(idTienda), 77 FROM tiendas',
+        ]);
+
+        self::assertStringContainsString('<b>Hija</b><br/>Tiene una relación que no existe en la web o no se pudo comprobar.', $pantalla['html']);
+    }
+
+    /** @comportamiento La ficha de una familia avisa de una hija con más de una relación con la web. */
+    public function test_laFichaAvisaDeUnaHijaConMasDeUnaRelacion(): void
+    {
+        $pantalla = $this->pintar('familia.php', ['id' => ':f1'], [
+            $this->familia('Madre'),
+            $this->familia('Hija', ':f1'),
+            $this->familia('Otra'),
+            'INSERT INTO familiasTienda (idFamilia, idTienda, idFamilia_tienda) SELECT :f2, MIN(idTienda), 77 FROM tiendas',
+            'INSERT INTO familiasTienda (idFamilia, idTienda, idFamilia_tienda) SELECT :f2, MIN(idTienda), 78 FROM tiendas',
+        ]);
+
+        self::assertStringContainsString('<b>Hija</b><br/>Tiene mas de una relacion con la web', $pantalla['html']);
+    }
+
     private function familia(string $nombre, string $padre = '0'): string
     {
         return "INSERT INTO familias (familiaNombre, familiaPadre, beneficiomedio, mostrar_tpv) VALUES ('$nombre', $padre, 0, 1)";

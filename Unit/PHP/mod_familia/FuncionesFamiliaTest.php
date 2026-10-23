@@ -86,6 +86,44 @@ final class FuncionesFamiliaTest extends TestCase
         self::assertSame('', \htlmLineasFamiliasHijas([], 4));
     }
 
+    /**
+     * @comportamiento La relación de una hija sin publicar en la web se pinta con su icono y su título,
+     *   sin enlace.
+     */
+    public function test_unaHijaSinPublicarSePintaSinEnlace(): void
+    {
+        $hija = $this->familia(['idFamilia' => 8, 'familiaNombre' => 'Nueces'])
+            + ['familiaTienda' => [['idTienda' => '4', 'idFamilia_tienda' => '77', 'estado' => '0']]];
+
+        $html = \htlmLineasFamiliasHijas([$hija], '4');
+
+        self::assertStringContainsString('<span title="No publico el Id web 77" class="glyphicon glyphicon-globe"></span>', $html);
+        self::assertStringNotContainsString('<a href=', $html);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_familia/funciones.php:116-122
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy El icono de la relación de una hija con error en la web pega su título y su
+     *   estilo sin espacio (`title="..."style="color:red"`): la etiqueta queda mal formada.
+     * @que-deberia-ocurrir Que los atributos del icono estén separados.
+     * @por-que-ocurre El estilo se compone sin el espacio que lo separa del título.
+     * @como-deberia-funcionar Separar los atributos con un espacio.
+     */
+    public function test_elIconoDeUnaHijaConErrorEstaBienFormado(): void
+    {
+        $hija = $this->familia(['idFamilia' => 8, 'familiaNombre' => 'Nueces'])
+            + ['familiaTienda' => [['idTienda' => '4', 'idFamilia_tienda' => '77', 'estado' => '-1']]];
+
+        $html = \htlmLineasFamiliasHijas([$hija], '4');
+
+        self::assertStringContainsString('title="ERROR OBTENER Id de familia web 77" style="color:red"', $html);
+    }
+
     /** @comportamiento La tabla de las hijas añade la columna de la web solo con tienda web, y el botón de subirlas al final. */
     public function test_laTablaDeLasHijasLlevaLaColumnaWebSoloConTienda(): void
     {
