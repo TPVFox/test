@@ -380,6 +380,82 @@ final class FuncionesUsuarioIntegracionTest extends CasoIntegracion
         self::assertSame('0', $this->valor("SELECT COUNT(*) FROM usuarios WHERE username = 'marta'"));
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/funciones.php:55
+     * @codigo-afectado modulos/mod_usuario/funciones.php:106-120
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy El alta y la modificación guardan una contraseña vacía: solo el navegador la exige.
+     * @que-deberia-ocurrir Que el alta rechace una contraseña vacía, y que la modificación no la cambie.
+     * @por-que-ocurre Las funciones guardan la contraseña que llega sin comprobarla; la caja de la ficha la
+     *   marca como obligatoria solo en la página.
+     * @como-deberia-funcionar Comprobar en el servidor que la contraseña no está vacía antes de guardarla.
+     */
+    public function test_elAltaYLaModificacionNoGuardanUnaContrasenaVacia(): void
+    {
+        $ana = $this->usuario('ana');
+        $datos = $this->datos('marta');
+        $datos['password'] = '';
+
+        $alta = \insertarUsuario($datos, $this->db, $this->idTienda, 'usuarios');
+        \modificarUsuario(['idUsuario' => $ana, 'username' => 'ana', 'nombreEmpleado' => 'Ana', 'fecha' => '2026-01-01', 'password' => '', 'grupo' => '1', 'estado' => 'activo'], $this->db, 'usuarios');
+
+        self::assertSame('error', $alta['error'] ?? null);
+        self::assertSame(md5('anterior'), $this->valor("SELECT password FROM usuarios WHERE id = {$ana}"));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/funciones.php:53
+     * @codigo-afectado modulos/mod_usuario/funciones.php:65
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy El alta guarda un usuario sin nombre de empleado: solo el navegador lo exige.
+     * @que-deberia-ocurrir Que el alta rechace un nombre de empleado vacío.
+     * @por-que-ocurre El alta solo rechaza el nombre de acceso vacío; la caja del nombre del empleado es
+     *   obligatoria solo en la página.
+     * @como-deberia-funcionar Comprobar en el servidor que el nombre del empleado no está vacío.
+     */
+    public function test_elAltaRechazaUnNombreDeEmpleadoVacio(): void
+    {
+        $datos = $this->datos('marta');
+        $datos['nombreEmpleado'] = '';
+
+        $alta = \insertarUsuario($datos, $this->db, $this->idTienda, 'usuarios');
+
+        self::assertSame('error', $alta['error'] ?? null);
+        self::assertSame('0', $this->valor("SELECT COUNT(*) FROM usuarios WHERE username = 'marta'"));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/funciones.php:54
+     * @codigo-afectado modulos/mod_usuario/funciones.php:70-71
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy El alta guarda como fecha de alta la que llega en el formulario, aunque la ficha la
+     *   enseña fija, con la fecha del día.
+     * @que-deberia-ocurrir Que la fecha de alta sea la del día en que se da de alta.
+     * @por-que-ocurre El alta toma la fecha del formulario; la caja es de solo lectura solo en la página.
+     * @como-deberia-funcionar Tomar la fecha del servidor al dar de alta.
+     */
+    public function test_elAltaGuardaLaFechaDelDia(): void
+    {
+        $datos = $this->datos('marta');
+        $datos['fecha'] = '2001-01-01';
+
+        $alta = \insertarUsuario($datos, $this->db, $this->idTienda, 'usuarios');
+
+        self::assertSame(date('Y-m-d'), $this->valor("SELECT fecha FROM usuarios WHERE id = {$alta['id']}"));
+    }
+
     /** @return array<string, string> */
     private function datos(string $acceso): array
     {
