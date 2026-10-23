@@ -235,6 +235,33 @@ final class ImportarDbfIntegracionTest extends CasoIntegracion
         self::assertSame('Aceite de oliva', $this->catalogo('1001')['articulo_name']);
     }
 
+    /** @comportamiento Un artículo nuevo sin precio, con o sin IVA, no se crea, y la fusión lo marca como error. */
+    public function test_unArticuloNuevoSinPrecioNoSeCrea(): void
+    {
+        $importar = $this->clase();
+
+        $estado = $importar->ControllerNewUpdate($this->articuloDbf(['CODIGO' => '8008', 'PVENTA' => '0', 'PVP' => '0']));
+
+        self::assertSame('error', $estado);
+        self::assertNull($this->catalogo('8008'));
+    }
+
+    /**
+     * @comportamiento Un artículo que ya está en el catálogo de la tienda 1 pero sin precio en ella no se
+     *   compara ni se actualiza, y la fusión lo marca como error.
+     */
+    public function test_unArticuloExistenteSinPrecioEnLaTiendaSeMarcaComoError(): void
+    {
+        $importar = $this->clase();
+        $idArticulo = $this->siembra->articulo('Sin precio', ['iva' => 10]);
+        $this->db->query("INSERT INTO articulosTiendas (idArticulo, idTienda, crefTienda, estado) VALUES ({$idArticulo}, 1, '9009', 'Activo')");
+
+        $estado = $importar->ControllerNewUpdate($this->articuloDbf(['CODIGO' => '9009']));
+
+        self::assertSame('error', $estado);
+        self::assertSame('Sin precio', $this->catalogo('9009')['articulo_name']);
+    }
+
     /**
      * @estado rojo
      * @codigo-afectado modulos/mod_importar/clases/ClaseImportarDbf.php:440-447
