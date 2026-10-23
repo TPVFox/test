@@ -121,7 +121,7 @@ final class ClaseUsuariosIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_usuario/clases/claseUsuarios.php:57-68
+     * @codigo-afectado modulos/mod_usuario/clases/claseUsuarios.php:48-59
      *
      * @group defecto
      * @group alto
@@ -147,7 +147,7 @@ final class ClaseUsuariosIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_usuario/clases/claseUsuarios.php:57-68
+     * @codigo-afectado modulos/mod_usuario/clases/claseUsuarios.php:48-59
      *
      * @group defecto
      * @group medio
@@ -173,7 +173,7 @@ final class ClaseUsuariosIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_usuario/clases/claseUsuarios.php:104-114
+     * @codigo-afectado modulos/mod_usuario/clases/claseUsuarios.php:95-105
      *
      * @group defecto
      * @group medio

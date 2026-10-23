@@ -184,7 +184,7 @@ final class TareasUsuariosIntegracionTest extends CasoIntegracion
     /**
      * @estado rojo
      * @codigo-afectado modulos/mod_usuario/tareas.php:100-109
-     * @codigo-afectado modulos/mod_usuario/clases/claseUsuarios.php:104-114
+     * @codigo-afectado modulos/mod_usuario/clases/claseUsuarios.php:95-105
      *
      * @group defecto
      * @group alto
@@ -296,7 +296,7 @@ final class TareasUsuariosIntegracionTest extends CasoIntegracion
     /**
      * @estado rojo
      * @codigo-afectado modulos/mod_usuario/tareas.php:26-36
-     * @codigo-afectado modulos/mod_usuario/clases/claseUsuarios.php:24-35
+     * @codigo-afectado modulos/mod_usuario/clases/claseUsuarios.php:15-26
      *
      * @group defecto
      * @group medio
