@@ -245,6 +245,130 @@ final class FuncionesUsuarioIntegracionTest extends CasoIntegracion
         self::assertSame(' No se a encontrado usuario', $leido['error'] ?? null);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/funciones.php:113-120
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy Modificar con un número de usuario con una condición añadida cambia también el
+     *   nombre, el grupo y el estado de otros usuarios.
+     * @que-deberia-ocurrir Que solo cambie el usuario cuyo número llega.
+     * @por-que-ocurre La modificación pega el número a la sentencia sin convertirlo.
+     * @como-deberia-funcionar Convertir el número en entero antes de componer la sentencia, o pasarlo como
+     *   dato.
+     */
+    public function test_unaModificacionConUnNumeroConCondicionSoloCambiaElSuyo(): void
+    {
+        $ana = $this->usuario('ana');
+        $luis = $this->usuario('luis', 'Luis Mora');
+
+        \modificarUsuario(['idUsuario' => "{$ana} OR id = {$luis}", 'username' => 'ana', 'nombreEmpleado' => 'Ana Gil', 'fecha' => '2026-01-01', 'password' => 'password', 'grupo' => '1', 'estado' => 'activo'], $this->db, 'usuarios');
+
+        self::assertSame('Luis Mora', $this->valor("SELECT nombre FROM usuarios WHERE id = {$luis}"));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/funciones.php:113-120
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Modificar un usuario con unas comillas dobles en el nombre del empleado termina con
+     *   un error de la base, y el usuario no cambia.
+     * @que-deberia-ocurrir Que el nombre se guarde tal como se escribió.
+     * @por-que-ocurre La modificación pega el nombre entre comillas a la sentencia, sin escaparlo.
+     * @como-deberia-funcionar Pasar lo tecleado como dato, con una sentencia preparada.
+     */
+    public function test_unaModificacionConComillasSeGuardaTalCual(): void
+    {
+        $ana = $this->usuario('ana');
+
+        try {
+            \modificarUsuario(['idUsuario' => $ana, 'username' => 'ana', 'nombreEmpleado' => 'Ana "la" Gil', 'fecha' => '2026-01-01', 'password' => 'password', 'grupo' => '1', 'estado' => 'activo'], $this->db, 'usuarios');
+        } catch (\Throwable $error) {
+            self::fail('La modificación termina con un error: ' . get_class($error));
+        }
+
+        self::assertSame('Ana "la" Gil', $this->valor("SELECT nombre FROM usuarios WHERE id = {$ana}"));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/funciones.php:55
+     * @codigo-afectado modulos/mod_usuario/funciones.php:106
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy El alta y la modificación guardan la contraseña como md5 sin sal: quien obtenga la
+     *   tabla de usuarios la recupera con tablas ya calculadas.
+     * @que-deberia-ocurrir Que la contraseña se guarde de forma que no pueda recuperarse.
+     * @por-que-ocurre El alta y la modificación la pasan por md5, la misma función con la que la compara la
+     *   entrada al programa.
+     * @como-deberia-funcionar Guardarla con `password_hash()` y comprobarla con `password_verify()`, a la vez
+     *   en el alta, en la modificación y en la entrada.
+     */
+    public function test_laContrasenaDelAltaYDeLaModificacionNoSeGuardaComoMd5(): void
+    {
+        $alta = \insertarUsuario($this->datos('marta'), $this->db, $this->idTienda, 'usuarios');
+        \modificarUsuario(['idUsuario' => $alta['id'], 'username' => 'marta', 'nombreEmpleado' => 'Marta Ruiz', 'fecha' => '2026-10-23', 'password' => 'Nueva-1', 'grupo' => '1', 'estado' => 'activo'], $this->db, 'usuarios');
+
+        $guardada = (string) $this->valor("SELECT password FROM usuarios WHERE id = {$alta['id']}");
+        self::assertNotSame(md5('Nueva-1'), $guardada);
+        self::assertTrue(password_verify('Nueva-1', $guardada));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/funciones.php:61-69
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Si ya hay dos usuarios con el mismo nombre de acceso, el alta admite un tercero.
+     * @que-deberia-ocurrir Que el alta rechace un nombre de acceso que ya tiene algún usuario.
+     * @por-que-ocurre La tabla no tiene clave única del nombre de acceso, y el alta solo rechaza si hay
+     *   exactamente uno.
+     * @como-deberia-funcionar Rechazar si hay alguno, y declarar la clave única del nombre de acceso.
+     */
+    public function test_elAltaRechazaUnNombreQueYaTienenDos(): void
+    {
+        $this->usuario('ana');
+        $this->usuario('ana');
+
+        $alta = \insertarUsuario($this->datos('ana'), $this->db, $this->idTienda, 'usuarios');
+
+        self::assertSame('error', $alta['error'] ?? null);
+        self::assertSame('2', $this->valor("SELECT COUNT(*) FROM usuarios WHERE username = 'ana'"));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/funciones.php:70-81
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Si la base rechaza el índice del usuario nuevo, el usuario queda dado de alta sin él,
+     *   y no puede entrar.
+     * @que-deberia-ocurrir Que el usuario y su índice se guarden juntos, o ninguno.
+     * @por-que-ocurre El alta guarda el usuario y su índice en dos sentencias, sin transacción.
+     * @como-deberia-funcionar Guardar las dos filas en una transacción y deshacerla si falla la segunda.
+     */
+    public function test_unAltaCuyoIndiceSeRechazaNoDejaElUsuario(): void
+    {
+        try {
+            \insertarUsuario($this->datos('marta'), $this->db, 'NULL', 'usuarios');
+        } catch (\Throwable $error) {
+            // La base rechaza el índice sin tienda.
+        }
+
+        self::assertSame('0', $this->valor("SELECT COUNT(*) FROM usuarios WHERE username = 'marta'"));
+    }
+
     /** @return array<string, string> */
     private function datos(string $acceso): array
     {
