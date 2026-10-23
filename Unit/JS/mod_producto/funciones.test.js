@@ -529,6 +529,17 @@ describe('el listado', () => {
     expect(pagina.elementos.checkUsu1.marcado).toBe(true);
   });
 
+  /** @comportamiento Desmarcar todos los quita de la selección uno a uno; se recorren las cuarenta filas de una página, no más. */
+  test('desmarcar todos recorre las cuarenta filas de la página', () => {
+    const pagina = paginaDePrueba({ elementos: { checkUsuTodos: { marcado: false }, checkUsu1: { valor: '4', marcado: true }, checkUsu41: { valor: '9', marcado: true } } });
+
+    pagina.contexto.seleccionarTodo();
+
+    expect(pagina.peticiones.map((p) => [p.data.id, p.data.seleccionar])).toEqual([['4', 'NoSeleccionar']]);
+    expect(pagina.elementos.checkUsu1.marcado).toBe(false);
+    expect(pagina.elementos.checkUsu41.marcado).toBe(true);
+  });
+
   /** @comportamiento Filtrar por la selección la guarda en la configuración; quitar el filtro también. */
   test('filtrar por la selección', () => {
     const configuracion = { filtro: { valor: 'No' } };
