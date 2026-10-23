@@ -192,6 +192,153 @@ final class PantallasUsuariosIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString('¿Estás entrando aqui?', $guardar['html']);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/usuario.php:66-69
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy La ficha de un número que no es de ningún usuario avisa del error con la sentencia de
+     *   la lectura.
+     * @que-deberia-ocurrir Que avise de que el usuario no existe, sin enseñar la sentencia.
+     * @por-que-ocurre El aviso pega a su texto la sentencia que devuelve la lectura.
+     * @como-deberia-funcionar Enseñar un mensaje para el usuario y dejar la sentencia en el registro de errores.
+     */
+    public function test_laFichaDeUnNumeroSinUsuarioNoEnsenaLaSentencia(): void
+    {
+        $pantalla = $this->pintar('usuario.php', ['id' => '999999']);
+
+        self::assertStringContainsString('alert-danger', $pantalla['html']);
+        self::assertStringNotContainsString('SELECT', $pantalla['html']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/usuario.php:58-63
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Abrir la ficha de un número que no es de ningún usuario le siembra los permisos, que
+     *   quedan en la base sin usuario.
+     * @que-deberia-ocurrir Que la ficha de un usuario que no existe no escriba nada.
+     * @por-que-ocurre La ficha lee los permisos del número, y la lectura siembra los que falten, antes de
+     *   comprobar que el usuario existe.
+     * @como-deberia-funcionar Comprobar primero que el usuario existe, y leer sus permisos solo entonces.
+     */
+    public function test_laFichaDeUnNumeroSinUsuarioNoLeSiembraPermisos(): void
+    {
+        $pantalla = $this->pintar('usuario.php', ['id' => '999999'], [], [], ['permisos' => 'SELECT COUNT(*) FROM permisos WHERE idUsuario = 999999']);
+
+        self::assertSame('0', $pantalla['consultas']['permisos']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/usuario.php:91-101
+     * @codigo-afectado modulos/mod_usuario/usuario.php:126-129
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Dar de alta un nombre de acceso que ya existe termina la página con un error de la
+     *   base, en lugar de avisar.
+     * @que-deberia-ocurrir Que la ficha avise de que el nombre ya existe.
+     * @por-que-ocurre Tras el rechazo, la ficha sigue con el número del usuario que no se creó y compone
+     *   sentencias sin número.
+     * @como-deberia-funcionar Ante el rechazo, avisar y volver a pintar la ficha del alta, sin releer nada.
+     */
+    public function test_unAltaRechazadaAvisaDelNombreRepetido(): void
+    {
+        $alta = $this->pintar('usuario.php', [], ['username' => 'ana', 'nombreEmpleado' => 'Otra Ana', 'fecha' => '2026-10-23', 'idUsuario' => '', 'grupo' => '1', 'estado' => 'activo', 'password' => 'Clave-1'], [$this->usuario('ana', 'Ana Pérez')]);
+
+        self::assertStringNotContainsString('Fatal error', $alta['errores']);
+        self::assertStringContainsString('Nombre de usuario ya existe!', $alta['html']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/usuario.php:86-90
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy La ficha toma cualquier envío por su guardado: el formulario de acceso, que tras perder
+     *   la sesión se envía a la misma dirección, la hace guardar el usuario sin sus datos, y la página
+     *   termina con un error de la base.
+     * @que-deberia-ocurrir Que solo el botón de la ficha guarde; cualquier otro envío la enseña sin cambiar
+     *   nada.
+     * @por-que-ocurre La ficha guarda si llega cualquier dato por formulario.
+     * @como-deberia-funcionar Guardar solo si llega un campo propio del formulario de la ficha.
+     */
+    public function test_unEnvioQueNoEsLaFichaNoGuardaNada(): void
+    {
+        $envio = $this->pintar('usuario.php', ['id' => ':u1'], ['usr' => 'pruebas', 'pwd' => 'Clave-1'], [
+            $this->usuario('ana', 'Ana Pérez'),
+            "INSERT INTO indices (idTienda, idUsuario, numticket, tempticket) VALUES (:tienda, :u1, 0, 0)",
+        ], [
+            'nombre' => 'SELECT nombre FROM usuarios WHERE id = :u1',
+            'concedidos' => 'SELECT COUNT(*) FROM permisos WHERE idUsuario = :u1 AND permiso = 1',
+        ], ['concedidosAntes' => 'SELECT COUNT(*) FROM permisos WHERE idUsuario = :u1 AND permiso = 1']);
+
+        self::assertStringNotContainsString('Fatal error', $envio['errores']);
+        self::assertSame('Ana Pérez', $envio['consultas']['nombre']);
+        self::assertSame($envio['antes']['concedidosAntes'], $envio['consultas']['concedidos']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/usuario.php:14
+     * @codigo-afectado modulos/mod_usuario/usuario.php:117-125
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy Guardar la ficha abierta con un número con una condición añadida cambia los permisos de
+     *   otros usuarios.
+     * @que-deberia-ocurrir Que solo cambien los permisos del usuario de la ficha.
+     * @por-que-ocurre La ficha toma el número de la dirección tal como llega, y con él lee y escribe los
+     *   permisos.
+     * @como-deberia-funcionar Convertir el número de la dirección en entero antes de usarlo.
+     */
+    public function test_laFichaConUnNumeroConCondicionNoCambiaLosPermisosDeOtros(): void
+    {
+        $guardar = $this->pintar('usuario.php', ['id' => ':u1 OR 1=1'], ['username' => 'ana', 'nombreEmpleado' => 'Ana', 'fecha' => '2026-01-01', 'idUsuario' => ':u1', 'grupo' => '1', 'estado' => 'activo', 'password' => 'password'], [
+            $this->usuario('ana', 'Ana'),
+            "INSERT INTO indices (idTienda, idUsuario, numticket, tempticket) VALUES (:tienda, :u1, 0, 0)",
+        ], ['concedidos' => 'SELECT COUNT(*) FROM permisos WHERE idUsuario = :usuario AND permiso = 1'], ['concedidosAntes' => 'SELECT COUNT(*) FROM permisos WHERE idUsuario = :usuario AND permiso = 1']);
+
+        self::assertSame($guardar['antes']['concedidosAntes'], $guardar['consultas']['concedidos']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/usuario.php:117-125
+     * @codigo-afectado modulos/mod_usuario/funciones.php:221-284
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Si la lista de permisos cambia entre pintar la ficha y guardarla —un permiso sembrado
+     *   entre medias—, cada marca se guarda en el permiso que ocupa su posición, no en el que se marcó.
+     * @que-deberia-ocurrir Que cada marca se guarde en el permiso de su casilla.
+     * @por-que-ocurre Las casillas se nombran por su posición en la lista, y el guardado recorre la lista que
+     *   lee al guardar.
+     * @como-deberia-funcionar Nombrar cada casilla por su módulo, su vista y su acción.
+     */
+    public function test_cadaMarcaSeGuardaEnSuPermisoAunqueLaListaCambie(): void
+    {
+        $primero = "SELECT permiso FROM permisos WHERE idUsuario = :u1 AND modulo <> 'aaa' ORDER BY modulo, vista, accion LIMIT 1";
+        $guardar = $this->pintar('usuario.php', ['id' => ':u1'], ['username' => 'ana', 'nombreEmpleado' => 'Ana', 'fecha' => '2026-01-01', 'idUsuario' => ':u1', 'grupo' => '1', 'estado' => 'activo', 'password' => 'password', 'permiso_0' => '1'], [
+            $this->usuario('ana', 'Ana'),
+            "INSERT INTO indices (idTienda, idUsuario, numticket, tempticket) VALUES (:tienda, :u1, 0, 0)",
+            "INSERT INTO permisos (idUsuario, modulo, vista, accion, permiso) VALUES (:u1, 'aaa', NULL, NULL, 0)",
+        ], ['primero' => $primero]);
+
+        self::assertSame('1', $guardar['consultas']['primero']);
+    }
+
     private function usuario(string $acceso, string $nombre): string
     {
         return "INSERT INTO usuarios (username, password, fecha, group_id, estado, nombre) VALUES ('{$acceso}', MD5('anterior'), '2026-01-01', 1, 'activo', '{$nombre}')";
