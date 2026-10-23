@@ -11,7 +11,12 @@
  * transacción que se deshace al terminar. La regeneración trabaja sobre la tienda 1: la sesión es de
  * una tienda con ese número, que el caso da de alta si no existe, salvo donde el caso prueba otra. Los
  * productos que siembra el caso quedan con un nombre —`:p1`, `:p2`…—, y la posición del usuario de
- * pruebas en la lista de usuarios, como `:indice`. Ningún caso se conecta a una tienda web.
+ * pruebas en la lista de usuarios, como `:indice`.
+ *
+ * Ningún caso sale del equipo. La tienda web a la que se sube es un servidor de PHP en el propio
+ * equipo que responde lo que el caso le da y guarda lo que recibe. La ficha de la tienda web se da de
+ * alta fuera de la transacción, porque el complemento la lee con su propia conexión, y se borra al
+ * terminar el caso y antes de empezarlo, por si quedó de uno interrumpido.
  */
 
 declare(strict_types=1);
@@ -27,12 +32,35 @@ final class MantenimientoIntegracionTest extends CasoIntegracion
 
     private int $idTienda;
 
+    /** @var resource|null */
+    private $tiendaWeb = null;
+
+    private string $carpetaTiendaWeb = '';
+
+    private ?\mysqli $conexionPropia = null;
+
     protected function setUp(): void
     {
         parent::setUp();
         $siembra = new Siembra($this->db);
         $this->idUsuario = $siembra->usuarioPorDefecto();
         $this->idTienda = $siembra->tiendaPorDefecto();
+        $this->borrarLaTiendaWeb();
+    }
+
+    protected function tearDown(): void
+    {
+        $this->borrarLaTiendaWeb();
+        $this->conexionPropia->close();
+        if ($this->tiendaWeb !== null) {
+            proc_terminate($this->tiendaWeb);
+            proc_close($this->tiendaWeb);
+        }
+        if ($this->carpetaTiendaWeb !== '') {
+            array_map('unlink', glob($this->carpetaTiendaWeb . '/*') ?: []);
+            @rmdir($this->carpetaTiendaWeb);
+        }
+        parent::tearDown();
     }
 
     /** @comportamiento Contar los productos para regenerar el stock da todos los del catálogo. */
@@ -219,6 +247,94 @@ final class MantenimientoIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento Subir el stock y los precios envía a la tienda web, con su clave, cada producto suyo
+     *   con su número en ella, sus existencias y su precio sin IVA, y responde lo que la tienda web dice
+     *   que actualizó.
+     */
+    public function test_subirEnviaALaTiendaWebLaExistenciaYElPrecioDeCadaProducto(): void
+    {
+        $direccion = $this->tiendaWebQueResponde(['Datos' => ['consulta1' => ['77'], 'consulta2' => ['77']]]);
+
+        $this->tiendaWebEn($direccion);
+        $subir = $this->ejecutar(['pulsado' => 'subirStockYPrecio', 'inicial' => '0', 'cantidad' => '100', 'totalProductos' => '1'], [
+            ...$this->productoEnLaWeb('Naranja', 77, 4, 2.5),
+        ]);
+        $recibido = $this->recibidoPorLaTiendaWeb();
+        $productos = json_decode($recibido['datos'], true);
+
+        self::assertSame(['clave-de-pruebas', 'cambiarStockYPrecios'], [$recibido['key'], $recibido['action']]);
+        self::assertSame([['77', 4.0, 2.5]], array_map(static fn ($fila) => [(string) $fila['idVirtuemart'], (float) $fila['stockOn'], (float) $fila['pvpSiva']], $productos));
+        self::assertSame([['77'], ['77']], [$subir['respuesta']['elementos'], $subir['respuesta']['elementos_precios']]);
+        self::assertArrayNotHasKey('error', $subir['respuesta']);
+    }
+
+    /** @comportamiento Si la tienda web responde un error, la respuesta lo lleva para la pantalla. */
+    public function test_unErrorDeLaTiendaWebLlegaEnLaRespuesta(): void
+    {
+        $direccion = $this->tiendaWebQueResponde(['Datos' => ['consulta1' => [], 'consulta2' => [], 'error' => 'Clave no válida']]);
+
+        $this->tiendaWebEn($direccion);
+        $subir = $this->ejecutar(['pulsado' => 'subirStockYPrecio', 'inicial' => '0', 'cantidad' => '100', 'totalProductos' => '1'], [
+            ...$this->productoEnLaWeb('Naranja', 77, 4, 2.5),
+        ]);
+
+        self::assertSame('Clave no válida', $subir['respuesta']['error']['Datos']['error']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_reorganizacion/tareas.php:106
+     *
+     * @group defecto
+     * @group existencias
+     * @group medio
+     *
+     * @que-ocurre-hoy Cada tanda de la subida dice que la siguiente empieza un producto más allá del que
+     *   sigue, y la pantalla pide desde ahí: el primer producto de cada tanda después de la primera no se
+     *   sube nunca.
+     * @que-deberia-ocurrir Que la siguiente tanda empiece en el producto que sigue al último enviado.
+     * @por-que-ocurre La posición siguiente se calcula sumando uno de más a lo enviado.
+     * @como-deberia-funcionar Responder como posición siguiente la inicial más los productos enviados.
+     */
+    public function test_laTandaSiguienteDeLaSubidaEmpiezaEnElProductoQueSigue(): void
+    {
+        $direccion = $this->tiendaWebQueResponde(['Datos' => ['consulta1' => ['77'], 'consulta2' => ['77']]]);
+
+        $this->tiendaWebEn($direccion);
+        $subir = $this->ejecutar(['pulsado' => 'subirStockYPrecio', 'inicial' => '0', 'cantidad' => '1', 'totalProductos' => '2'], [
+            ...$this->productoEnLaWeb('Naranja', 77, 4, 2.5),
+            ...$this->productoEnLaWeb('Limón', 78, 6, 1.5),
+        ]);
+
+        self::assertSame(1, (int) $subir['respuesta']['actual']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_reorganizacion/tareas.php:98-111
+     *
+     * @group defecto
+     * @group validacion
+     * @group medio
+     *
+     * @que-ocurre-hoy Si la tienda web no responde, la subida responde sin error y sin lo actualizado, con
+     *   avisos de PHP: la pantalla no dice que la tienda web no recibió nada.
+     * @que-deberia-ocurrir Que la respuesta diga que no se pudo enviar a la tienda web.
+     * @por-que-ocurre El fallo de la conexión llega en otro campo de la respuesta del complemento, que la
+     *   subida no mira; solo pasa el error que devuelve la propia tienda web.
+     * @como-deberia-funcionar Pasar también el fallo de la conexión como error.
+     */
+    public function test_siLaTiendaWebNoRespondeLaRespuestaLoDice(): void
+    {
+        $this->tiendaWebEn('http://127.0.0.1:' . $this->puertoLibre());
+        $subir = $this->ejecutar(['pulsado' => 'subirStockYPrecio', 'inicial' => '0', 'cantidad' => '100', 'totalProductos' => '1'], [
+            ...$this->productoEnLaWeb('Naranja', 77, 4, 2.5),
+        ]);
+
+        self::assertArrayHasKey('error', $subir['respuesta']);
+    }
+
+    /**
      * @comportamiento Reorganizar los permisos de un usuario le quita los de un módulo que ya no existe,
      *   conserva los que tenía —también uno concedido a mano— y responde cuántos quitó y cuántos creó.
      */
@@ -336,6 +452,80 @@ final class MantenimientoIntegracionTest extends CasoIntegracion
             "INSERT INTO articulos (articulo_name, estado, fecha_creado, ultimoCoste, tipo, iva, costepromedio, beneficio) VALUES ('{$nombre}', 'Activo', '2020-01-01 00:00:00', 1, 'unidad', 0, 1, 0)",
             "INSERT INTO articulosStocks (idArticulo, idTienda, stockOn, stockMin, stockMax) VALUES (:pN, 1, {$existencias}, {$minimo}, {$maximo})",
         ];
+    }
+
+    /**
+     * Da de alta la tienda web, activa, en la dirección indicada y con una clave de pruebas. El complemento
+     * la lee con su propia conexión, que no ve la transacción del caso: se guarda con otra conexión del
+     * producto y se borra al terminar el caso.
+     */
+    private function tiendaWebEn(string $direccion): void
+    {
+        $this->conexionPropia()->query("INSERT INTO tiendas (tipoTienda, razonsocial, nif, telefono, estado, NombreComercial, direccion, ano, dominio, key_api) VALUES ('web', 'Tienda web de pruebas', 'X0000000X', '000000000', 'Activo', 'Tienda web de pruebas', 'Sin direccion', '2026', '{$direccion}', 'clave-de-pruebas')");
+    }
+
+    /** Borra la tienda web de pruebas, también la que pudo dejar un caso interrumpido. */
+    private function borrarLaTiendaWeb(): void
+    {
+        $this->conexionPropia()->query("DELETE FROM tiendas WHERE tipoTienda = 'web' AND key_api = 'clave-de-pruebas'");
+    }
+
+    /** Una conexión del producto fuera de la transacción del caso. */
+    private function conexionPropia(): \mysqli
+    {
+        $this->incluirTPVFox('/clases/ClaseConexion.php');
+
+        return $this->conexionPropia ??= (new \ClaseConexion())->getConexion();
+    }
+
+    /**
+     * Un producto de la tienda web, con su número en ella, sus existencias en la tienda 1 y su precio.
+     *
+     * @return list<string>
+     */
+    private function productoEnLaWeb(string $nombre, int $numeroWeb, float $existencias, float $precio): array
+    {
+        return [
+            ...$this->producto($nombre, $existencias),
+            "INSERT INTO articulosPrecios (idArticulo, pvpCiva, pvpSiva, idTienda) VALUES (:pN, {$precio}, {$precio}, 1)",
+            "INSERT INTO articulosTiendas (idArticulo, idTienda, idVirtuemart, estado) VALUES (:pN, (SELECT idTienda FROM tiendas WHERE tipoTienda = 'web' AND key_api = 'clave-de-pruebas'), {$numeroWeb}, 'Activo')",
+        ];
+    }
+
+    /**
+     * Levanta en el propio equipo una tienda web que responde lo indicado a cualquier petición y guarda lo
+     * que recibe; da su dirección.
+     *
+     * @param array<string, mixed> $respuesta
+     */
+    private function tiendaWebQueResponde(array $respuesta): string
+    {
+        $this->carpetaTiendaWeb = sys_get_temp_dir() . '/tpvfox-tienda-web-' . bin2hex(random_bytes(4));
+        mkdir($this->carpetaTiendaWeb);
+        file_put_contents($this->carpetaTiendaWeb . '/tienda.php', '<?php file_put_contents(__DIR__ . "/recibido.json", json_encode($_POST)); echo ' . var_export(json_encode($respuesta), true) . ';');
+        $puerto = $this->puertoLibre();
+        $this->tiendaWeb = proc_open([PHP_BINARY, '-S', '127.0.0.1:' . $puerto, $this->carpetaTiendaWeb . '/tienda.php'], [['file', '/dev/null', 'r'], ['file', '/dev/null', 'w'], ['file', '/dev/null', 'w']], $tuberias);
+        for ($intento = 0; $intento < 50 && @fsockopen('127.0.0.1', $puerto) === false; $intento++) {
+            usleep(50000);
+        }
+
+        return 'http://127.0.0.1:' . $puerto;
+    }
+
+    /** @return array<string, string> Lo que la tienda web recibió en la última petición. */
+    private function recibidoPorLaTiendaWeb(): array
+    {
+        return json_decode((string) file_get_contents($this->carpetaTiendaWeb . '/recibido.json'), true);
+    }
+
+    /** Un puerto del propio equipo en el que no escucha nadie. */
+    private function puertoLibre(): int
+    {
+        $enlace = stream_socket_server('tcp://127.0.0.1:0');
+        $puerto = (int) substr(strrchr(stream_socket_get_name($enlace, false), ':'), 1);
+        fclose($enlace);
+
+        return $puerto;
     }
 
     /** Una entrada de proveedor del producto en la tienda indicada, en un albarán de una línea. */
