@@ -145,6 +145,17 @@ final class FuncionesUsuarioIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('onclick="confirmarEliminarUsuarios()"', $borrar);
     }
 
+    /** @comportamiento Las acciones no enseñan ni cuentan el 0 ni los números que no son de ningún usuario. */
+    public function test_lasAccionesNoEnsenanLosNumerosSinUsuario(): void
+    {
+        $ana = $this->usuario('ana', 'Ana Pérez');
+
+        $html = \htmlActivarUsuarios(['0', '999999', (string) $ana]);
+
+        self::assertStringContainsString('Usuarios seleccionados: 1</p>', $html);
+        self::assertStringContainsString('<ul><li>Ana Pérez</li></ul>', $html);
+    }
+
     /**
      * @estado rojo
      * @codigo-afectado modulos/mod_usuario/funciones.php:47-90

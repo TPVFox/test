@@ -345,6 +345,51 @@ final class TareasUsuariosIntegracionTest extends CasoIntegracion
         }
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/tareas.php:120-129
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Confirmar una acción sin ningún usuario en la lista termina la petición con un error
+     *   de PHP, sin mensaje.
+     * @que-deberia-ocurrir Que diga que no hay usuarios a los que aplicarla.
+     * @por-que-ocurre La confirmación toma la lista sin comprobar que llegue, y la clase la une a la
+     *   sentencia aunque no sea una lista.
+     * @como-deberia-funcionar Comprobar que llega una lista con algún usuario, y responder con un mensaje si
+     *   no.
+     */
+    public function test_confirmarSinUsuariosMarcadosResponde(): void
+    {
+        $activar = $this->ejecutar(['pulsado' => 'confirmarActivarUsuarios']);
+
+        self::assertIsArray($activar['respuesta']);
+        self::assertArrayHasKey('mensaje', $activar['respuesta']);
+        self::assertStringNotContainsString('Fatal error', $activar['errores']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_usuario/tareas.php:57-69
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Un cambio de año pedido con la contraseña vacía la guarda vacía a los marcados, e
+     *   inactiva al resto.
+     * @que-deberia-ocurrir Que la petición rechace una contraseña vacía y no cambie nada.
+     * @por-que-ocurre Solo la pantalla exige la contraseña; la petición confirma con la que recibe.
+     * @como-deberia-funcionar Comprobar en la petición que la contraseña nueva no está vacía antes de
+     *   escribir.
+     */
+    public function test_elCambioDeAnoSinContrasenaNoLaCambia(): void
+    {
+        $cambio = $this->ejecutar(['pulsado' => 'confirmarCambiarAnoUsuarios', 'idsSeleccionados' => ['1', ':u1'], 'nuevaContrasena' => ''], [$this->administrador(), $this->usuario('ana')], true, ['ana' => 'SELECT password FROM usuarios WHERE id = :u1']);
+
+        self::assertSame(md5('anterior'), $cambio['consultas']['ana']);
+    }
+
     private function usuario(string $acceso, string $nombre = 'Empleado de pruebas'): string
     {
         return "INSERT INTO usuarios (username, password, fecha, group_id, estado, nombre) VALUES ('{$acceso}', MD5('anterior'), '2026-01-01', 1, 'activo', '{$nombre}')";
