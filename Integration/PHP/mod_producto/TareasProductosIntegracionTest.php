@@ -196,6 +196,29 @@ final class TareasProductosIntegracionTest extends CasoIntegracion
         self::assertSame('No hay datos guardados para imprimir. Guarda primero el recalculo.', $imprimir['respuesta']['error']);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_productos/tareas.php:304-316
+     * @codigo-afectado clases/articulos.php:166-174
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Con dos líneas del mismo producto en el recálculo de un albarán, descartar una descarta
+     *   las dos: la pantalla tacha solo la pulsada, y al guardar, el precio de la otra no se guarda.
+     * @que-deberia-ocurrir Que descartar cambie solo la línea pulsada.
+     * @por-que-ocurre La petición cambia el estado por el producto y el albarán, no por la línea.
+     * @como-deberia-funcionar Pedir y cambiar el estado de la línea del histórico, por su número.
+     */
+    public function test_descartarUnaLineaDelRecalculoNoDescartaOtraDelMismoProducto(): void
+    {
+        $linea = "INSERT INTO historico_precios (idArticulo, Antes, Nuevo, Fecha_Creacion, NumDoc, Dedonde, Tipo, idUsuario, estado) VALUES (:p1, 1, 2, NOW(), 12, 'albaran', 'compras', :usuario, 'Pendiente')";
+        $descartado = $this->ejecutar(['accion' => 'cambiarEstadoRecalculo', 'idArticulo' => ':p1', 'dedonde' => 'albaran', 'id' => '12', 'tipo' => 'compras', 'operacion' => 'eliminar'],
+            [...$this->producto('Kiwi'), $linea, $linea], true, ['descartadas' => "SELECT COUNT(*) FROM historico_precios WHERE idArticulo = :p1 AND estado = 'Sin Cambios'"]);
+
+        self::assertSame('1', $descartado['consultas']['descartadas']);
+    }
+
     /** @comportamiento La configuración del listado se graba, y una acción desconocida responde que no se reconoce. */
     public function test_laConfiguracionSeGrabaYUnaAccionDesconocidaSeAvisa(): void
     {

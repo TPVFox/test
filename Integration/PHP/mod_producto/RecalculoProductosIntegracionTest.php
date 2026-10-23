@@ -703,6 +703,43 @@ final class RecalculoProductosIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString('<td>Kiwi</td>', $pantalla['html']);
     }
 
+    /**
+     * @comportamiento La caché del recálculo es de cada usuario: la que guardó otro usuario para el mismo
+     *   albarán no cambia la pantalla, que sigue dejando recalcular y guardar.
+     */
+    public function test_laCacheDeOtroUsuarioNoSeEnsena(): void
+    {
+        $cache = '<?xml version="1.0" encoding="UTF-8"?><recalculo><idAlbaran>:albaran</idAlbaran><fecha>2026-10-01</fecha><idProveedor>:proveedor</idProveedor>'
+            . '<nombreProveedor>Frutas del Norte</nombreProveedor><productos><producto><idArticulo>:p1</idArticulo><nombre>Kiwi guardado</nombre><referencia>R1</referencia>'
+            . '<costeAnterior>1</costeAnterior><costeNuevo>2</costeNuevo><pvpAnterior>2.4200</pvpAnterior><pvpNuevo>3.0000</pvpNuevo></producto></productos></recalculo>';
+        $pantalla = $this->pintar(['id' => ':albaran'], [], [...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2)], [], true, null, false, $cache);
+
+        self::assertStringNotContainsString('Ya guardado', $pantalla['html']);
+        self::assertStringNotContainsString('Kiwi guardado', $pantalla['html']);
+        self::assertMatchesRegularExpression('/name="pvpRecomendado_1"[^>]*value="2\.66">/', $pantalla['html']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_productos/Recalculo_precios.php:235-236
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Con la caché del recálculo dañada —un fichero que no es XML—, la pantalla avisa con
+     *   errores de PHP y enseña la vista guardada vacía; el recálculo no se puede volver a guardar, porque la
+     *   caché existe.
+     * @que-deberia-ocurrir Que la pantalla diga que lo guardado no se puede leer.
+     * @por-que-ocurre La pantalla lee la caché sin mirar si la lectura falló.
+     * @como-deberia-funcionar Recoger el fallo de la lectura de la caché y comunicarlo.
+     */
+    public function test_unaCacheDanadaNoTerminaLaPantalla(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], [], [...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2)], [], true, 'no es un recálculo guardado');
+
+        self::assertSame('', $pantalla['errores']);
+    }
+
     /** @comportamiento Un albarán sin productos al peso no envía nada a las balanzas: no escribe ningún fichero. */
     public function test_unProductoPorUnidadesNoSeEnviaALaBalanza(): void
     {
@@ -916,8 +953,9 @@ final class RecalculoProductosIntegracionTest extends CasoIntegracion
 
     /**
      * Pinta el recálculo de `mod_productos` en un PHP aparte. Siembra la preparación, guarda la caché del
-     * recálculo si el caso la da, crea la carpeta de cada balanza si el caso lo pide y, al terminar, lee
-     * las consultas indicadas, la caché y el fichero de cada balanza, y borra la caché.
+     * recálculo si el caso la da —y la de otro usuario para el mismo albarán, si la da—, crea la carpeta
+     * de cada balanza si el caso lo pide y, al terminar, lee las consultas indicadas, la caché y el fichero
+     * de cada balanza, y borra las cachés que creó.
      *
      * @param array<string, string> $consulta
      * @param array<string, string> $formulario
@@ -925,7 +963,7 @@ final class RecalculoProductosIntegracionTest extends CasoIntegracion
      * @param array<string, string> $lecturas
      * @return array{html: string, errores: string, ids: array<string, string>, leido: array<string, mixed>, cache: ?string, balanzas: array<string, string>}
      */
-    private function pintar(array $consulta, array $formulario = [], array $preparacion = [], array $lecturas = [], bool $conSesion = true, ?string $cache = null, bool $carpetasDeBalanza = false): array
+    private function pintar(array $consulta, array $formulario = [], array $preparacion = [], array $lecturas = [], bool $conSesion = true, ?string $cache = null, bool $carpetasDeBalanza = false, ?string $cacheDeOtroUsuario = null): array
     {
         $sesion = $conSesion ? [
             'estadoTpv' => 'Correcto',
@@ -952,6 +990,8 @@ final class RecalculoProductosIntegracionTest extends CasoIntegracion
             . ' $cacheFichero = ' . var_export($cacheDir . '/recalculoprecios_' . ($conSesion ? $this->idUsuario : '') . '_', true) . ' . ($sembrados[":albaran"] ?? "") . ".xml";'
             . ' $cacheHabia = is_file($cacheFichero);'
             . ($cache !== null ? ' if (!$cacheHabia) { file_put_contents($cacheFichero, strtr(' . var_export($cache, true) . ', $sembrados)); }' : '')
+            . ($cacheDeOtroUsuario !== null ? ' $cacheAjena = ' . var_export($cacheDir . '/recalculoprecios_' . ($this->idUsuario + 1000) . '_', true) . ' . ($sembrados[":albaran"] ?? "") . ".xml";'
+                . ' if (!is_file($cacheAjena)) { file_put_contents($cacheAjena, strtr(' . var_export($cacheDeOtroUsuario, true) . ', $sembrados)); register_shutdown_function(fn () => @unlink($cacheAjena)); }' : '')
             . ($carpetasDeBalanza ? ' foreach ($BDTpv->query("SELECT idBalanza, nombreBalanza FROM modulo_balanza") as $b) { @mkdir(' . var_export($this->carpeta, true) . ' . "/" . str_replace(" ", "", $b["nombreBalanza"]) . $b["idBalanza"]); }' : '')
             . ' $_GET = array_map(fn ($valor) => strtr((string) $valor, $sembrados), ' . var_export($consulta, true) . ');'
             . ' $_POST = array_map(fn ($valor) => strtr((string) $valor, $sembrados), ' . var_export($formulario, true) . ');'

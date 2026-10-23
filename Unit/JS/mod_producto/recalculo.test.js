@@ -222,4 +222,41 @@ describe('en la pantalla del recálculo de precios de mod_productos', () => {
     expect(pantalla.casillas[0].checked).toBe(false);
     expect(pantalla.elementos['#selTodos'].estado.propiedades).toEqual({ checked: false, indeterminate: false });
   });
+
+  test('llevar los marcados a una selección con productos y elegir agregarlos los añade a la existente', () => {
+    const pantalla = pantallaDePrueba({ casillas: [{ value: '7', checked: true }] });
+
+    pantalla.contexto.procesarSeleccion();
+    pantalla.responder(JSON.stringify({ total: 3 }));
+    pantalla.contexto.ejecutarSeleccion('agregar');
+    pantalla.responder(JSON.stringify({ total: 4 }));
+
+    expect(pantalla.peticiones[2]).toMatchObject({ url: TAREAS, datos: { accion: 'agregarASeleccion', ids: ['7'] } });
+    expect(pantalla.elementos['#modalSelConflicto'].estado.modal).toBe('hide');
+    expect(pantalla.elementos['#cntSeleccion'].estado.texto).toBe(4);
+  });
+
+  /**
+   * @estado rojo
+   * @codigo-afectado modulos/mod_productos/template/view_recalculo.php:296-312
+   *
+   * @que-ocurre-hoy Recuperar un producto que la pantalla pintó descartado le quita la tachadura, pero su
+   *   caja del precio sigue desactivada: al guardar sin volver a cargar la página, su precio no se envía,
+   *   y el guardado lo toma como cero.
+   * @que-deberia-ocurrir Que recuperarlo vuelva a dejar cambiar su precio, y que se envíe al guardar.
+   * @por-que-ocurre La pantalla pinta desactivada la caja de un producto descartado, y recuperarlo solo
+   *   cambia la fila y su botón.
+   * @como-deberia-funcionar Activar la caja del precio al recuperar el producto, y desactivarla al
+   *   descartarlo.
+   */
+  test('recuperar un producto descartado vuelve a dejar cambiar su precio', () => {
+    const pantalla = pantallaDePrueba();
+    pantalla.contexto.$('#Row2').addClass('tachado');
+    pantalla.contexto.$('#pvpRecomendado_2').prop('disabled', true);
+
+    pantalla.contexto.cambiarEstadoRecalculo(9, 'albaran', 12, 'compras', 2, 'retorno');
+    pantalla.responder(JSON.stringify({ accion: 'retorno' }));
+
+    expect(pantalla.elementos['#pvpRecomendado_2'].estado.propiedades.disabled).toBe(false);
+  });
 });
