@@ -844,6 +844,83 @@ final class RecalculoProductoIntegracionTest extends CasoIntegracion
         self::assertSame('', $pantalla['errores']);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/tareas.php:284
+     * @codigo-afectado modulos/mod_productos/tareas.php:353
+     * @codigo-afectado clases/articulos.php:123
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy La orden de imprimir el recálculo, desde los dos módulos, con un número de albarán con
+     *   una condición añadida, imprime los cambios de precio de los recálculos de todos los albaranes.
+     * @que-deberia-ocurrir Que imprima solo los del albarán indicado: ese número no es el de un albarán.
+     * @por-que-ocurre Las peticiones de fondo toman el número tal como llega, y la lectura del histórico lo
+     *   pega a su consulta.
+     * @como-deberia-funcionar Convertir el número del albarán a entero al recibirlo.
+     */
+    public function test_imprimirConUnNumeroConUnaCondicionNoTraeOtrosAlbaranes(): void
+    {
+        $preparacion = [
+            ...$this->albaran(), ...$this->producto('Kiwi'), $this->referenciaDeLaTienda('K1'), $this->recalculado(2.42, 3),
+            ...$this->albaran('Frutas del Sur'), ...$this->producto('Pera'), $this->referenciaDeLaTienda('P1'), $this->recalculado(2.42, 4),
+        ];
+
+        foreach (['mod_producto', 'mod_productos'] as $modulo) {
+            $impresion = $this->ejecutar($modulo, 'tareas.php', [], ['pulsado' => 'imprimir', 'id' => ':albaran OR 1=1', 'mensaje' => 'KO'], $preparacion, [], ['htmlImprimir']);
+            $html = (string) ($impresion['variables']['htmlImprimir']['html'] ?? '');
+
+            self::assertStringContainsString('<td WIDTH="35%">Pera</td>', $html, $modulo);
+            self::assertStringNotContainsString('<td WIDTH="35%">Kiwi</td>', $html, $modulo);
+        }
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/tareas/imprimirRecalculo.php:2
+     * @codigo-afectado modulos/mod_producto/tareas/imprimirRecalculo.php:24-33
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy La orden de imprimir el recálculo de un albarán que no se ha guardado da un documento con
+     *   la tabla vacía, sin avisar; imprimir lo guardado de `mod_productos`, en cambio, responde que primero
+     *   hay que guardarlo.
+     * @que-deberia-ocurrir Que avise de que el albarán no tiene recálculo guardado, como la otra orden.
+     * @por-que-ocurre La impresión compone el documento con las líneas del recálculo que encuentre, sin mirar
+     *   si hay alguna.
+     * @como-deberia-funcionar Comprobar que el albarán tiene líneas del recálculo y, si no, responder el aviso.
+     */
+    public function test_imprimirUnRecalculoQueNoSeGuardoLoAvisa(): void
+    {
+        foreach (['mod_producto', 'mod_productos'] as $modulo) {
+            $impresion = $this->ejecutar($modulo, 'tareas.php', [], ['pulsado' => 'imprimir', 'id' => ':albaran', 'mensaje' => 'KO'], [...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2)], [], ['respuesta']);
+
+            self::assertArrayHasKey('error', (array) ($impresion['variables']['respuesta'] ?? []), $modulo);
+        }
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_productos/tareas.php:325-330
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Imprimir el recálculo guardado de `mod_productos` con su caché dañada —un fichero que no
+     *   es XML— deja avisos de PHP y da un documento sin datos.
+     * @que-deberia-ocurrir Que responda que lo guardado no se puede leer.
+     * @por-que-ocurre La orden lee la caché sin mirar si la lectura falló.
+     * @como-deberia-funcionar Recoger el fallo de la lectura de la caché y responderlo como error.
+     */
+    public function test_imprimirUnaCacheDanadaNoDaAvisos(): void
+    {
+        $impresion = $this->ejecutar('mod_productos', 'tareas.php', [], ['pulsado' => 'imprimirRecalculo', 'id' => ':albaran'], [...$this->albaran(), ...$this->producto('Kiwi')], [], [], true, 'no es un recálculo guardado');
+
+        self::assertSame('', $impresion['errores']);
+    }
+
     /** @return list<string> */
     private function albaran(string $proveedor = 'Frutas del Norte'): array
     {
