@@ -467,6 +467,115 @@ final class MayorProductoIntegracionTest extends CasoIntegracion
         self::assertArrayHasKey('error', (array) json_decode($pantalla['html'], true));
     }
 
+    /** @comportamiento Imprimir con un número de producto con una condición añadida no compone nada. */
+    public function test_imprimirUnNumeroConUnaCondicionNoLoCompone(): void
+    {
+        $pantalla = $this->pintar([], [...$this->producto('Kiwi')], true, 'tareasmayor.php',
+            ['pulsado' => 'imprimemayor', 'idproducto' => ':p1 OR 1=1', 'stockinicial' => '0', 'fechainicio' => '01/10/2026', 'fechafin' => '31/10/2026']);
+
+        self::assertSame('"No existe articulo"', $pantalla['html']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/tareasmayor.php:145
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Imprimir el mayor de un producto sin movimientos responde que no hay datos con la
+     *   consulta entera a la base.
+     * @que-deberia-ocurrir Que responda que no hay datos, sin la consulta.
+     * @por-que-ocurre La respuesta lleva siempre la consulta del cálculo.
+     * @como-deberia-funcionar No poner la consulta en la respuesta.
+     */
+    public function test_imprimirSinMovimientosLoDiceSinEnsenarLaConsulta(): void
+    {
+        $pantalla = $this->pintar([], [...$this->producto('Kiwi')], true, 'tareasmayor.php',
+            ['pulsado' => 'imprimemayor', 'idproducto' => ':p1', 'stockinicial' => '0', 'fechainicio' => '01/10/2026', 'fechafin' => '31/10/2026']);
+        $respuesta = (array) json_decode($pantalla['html'], true);
+
+        self::assertArrayHasKey('error', $respuesta);
+        self::assertArrayNotHasKey('consulta', $respuesta);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/tareasmayor.php:89-93
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Imprimir el mayor sin fechas deja avisos de PHP.
+     * @que-deberia-ocurrir Que responda que las fechas no valen, sin avisos.
+     * @por-que-ocurre Las fechas se parten por sus barras sin comprobar que las lleven.
+     * @como-deberia-funcionar Comprobar las dos fechas antes de componer.
+     */
+    public function test_imprimirSinFechasLoDice(): void
+    {
+        $pantalla = $this->pintar([], [...$this->producto('Kiwi')], true, 'tareasmayor.php',
+            ['pulsado' => 'imprimemayor', 'idproducto' => ':p1', 'stockinicial' => '0', 'fechainicio' => '', 'fechafin' => '']);
+
+        self::assertSame('', $pantalla['errores']);
+        self::assertArrayHasKey('error', (array) json_decode($pantalla['html'], true));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/tareasmayor.php:24-35
+     *
+     * @group defecto
+     * @group permisos
+     * @group medio
+     *
+     * @que-ocurre-hoy La petición que imprime el mayor se atiende sin sesión.
+     * @que-deberia-ocurrir Que sin sesión no se atienda.
+     * @por-que-ocurre La petición no comprueba la sesión.
+     * @como-deberia-funcionar Comprobar la sesión antes de atender la orden.
+     */
+    public function test_imprimirSinSesionNoSeAtiende(): void
+    {
+        $pantalla = $this->pintar([], [...$this->producto('Kiwi')], false, 'tareasmayor.php',
+            ['pulsado' => 'imprimemayor', 'idproducto' => ':p1', 'stockinicial' => '0', 'fechainicio' => '01/10/2026', 'fechafin' => '31/10/2026']);
+
+        self::assertArrayNotHasKey('idproducto', (array) json_decode($pantalla['html'], true));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/tareasmayor.php:24-35
+     *
+     * @group defecto
+     * @group permisos
+     * @group medio
+     *
+     * @que-ocurre-hoy La petición que imprime el mayor se atiende sin el permiso de imprimirlo.
+     * @que-deberia-ocurrir Que sin ese permiso no se atienda.
+     * @por-que-ocurre La petición no consulta el permiso de imprimir el mayor que declara su módulo.
+     * @como-deberia-funcionar Consultar el permiso antes de atender la orden.
+     */
+    public function test_imprimirSinElPermisoNoSeAtiende(): void
+    {
+        $pantalla = $this->pintar([], [
+            ...$this->producto('Kiwi'),
+            "UPDATE permisos SET permiso = 0 WHERE idUsuario = :usuario AND modulo = 'mod_producto' AND accion = 'imprimirMayor'",
+        ], true, 'tareasmayor.php',
+            ['pulsado' => 'imprimemayor', 'idproducto' => ':p1', 'stockinicial' => '0', 'fechainicio' => '01/10/2026', 'fechafin' => '31/10/2026']);
+
+        self::assertArrayNotHasKey('idproducto', (array) json_decode($pantalla['html'], true));
+    }
+
+    /** @comportamiento Con el mayor ya compuesto, pedir el PDF lo escribe y responde su enlace. */
+    public function test_imprimirElPdfDeLoCompuestoLoEscribe(): void
+    {
+        file_put_contents($this->carpeta . '/cabecera_999.htmp', json_encode('<h2>Mayor productos</h2>'));
+        file_put_contents($this->carpeta . '/cuerpo_999.htmp', json_encode('<table><tr><td>2026-10-01</td></tr></table>'));
+        $pantalla = $this->pintar([], [], true, 'tareasmayor.php', ['pulsado' => 'imprimePDFMayor', 'idproducto' => '999']);
+
+        self::assertFileExists($this->carpeta . '/mayor999.pdf');
+        self::assertStringContainsString('mayor999.pdf', (string) (json_decode($pantalla['html'], true)['fichero'] ?? ''));
+    }
+
     /** @return list<string> La existencia de cada fila de movimiento, en orden. */
     private function existencias(string $html): array
     {
