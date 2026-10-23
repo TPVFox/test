@@ -227,8 +227,8 @@ final class FuncionesUsuarioIntegracionTest extends CasoIntegracion
      * @group defecto
      * @group alto
      *
-     * @que-ocurre-hoy Un número de usuario con una condición añadida trae a otro usuario: la ficha de
-     *   modificar lo enseña como si fuera el pedido.
+     * @que-ocurre-hoy Un número de usuario con una condición añadida trae a otro usuario, y la ficha de
+     *   modificar lee con el número que llega en su dirección.
      * @que-deberia-ocurrir Que el número se tome como número, y uno que no es de ningún usuario no traiga
      *   ninguno.
      * @por-que-ocurre La lectura pega el número a la consulta sin convertirlo.
