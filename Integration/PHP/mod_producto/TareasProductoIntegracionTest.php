@@ -164,6 +164,17 @@ final class TareasProductoIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('<td>Kiwi</td>', $peticion['respuesta']['html']);
     }
 
+    /** @comportamiento Borrar los seleccionados deja el de baja que se usa con el motivo que lo impide. */
+    public function test_borrarLosSeleccionadosDejaElDeBajaQueSeUsaConSuMotivo(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'eliminarProductos', 'idTiendaWeb' => ':tienda'], $this->producto('Kiwi', 'Baja'), true, [':p1'],
+            ['quedan' => 'SELECT COUNT(*) FROM articulos WHERE idArticulo = :p1']);
+
+        self::assertSame([], $peticion['respuesta']['Eliminados']);
+        self::assertStringStartsWith('articulosTiendas. Tienda:', $peticion['respuesta']['NoEliminados'][0]['comprobaciones'][0]['mensaje']);
+        self::assertSame('1', $peticion['consultas']['quedan']);
+    }
+
     /** @comportamiento La selección de la sesión se marca y se desmarca producto a producto, y se vacía entera. */
     public function test_laSeleccionDeLaSesion(): void
     {
@@ -325,6 +336,62 @@ final class TareasProductoIntegracionTest extends CasoIntegracion
     }
 
     /** Un producto con su precio y su referencia en la tienda principal. @return list<string> */
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/tareas.php:11-39
+     * @codigo-afectado modulos/mod_producto/tareas.php:239-260
+     *
+     * @group defecto
+     * @group permisos
+     * @group alto
+     *
+     * @que-ocurre-hoy Una petición sin sesión graba la regularización como invitado: cambia las
+     *   existencias de la tienda principal y anota la regularización.
+     * @que-deberia-ocurrir Que sin sesión la petición se rechace con una respuesta, sin tocar las
+     *   existencias.
+     * @por-que-ocurre La petición de fondo no comprueba la sesión, y el arranque común pone la tienda
+     *   principal también al invitado.
+     * @como-deberia-funcionar Comprobar la sesión antes de atender la orden.
+     */
+    public function test_sinSesionNoSeRegulariza(): void
+    {
+        $preparacion = [...$this->producto('Kiwi'), 'INSERT INTO articulosStocks (idArticulo, idTienda, stockOn, stockMin, stockMax) VALUES (:p1, :tienda, 5, 0, 0)'];
+
+        $peticion = $this->ejecutar(['pulsado' => 'grabarRegularizacion', 'idarticulo' => ':p1', 'stockReal' => '8'], $preparacion, false, [], [
+            'stock' => 'SELECT stockOn FROM articulosStocks WHERE idArticulo = :p1 AND idTienda = :tienda',
+            'regularizaciones' => 'SELECT COUNT(*) FROM stocksRegularizacion WHERE idArticulo = :p1',
+        ]);
+
+        self::assertSame(5.0, (float) $peticion['consultas']['stock']);
+        self::assertSame('0', $peticion['consultas']['regularizaciones']);
+        self::assertIsArray($peticion['respuesta']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/tareas.php:239-260
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy La regularización apunta en las existencias, como usuario que la hizo, el número
+     *   de la operación de suma.
+     * @que-deberia-ocurrir Que apunte el usuario de la sesión.
+     * @por-que-ocurre La petición pasa a la regularización la constante de la operación en el lugar del
+     *   usuario.
+     * @como-deberia-funcionar Pasar el usuario de la sesión.
+     */
+    public function test_laRegularizacionApuntaEnLasExistenciasQuienLaHizo(): void
+    {
+        $preparacion = [...$this->producto('Kiwi'), 'INSERT INTO articulosStocks (idArticulo, idTienda, stockOn, stockMin, stockMax) VALUES (:p1, :tienda, 5, 0, 0)'];
+
+        $peticion = $this->ejecutar(['pulsado' => 'grabarRegularizacion', 'idarticulo' => ':p1', 'stockReal' => '8'], $preparacion, true, [], [
+            'usuario' => 'SELECT usuarioRegularizacion FROM articulosStocks WHERE idArticulo = :p1 AND idTienda = :tienda',
+        ]);
+
+        self::assertSame((string) $this->idUsuario, $peticion['consultas']['usuario']);
+    }
+
     private function producto(string $nombre, string $estado = 'Activo'): array
     {
         return [

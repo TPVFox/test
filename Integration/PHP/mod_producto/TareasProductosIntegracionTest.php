@@ -310,6 +310,30 @@ final class TareasProductosIntegracionTest extends CasoIntegracion
     }
 
     /** Un producto con su precio y su referencia en la tienda principal. @return list<string> */
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_productos/tareas.php:62-80
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy La regularización apunta en las existencias, como usuario que la hizo, el número
+     *   de la operación de suma.
+     * @que-deberia-ocurrir Que apunte el usuario de la sesión.
+     * @por-que-ocurre La petición pasa a la regularización la constante de la operación en el lugar del
+     *   usuario.
+     * @como-deberia-funcionar Pasar el usuario de la sesión.
+     */
+    public function test_laRegularizacionApuntaEnLasExistenciasQuienLaHizo(): void
+    {
+        $preparacion = [...$this->producto('Kiwi'), 'INSERT INTO articulosStocks (idArticulo, idTienda, stockOn, stockMin, stockMax) VALUES (:p1, :tienda, 5, 0, 0)'];
+
+        $peticion = $this->ejecutar(['accion' => 'grabarRegularizacion', 'idarticulo' => ':p1', 'stockReal' => '8'], $preparacion, true,
+            ['usuario' => 'SELECT usuarioRegularizacion FROM articulosStocks WHERE idArticulo = :p1 AND idTienda = :tienda']);
+
+        self::assertSame((string) $this->idUsuario, $peticion['consultas']['usuario']);
+    }
+
     private function producto(string $nombre, string $estado = 'Activo'): array
     {
         return [
