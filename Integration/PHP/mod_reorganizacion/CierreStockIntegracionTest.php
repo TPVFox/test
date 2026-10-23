@@ -88,6 +88,19 @@ final class CierreStockIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento El albarán de cierre queda a nombre del usuario de la sesión, en la tienda de la
+     *   sesión.
+     */
+    public function test_elAlbaranDeCierreQuedaANombreDelUsuarioDeLaSesion(): void
+    {
+        $cierre = $this->cerrar('manual', ':f1', [...$this->arbol(), ...$this->producto('Naranja', ':f3', 5, 2.0, 10)], [
+            'autor' => "SELECT CONCAT(idUsuario, '|', idTienda) FROM albprot WHERE Su_numero LIKE 'ID-:f1#%'",
+        ]);
+
+        self::assertSame($this->idUsuario . '|1', $cierre['consultas']['autor']);
+    }
+
+    /**
      * @comportamiento La línea de cierre de cada producto lleva su nombre, recortado a ochenta caracteres,
      *   y el número de la familia que se cierra.
      */
