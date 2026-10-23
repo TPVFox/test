@@ -10,7 +10,8 @@
  * La clase hereda de la base de modelos y consulta con la conexión que comparte el producto, que aquí es
  * la del caso, dentro de su transacción. Las familias, los productos, sus existencias y la tienda web los
  * da de alta el propio caso; el cierre lee la tienda 1, así que las existencias se ponen en ella. Ningún
- * caso se conecta a una tienda web.
+ * caso se conecta a una tienda web. Crear la clase carga los complementos del módulo, y el de la tienda
+ * web declara una clase que otro complemento repite: cada caso corre en su propio proceso.
  */
 
 declare(strict_types=1);
@@ -20,6 +21,10 @@ namespace TPVFox\Test\Integration\ModReorganizacion;
 use TPVFox\Test\CasoIntegracion;
 use TPVFox\Test\Siembra\Siembra;
 
+/**
+ * @runTestsInSeparateProcesses
+ * @preserveGlobalState disabled
+ */
 final class ClaseReorganizarIntegracionTest extends CasoIntegracion
 {
     protected bool $compartirConexionConElProducto = true;
