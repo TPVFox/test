@@ -274,6 +274,32 @@ final class FuncionesProductoTest extends TestCase
         self::assertSame(0, \comprobarUltimaCompraProveedor([])['coste_ultimo']);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/funciones.php:934-958
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy El último coste es el del proveedor de la fecha más reciente, también si es un
+     *   precio de tarifa, que el proveedor propone y aún no se ha comprado.
+     * @que-deberia-ocurrir Que el último coste sea el de la última compra: una tarifa posterior no lo
+     *   sustituye.
+     * @por-que-ocurre La función compara solo las fechas, sin mirar el estado del coste de cada
+     *   proveedor.
+     * @como-deberia-funcionar Tomar el coste de la última compra, y el último conocido solo si el
+     *   producto nunca se compró.
+     */
+    public function test_unaTarifaPosteriorALaUltimaCompraNoEsElUltimoCoste(): void
+    {
+        $resultado = \comprobarUltimaCompraProveedor([
+            ['idProveedor' => '3', 'coste' => '1.0', 'fechaActualizacion' => '2026-01-01', 'estado' => 'Activo'],
+            ['idProveedor' => '4', 'coste' => '1.5', 'fechaActualizacion' => '2026-02-01', 'estado' => 'Tarifa'],
+        ]);
+
+        self::assertSame('1.0', $resultado['coste_ultimo']);
+    }
+
     /** @comportamiento Los modales de familias y de estados llevan sus opciones y su botón según desde dónde se abren. */
     public function test_losModalesDeFamiliasYDeEstados(): void
     {

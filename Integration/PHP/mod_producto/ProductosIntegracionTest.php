@@ -194,6 +194,37 @@ final class ProductosIntegracionTest extends CasoIntegracion
         self::assertSame('NECT-1', $this->unValor("SELECT crefTienda FROM articulosTiendas WHERE idArticulo = {$id}"));
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/clases/ClaseProductos.php:399-450
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Si la base rechaza un código de barras del alta, el producto queda dado de alta
+     *   con su precio y sin sus códigos, sus familias ni su referencia.
+     * @que-deberia-ocurrir Que el alta se haga entera o no se haga.
+     * @por-que-ocurre El alta escribe el artículo, el precio, los códigos, las familias y la
+     *   referencia con una sentencia suelta cada uno, y el rechazo termina la petición a mitad.
+     * @como-deberia-funcionar Dar de alta todo lo del producto, o nada.
+     */
+    public function test_unAltaQueLaBaseRechazaAMitadNoDejaElProductoAMedias(): void
+    {
+        $antes = $this->recuentoArticulos();
+
+        try {
+            $this->productos()->AnhadirProductoNuevo([
+                'iva' => '21.00', 'articulo_name' => 'Nectarina qzr', 'estado' => 'Nuevo', 'ultimoCoste' => '1.00',
+                'beneficio' => '25', 'tipo' => 'unidad', 'idTienda' => $this->siembra->tiendaPorDefecto(), 'pvpCiva' => '1.51',
+                'pvpSiva' => '1.25', 'codBarras' => ['84199999990480000000001'], 'familias' => [], 'refProducto' => '',
+            ]);
+        } catch (\mysqli_sql_exception $e) {
+            // El código es más largo de lo que admite su columna: la base lo rechaza a mitad del alta.
+        }
+
+        self::assertSame($antes, $this->recuentoArticulos());
+    }
+
     /** @comportamiento Guardar los códigos de barras quita los que ya no vienen y añade los nuevos. */
     public function test_losCodigosDeBarrasQuitanLosQueNoVienenYAnadenLosNuevos(): void
     {
@@ -294,6 +325,19 @@ final class ProductosIntegracionTest extends CasoIntegracion
         self::assertSame('A mano', $aMano['estado']);
         self::assertSame(['Recomendado', 'A mano'], $this->columna("SELECT estado FROM historico_precios WHERE idArticulo = {$id} ORDER BY id"));
         self::assertSame('16.000000', $this->unValor("SELECT pvpCiva FROM articulosPrecios WHERE idArticulo = {$id}"));
+    }
+
+    /** @comportamiento La línea del histórico de un cambio de precio lleva el usuario que lo hizo y la hora de la base. */
+    public function test_elHistoricoGuardaQuienCambioElPrecioYCuando(): void
+    {
+        $id = $this->siembra->articulo('Kiwi', ['iva' => 21, 'ultimoCoste' => 10, 'beneficio' => 25]);
+        $this->siembra->precioYTienda($id, 15.0, 12.40);
+        $usuario = $this->siembra->usuarioPorDefecto();
+
+        $this->productos()->ComprobarNuevosPreciosProducto($id, ['pvpCiva' => '16.00', 'pvpSiva' => '13.22'], $usuario);
+
+        self::assertSame((string) $usuario, $this->unValor("SELECT idUsuario FROM historico_precios WHERE idArticulo = {$id}"));
+        self::assertLessThanOrEqual(60, (int) $this->unValor("SELECT ABS(TIMESTAMPDIFF(SECOND, Fecha_Creacion, NOW())) FROM historico_precios WHERE idArticulo = {$id}"));
     }
 
     /** @comportamiento El precio recomendado es el coste con IVA más el beneficio. */
