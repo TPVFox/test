@@ -499,6 +499,28 @@ final class RecalculoProductosIntegracionTest extends CasoIntegracion
         self::assertSame('', $pantalla['errores']);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_productos/template/view_recalculo.php:61
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy El botón de eliminar la selección, en el panel de las acciones a los seleccionados,
+     *   envía además el formulario del recálculo: la página se vuelve a cargar mientras se vacía la
+     *   selección.
+     * @que-deberia-ocurrir Que solo vacíe la selección, como los demás botones del panel.
+     * @por-que-ocurre El botón está dentro del formulario y no dice que es un botón sin envío: por omisión,
+     *   envía el formulario.
+     * @como-deberia-funcionar Declarar el botón como de tipo botón.
+     */
+    public function test_eliminarLaSeleccionNoEnviaElFormulario(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], [], [...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2)]);
+
+        self::assertMatchesRegularExpression('/<button type="button"[^>]*onclick="limpiarSeleccionRecalculo\(\)"/', $pantalla['html']);
+    }
+
     /** @return list<string> */
     private function albaran(string $proveedor = 'Frutas del Norte'): array
     {
