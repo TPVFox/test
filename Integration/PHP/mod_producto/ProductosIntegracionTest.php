@@ -75,6 +75,18 @@ final class ProductosIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('no existe ese estado', $avisos[0]['mensaje']);
     }
 
+    /** @comportamiento Uno «importado» de hace más de veinte días también se avisa; uno «Nuevo» recién creado, no. */
+    public function test_unImportadoAntiguoSeAvisaYUnNuevoRecienteNo(): void
+    {
+        $importado = $this->producto('Pera', ['estado' => 'importado']);
+        $reciente = $this->producto('Kiwi', ['estado' => 'Nuevo']);
+        $this->db->query("UPDATE articulos SET fecha_creado = NOW() WHERE idArticulo = {$reciente}");
+
+        $avisos = $this->productos()->GetProducto($importado)['comprobaciones'];
+        self::assertStringContainsString('Este producto tiene el estado [importado]', $avisos[0]['mensaje']);
+        self::assertSame([], $this->productos()->GetProducto($reciente)['comprobaciones']);
+    }
+
     /** @comportamiento Los estados posibles son ocho para los productos, y las tiendas y los proveedores añaden los suyos. */
     public function test_losEstadosPosiblesDependenDeLaTabla(): void
     {

@@ -333,6 +333,47 @@ final class TablaArticulosIntegracionTest extends CasoIntegracion
         self::assertIsArray($producto);
     }
 
+    /** @comportamiento Leer un producto que no tiene existencias en la tienda principal se las crea a cero. */
+    public function test_leerUnProductoSinExistenciasLasCreaACero(): void
+    {
+        $id = $this->siembra->articulo('Pera', ['iva' => 21]);
+        $this->siembra->precioYTienda($id, 1.21, 1.0);
+        $tienda = $this->siembra->tiendaPorDefecto();
+        $existencias = "SELECT stockOn FROM articulosStocks WHERE idArticulo = {$id} AND idTienda = {$tienda}";
+        self::assertNull($this->unValor($existencias));
+
+        $producto = $this->tabla()->GetProducto($id);
+
+        self::assertSame(0.0, (float) $producto['stocks']['stockOn']);
+        self::assertSame(0.0, (float) $this->unValor($existencias));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado clases/ClaseTablaArticulos.php:326-338
+     * @codigo-afectado clases/ClaseTablaArticulos.php:98-103
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Con dos tiendas principales, leer un producto termina con un error de la base.
+     * @que-deberia-ocurrir Que se avise de que la tienda principal no es una sola, sin terminar la
+     *   lectura.
+     * @por-que-ocurre La clase solo guarda la tienda si encuentra exactamente una principal, y la
+     *   lectura pega a la consulta la tienda vacía.
+     * @como-deberia-funcionar Comprobar que hay una sola tienda principal antes de leer, y avisar si
+     *   no es así.
+     */
+    public function test_conDosTiendasPrincipalesLeerUnProductoNoTerminaConUnError(): void
+    {
+        $id = $this->productoCompleto('Manzana');
+        $this->siembra->tienda(date('Y'), 'principal');
+
+        $producto = $this->tabla()->GetProducto($id);
+
+        self::assertIsArray($producto);
+    }
+
     private function tabla(): \ClaseTablaArticulos
     {
         return new \ClaseTablaArticulos($this->db);
