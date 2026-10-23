@@ -7,8 +7,8 @@
  * de fondo de los dos módulos.
  *
  * Cada pantalla o petición se ejecuta en un PHP aparte, desde la carpeta de su módulo, con la sesión del
- * usuario de pruebas, su tienda y los permisos del módulo concedidos, y una transacción que se deshace al
- * terminar. La selección de `mod_producto` vive en la sesión: el caso la pone tras sembrar sus productos.
+ * usuario de pruebas, su tienda y los permisos del módulo concedidos —o sin sesión, si el caso lo pide—, y
+ * una transacción que se deshace al terminar. La selección de `mod_producto` vive en la sesión: el caso la pone tras sembrar sus productos.
  * Los productos que siembra el caso quedan con un nombre —`:p1`, `:p2`…— y las balanzas, `:b1`, `:b2`…
  *
  * La impresión escribe su fichero en la carpeta temporal de la configuración: el caso la cambia por una
@@ -284,6 +284,49 @@ final class ListasEtiquetasMayorIntegracionTest extends CasoIntegracion
         self::assertNotSame(basename($una['fichero']), basename($otra['fichero']));
     }
 
+    /** @comportamiento Con la selección vacía, las dos listas se pintan sin ningún producto y sin avisos. */
+    public function test_conLaSeleccionVaciaLasListasSePintanSinProductos(): void
+    {
+        foreach (['ListaEtiquetas.php' => 'Etiquetas: Imprimir etiquetas del producto', 'ListaMayor.php' => 'Mayor del productos seleccionados'] as $lista => $titulo) {
+            $pantalla = $this->pintar('mod_producto', $lista, [], [], []);
+
+            self::assertStringContainsString($titulo, $pantalla['html'], $lista);
+            self::assertStringNotContainsString('class="checkSelect"', $pantalla['html'], $lista);
+            self::assertSame('', $pantalla['errores'], $lista);
+        }
+    }
+
+    /**
+     * @comportamiento Un seleccionado que ya no existe no cambia la fila del producto que va después: sale
+     *   con su número, su nombre, sus precios, su existencia y sus botones.
+     */
+    public function test_unSeleccionadoQueNoExisteNoCambiaLaFilaDelSiguiente(): void
+    {
+        foreach (['ListaEtiquetas.php', 'ListaMayor.php'] as $lista) {
+            $pantalla = $this->pintar('mod_producto', $lista, [], [...$this->producto('Kiwi'), $this->existencias(5)], ['999999', ':p1']);
+            $id = $pantalla['ids'][':p1'];
+            $fila = substr($pantalla['html'], (int) strpos($pantalla['html'], 'value="' . $id . '" checked>'));
+
+            self::assertMatchesRegularExpression('/^value="' . $id . '" checked>\s*<\/td>\s*<td>' . $id . '<\/td>\s*<td>Kiwi<\/td>\s*<td>1\.21€<\/td>\s*<td>1\.00€<\/td>\s*<td>unidad<\/td>\s*<td>\s*5\s*<\/td>/', $fila, $lista);
+            self::assertStringContainsString("selecionarItemProducto({$id},", $fila, $lista);
+        }
+    }
+
+    /**
+     * @comportamiento Sin sesión, las dos listas piden el acceso y no enseñan los productos que la sesión
+     *   tenga seleccionados.
+     */
+    public function test_sinSesionLasListasNoEnsenanLaSeleccion(): void
+    {
+        foreach (['ListaEtiquetas.php', 'ListaMayor.php'] as $lista) {
+            $pantalla = $this->pintar('mod_producto', $lista, [], $this->producto('Kiwi'), [':p1'], false);
+
+            self::assertStringContainsString('name="usr"', $pantalla['html'], $lista);
+            self::assertStringNotContainsString('<td>Kiwi</td>', $pantalla['html'], $lista);
+            self::assertStringNotContainsString('class="checkSelect"', $pantalla['html'], $lista);
+        }
+    }
+
     /** @return list<string> */
     private function producto(string $nombre, string $tipo = 'unidad'): array
     {
@@ -311,20 +354,21 @@ final class ListasEtiquetasMayorIntegracionTest extends CasoIntegracion
     /**
      * Pinta una pantalla, o pide una orden a la petición de fondo, del módulo indicado, en un PHP aparte.
      * Tras sembrar la preparación pone en la sesión la selección de `mod_producto`, con los productos
-     * indicados por su nombre; sin ella, la sesión no la tiene.
+     * indicados por su nombre; sin ella, la sesión no la tiene. Sin sesión, no hay usuario ni tienda, ni
+     * se cargan los permisos.
      *
      * @param array<string, string> $formulario
      * @param list<string> $preparacion
      * @param ?list<string> $seleccion
      * @return array{html: string, errores: string, ids: array<string, string>}
      */
-    private function pintar(string $modulo, string $fichero, array $formulario = [], array $preparacion = [], ?array $seleccion = null): array
+    private function pintar(string $modulo, string $fichero, array $formulario = [], array $preparacion = [], ?array $seleccion = null, bool $conSesion = true): array
     {
-        $sesion = [
+        $sesion = $conSesion ? [
             'estadoTpv' => 'Correcto',
             'usuarioTpv' => ['id' => $this->idUsuario, 'group_id' => 1, 'login' => 'pruebas', 'nombre' => 'Usuario de pruebas'],
             'tiendaTpv' => ['idTienda' => $this->idTienda, 'razonsocial' => 'Tienda de pruebas'],
-        ];
+        ] : [];
         $guion = '$_SESSION = ' . var_export($sesion, true) . ';'
             . ' $_SERVER["DOCUMENT_ROOT"] = ""; $_SERVER["PHP_SELF"] = $_SERVER["REQUEST_URI"] = ' . var_export("/TPVFox/modulos/{$modulo}/{$fichero}", true) . ';'
             . ' chdir(' . var_export(RUTA_TPVFOX . "/modulos/{$modulo}", true) . ');'
@@ -333,7 +377,7 @@ final class ListasEtiquetasMayorIntegracionTest extends CasoIntegracion
             . ' $BDTpv->begin_transaction();'
             . ' require_once $RutaServidor . $HostNombre . "/modulos/claseModeloP.php";'
             . ' ModeloP::usarConexion($BDTpv);'
-            . ' new ClasePermisos($Usuario, $BDTpv);'
+            . ($conSesion ? ' new ClasePermisos($Usuario, $BDTpv);' : '')
             . ' $BDTpv->query("UPDATE permisos SET permiso = 1 WHERE idUsuario = ' . $this->idUsuario . ' AND modulo = ' . var_export($modulo, true) . '");'
             . ' $sembrados = [":usuario" => "' . $this->idUsuario . '", ":tienda" => "' . $this->idTienda . '"]; $productos = 0; $balanzas = 0;'
             . ' foreach (' . var_export($preparacion, true) . ' as $sql) { $BDTpv->query(strtr($sql, $sembrados));'
@@ -341,7 +385,7 @@ final class ListasEtiquetasMayorIntegracionTest extends CasoIntegracion
             . ' if (str_starts_with($sql, "INSERT INTO modulo_balanza ")) { $sembrados[":b" . ++$balanzas] = (string) $BDTpv->insert_id; } }'
             . ($seleccion !== null ? ' $_SESSION["productos_seleccionados"] = array_map(fn ($nombre) => strtr($nombre, $sembrados), ' . var_export($seleccion, true) . ');' : '')
             . ' $_POST = array_map(fn ($valor) => strtr((string) $valor, $sembrados), ' . var_export($formulario, true) . ');'
-            . ' $ClasePermisos = $thisTpv->permisos = new ClasePermisos($Usuario, $BDTpv);'
+            . ($conSesion ? ' $ClasePermisos = $thisTpv->permisos = new ClasePermisos($Usuario, $BDTpv);' : '')
             . ' register_shutdown_function(function () use (&$sembrados) { echo "\n@@IDS@@" . json_encode($sembrados); });'
             . ' include ' . var_export($fichero, true) . ';';
 
