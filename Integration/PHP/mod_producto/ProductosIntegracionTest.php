@@ -562,6 +562,58 @@ final class ProductosIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
+     * @codigo-afectado modulos/mod_producto/clases/ClaseProductos.php:1129-1188
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy Borrar un producto de baja con compras acumuladas por mes vacía sus precios,
+     *   códigos, familias, proveedores, existencias e histórico, y termina con un error de la base al
+     *   borrar el producto, que se queda a medias.
+     * @que-deberia-ocurrir Que el borrado se haga entero o no se haga, y que diga por qué no.
+     * @por-que-ocurre Las comprobaciones de uso no miran los acumulados de compra, que la base exige
+     *   quitar antes; y los borrados van uno a uno, sin transacción.
+     * @como-deberia-funcionar Comprobar todo lo que impide borrar el producto, y borrar dentro de una
+     *   transacción.
+     */
+    public function test_borrarUnProductoConComprasAcumuladasNoLoDejaAMedias(): void
+    {
+        $id = $this->producto('Kiwi', ['estado' => 'Baja']);
+        $this->db->query("INSERT INTO acumulado_compras (year, month, idArticulo, cantidad, costemedio, update_at) VALUES (2026, 3, {$id}, 2, 1.0, '2026-03-31')");
+
+        $resultado = $this->productos()->ComprobarEliminar($id, 999999);
+
+        self::assertSame(1, $resultado['bandera']);
+        self::assertSame('1', $this->unValor("SELECT COUNT(*) FROM articulosPrecios WHERE idArticulo = {$id}"));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/clases/ClaseProductos.php:1129-1188
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy Un producto de baja que tiene existencias, y ningún documento, se borra con
+     *   ellas.
+     * @que-deberia-ocurrir Que un producto con existencias no se borre, y que se diga por qué.
+     * @por-que-ocurre Las comprobaciones de uso miran los documentos, la relación con la tienda y las
+     *   relaciones entre productos, no las existencias, que se borran con el resto.
+     * @como-deberia-funcionar Contar las existencias entre lo que impide borrar el producto.
+     */
+    public function test_unProductoConExistenciasNoSeBorra(): void
+    {
+        $id = $this->producto('Kiwi', ['estado' => 'Baja']);
+        $this->siembra->existenciaRegistrada($id, 5.0);
+
+        $resultado = $this->productos()->ComprobarEliminar($id, 999999);
+
+        self::assertSame(1, $resultado['bandera']);
+        self::assertSame('1', $this->unValor("SELECT COUNT(*) FROM articulos WHERE idArticulo = {$id}"));
+    }
+
+    /**
+     * @estado rojo
      * @codigo-afectado modulos/mod_producto/clases/ClaseProductos.php:741-745
      *
      * @group defecto
