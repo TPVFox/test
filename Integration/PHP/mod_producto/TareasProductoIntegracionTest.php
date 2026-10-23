@@ -392,6 +392,33 @@ final class TareasProductoIntegracionTest extends CasoIntegracion
         self::assertSame((string) $this->idUsuario, $peticion['consultas']['usuario']);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/tareas.php:174-178
+     * @codigo-afectado modulos/mod_producto/funciones.php:349-362
+     *
+     * @group defecto
+     * @group permisos
+     * @group medio
+     *
+     * @que-ocurre-hoy Una línea del histórico de precios se quita desde la ficha: la papelera se pinta
+     *   en cada línea, ningún permiso la decide y la petición la borra.
+     * @que-deberia-ocurrir Que el histórico de precios no se borre desde las pantallas.
+     * @por-que-ocurre La petición atiende la orden de quitar una línea del histórico sin ninguna
+     *   condición.
+     * @como-deberia-funcionar Que las pantallas no ofrezcan ni atiendan quitar líneas del histórico.
+     */
+    public function test_unaLineaDelHistoricoDePreciosNoSeQuita(): void
+    {
+        $preparacion = [...$this->producto('Kiwi'),
+            "INSERT INTO historico_precios (idArticulo, Antes, Nuevo, Fecha_Creacion, NumDoc, Dedonde, Tipo, idUsuario, estado) VALUES (:p1, 1, 2, NOW(), 0, 'producto', 'Productos', :usuario, 'A mano')"];
+
+        $peticion = $this->ejecutar(['pulsado' => 'eliminarHistorico', 'idHistorico' => ':historico'], $preparacion, true, [],
+            ['historico' => 'SELECT COUNT(*) FROM historico_precios WHERE idArticulo = :p1']);
+
+        self::assertSame('1', $peticion['consultas']['historico']);
+    }
+
     private function producto(string $nombre, string $estado = 'Activo'): array
     {
         return [
