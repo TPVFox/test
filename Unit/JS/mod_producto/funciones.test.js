@@ -892,3 +892,23 @@ describe('al cargarse la página', () => {
     expect(pagina.elementos.stockcolocar.valor).toBe(7);
   });
 });
+
+describe('en la lista de regularización', () => {
+  /**
+   * @etiquetas esperado bajo
+   * @estado rojo
+   * @codigo-afectado modulos/mod_producto/ListaArticulosRegularizacion.php:18-20
+   * @codigo-afectado modulos/mod_producto/ListaArticulosRegularizacion.php:75
+   *
+   * @que-ocurre-hoy El botón «Listado Mayor» de cada regularización no hace nada al pulsarlo.
+   * @que-deberia-ocurrir Que abra el mayor de su producto.
+   * @por-que-ocurre La lista pinta el botón con su clase y el número del producto, y ningún JavaScript
+   *   de los que carga atiende esa clase.
+   * @como-deberia-funcionar Atender la pulsación del botón y abrir el mayor de su producto.
+   */
+  test('el botón del mayor abre el mayor de su producto', () => {
+    const pagina = paginaDePrueba({ elementos: { mayor: { clases: ['boton-mayor'], datos: { idarticulo: 15 } } } });
+
+    expect(pagina.manejadores['mayor:click']).toBeDefined();
+  });
+});
