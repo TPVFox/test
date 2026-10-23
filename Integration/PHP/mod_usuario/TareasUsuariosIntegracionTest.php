@@ -65,6 +65,24 @@ final class TareasUsuariosIntegracionTest extends CasoIntegracion
         }
     }
 
+    /**
+     * @comportamiento Sin ningún usuario marcado, el cambio de año enseña que alcanza al administrador, y
+     *   las demás acciones, a nadie.
+     */
+    public function test_lasAccionesSinMarcadosEnsenanAQuienAlcanzan(): void
+    {
+        $preparacion = [$this->administrador()];
+
+        $cambioDeAno = $this->ejecutar(['pulsado' => 'cambiarAnoUsuarios'], $preparacion)['respuesta']['html'];
+        self::assertStringContainsString('<p>Usuarios seleccionados: 1</p><p>Los usuarios:</p><ul><li>Administrador</li></ul>', $cambioDeAno);
+
+        foreach (['inactivarUsuarios', 'eliminarUsuarios', 'activarUsuarios'] as $orden) {
+            $html = $this->ejecutar(['pulsado' => $orden], $preparacion)['respuesta']['html'];
+
+            self::assertStringContainsString('<p>Usuarios seleccionados: 0</p><p>Los usuarios:</p><ul></ul>', $html, $orden);
+        }
+    }
+
     /** @comportamiento Confirmar inactivar inactiva a los marcados salvo al administrador; confirmar activar los activa. */
     public function test_inactivarYActivarLosMarcados(): void
     {
