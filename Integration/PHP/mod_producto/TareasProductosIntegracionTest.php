@@ -279,6 +279,36 @@ final class TareasProductosIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString('SQL', $peticion['respuesta']['mensaje']);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_productos/tareas.php:28-405
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy La ficha y el mayor de `mod_productos` cargan el JavaScript de `mod_producto`, que
+     *   envía sus órdenes a la petición de la carpeta de la página, y esta no atiende varias: quitar una
+     *   línea del histórico o una tecla de balanza, comprobar un código de barras o un producto y pedir
+     *   el estado en la web responden que la acción no se reconoce; la pantalla quita la línea igual.
+     * @que-deberia-ocurrir Que la petición de `mod_productos` atienda todas las órdenes que le envían
+     *   sus pantallas.
+     * @por-que-ocurre La petición de `mod_productos` se escribió con solo una parte de las órdenes de la
+     *   de `mod_producto`, y el JavaScript común no sabe a cuál habla.
+     * @como-deberia-funcionar Atender en las dos peticiones las mismas órdenes, o una sola petición.
+     */
+    public function test_lasOrdenesDeLaFichaYDelMayorSeAtienden(): void
+    {
+        $noAtendidas = [];
+        foreach (['eliminarHistorico', 'eliminarReferenciaBalanza', 'ComprobarSiExisteCodbarras', 'idExiste', 'obtenerEstadoProductoWeb'] as $orden) {
+            $respuesta = $this->ejecutar(['pulsado' => $orden])['respuesta'];
+            if (str_starts_with((string) ($respuesta['mensaje'] ?? ''), 'Accion no reconocida')) {
+                $noAtendidas[] = $orden;
+            }
+        }
+
+        self::assertSame([], $noAtendidas);
+    }
+
     /** Un producto con su precio y su referencia en la tienda principal. @return list<string> */
     private function producto(string $nombre, string $estado = 'Activo'): array
     {
