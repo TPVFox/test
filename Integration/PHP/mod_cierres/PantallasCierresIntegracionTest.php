@@ -445,6 +445,31 @@ final class PantallasCierresIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
+     * @codigo-afectado modulos/mod_cierres/ListaCierres.php:19-23,34,41
+     * @codigo-afectado modulos/mod_cierres/clases/ClaseCierres.php:32-34
+     *
+     * @group defecto
+     * @group cierres
+     * @group medio
+     *
+     * @que-ocurre-hoy Buscar un cierre por su número en el listado termina la página con un error de la
+     *   base: no se puede buscar por número.
+     * @que-deberia-ocurrir Que el listado enseñe los cierres cuyo número coincide con lo buscado.
+     * @por-que-ocurre El paginado devuelve su filtro empezando por `WHERE`, y la clase le antepone otro
+     *   `where`: la consulta lleva dos.
+     * @como-deberia-funcionar Que la clase no anteponga `where` a un filtro que ya lo trae, o que el listado
+     *   le pase el filtro sin él.
+     */
+    public function test_elListadoBuscaPorNumeroDeCierre(): void
+    {
+        $pantalla = $this->ejecutar('ListaCierres.php', ['buscar' => '{@c1}'], [], $this->cierre('c1', '2031-05-10', '2031-05-10 09:15:30', 52.80, [21 => [43.64, 9.16]]), [], '1', $this->retirarCierres('c1'));
+
+        $this->sinAvisos($pantalla);
+        self::assertStringContainsString('<td>52.80</td>', $pantalla['html']);
+    }
+
+    /**
+     * @estado rojo
      * @codigo-afectado modulos/mod_cierres/ListaCierres.php:15,147
      *
      * @group defecto
@@ -600,6 +625,27 @@ final class PantallasCierresIntegracionTest extends CasoIntegracion
     public function test_unResumenSinCierresSePintaSinAvisos(): void
     {
         $pantalla = $this->ejecutar('ResumenFechas.php', ['fecha1' => '2040-01-01', 'fecha2' => '2040-01-02']);
+
+        $this->sinAvisos($pantalla);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_cierres/ResumenFechas.php:9-13,18,29,52,121
+     *
+     * @group defecto
+     * @group cierres
+     * @group bajo
+     *
+     * @que-ocurre-hoy Abierto sin las dos fechas, el resumen deja avisos de PHP: el filtro y las fechas no
+     *   existen.
+     * @que-deberia-ocurrir Que pida las dos fechas, o enseñe el resumen vacío, sin avisos.
+     * @por-que-ocurre El filtro y las fechas solo se definen si llegan las dos en la dirección.
+     * @como-deberia-funcionar Comprobar las fechas al empezar, y sin ellas no consultar.
+     */
+    public function test_elResumenSinFechasSePintaSinAvisos(): void
+    {
+        $pantalla = $this->ejecutar('ResumenFechas.php');
 
         $this->sinAvisos($pantalla);
     }

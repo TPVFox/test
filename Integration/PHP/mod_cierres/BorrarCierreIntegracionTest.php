@@ -146,6 +146,37 @@ final class BorrarCierreIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
+     * @codigo-afectado modulos/mod_cierres/clases/ClaseCierres.php:68-77
+     * @codigo-afectado modulos/mod_cierres/funciones.php:35-40
+     *
+     * @group defecto
+     * @group cierres
+     * @group medio
+     *
+     * @que-ocurre-hoy Borrar el último cierre devuelve a «Cobrado» todos los tickets del usuario cuyo número
+     *   cae en su rango, también uno que cerró otro cierre: si el último cerró el 9300 y el 9302 —el 9300,
+     *   con la fecha cambiada en el TPV—, su rango va del 9300 al 9302 y el borrado reabre el 9301, que es
+     *   de un cierre anterior.
+     * @que-deberia-ocurrir Que el borrado reabra solo los tickets que cerró ese cierre.
+     * @por-que-ocurre Los tickets de un cierre no se guardan: se deducen del primer y el último número de
+     *   cada usuario.
+     * @como-deberia-funcionar Anotar en cada ticket el cierre que lo cerró, y reabrir por él.
+     */
+    public function test_borrarElUltimoCierreNoReabreUnTicketDeOtroCierre(): void
+    {
+        $this->ticket(9300);
+        $deOtroCierre = $this->ticket(9301);
+        $this->ticket(9302);
+        $this->cierre(9301, 9301);
+        $ultimo = $this->cierre(9300, 9302);
+
+        $this->cierres->borrarDatos_tablasCierres($ultimo);
+
+        self::assertSame('Cerrado', $this->valor("SELECT estado FROM ticketst WHERE id = $deOtroCierre"));
+    }
+
+    /**
+     * @estado rojo
      * @codigo-afectado modulos/mod_cierres/clases/ClaseCierres.php:90-93
      *
      * @group defecto
