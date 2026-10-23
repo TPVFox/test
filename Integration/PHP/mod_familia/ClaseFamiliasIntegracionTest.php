@@ -256,6 +256,22 @@ final class ClaseFamiliasIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('tiene duplicado una relacion', $relacion['error'][0]['mensaje']);
     }
 
+    /** @comportamiento Dos relaciones de una familia con tiendas web distintas se leen las dos, sin aviso. */
+    public function test_dosRelacionesConTiendasDistintasNoSeAvisan(): void
+    {
+        $una = $this->siembra->tienda($this->ano(), 'web');
+        $otra = $this->siembra->tienda($this->ano(), 'web');
+        $familia = $this->siembra->familia('Frutas');
+        $familias = $this->familias();
+        $familias->addFamiliaTiendaWeb($una, $familia, 77);
+        $familias->addFamiliaTiendaWeb($otra, $familia, 78);
+
+        $relacion = $familias->regRelacionFamiliaTienda($familia);
+
+        self::assertArrayNotHasKey('error', $relacion);
+        self::assertCount(2, $relacion['datos']);
+    }
+
     /** @comportamiento Los datos de una familia reúnen los suyos, sus productos, su relación con la web y sus hijas con sus recuentos. */
     public function test_losDatosDeUnaFamiliaReunenSusHijasYSusProductos(): void
     {
@@ -295,6 +311,21 @@ final class ClaseFamiliasIntegracionTest extends CasoIntegracion
 
         self::assertSame([(string) $abuela, (string) $madre, (string) $nieta], array_column($arbol, 'idFamilia'));
         self::assertSame(['1', '2', '3'], array_map('strval', array_column($arbol, 'nivel')));
+    }
+
+    /**
+     * @comportamiento El árbol jerarquizado solo recorre lo que cuelga de la raíz: una familia colgada
+     *   de un padre que no existe no aparece en él, aunque la lectura de todas la traiga.
+     */
+    public function test_unaFamiliaQueNoCuelgaDeLaRaizNoApareceEnElArbol(): void
+    {
+        $huerfana = $this->siembra->familia('Huérfana', 999999);
+
+        $arbol = array_column($this->familias()->getFamiliasJerarquizadas()['datos'] ?? [], 'idFamilia');
+        $todas = array_column($this->familias()->todasFamilias(), 'idFamilia');
+
+        self::assertNotContains((string) $huerfana, array_map('strval', $arbol));
+        self::assertContains((string) $huerfana, array_map('strval', $todas));
     }
 
     /** @comportamiento El complemento de la tienda web se pide por el nombre de su clase; otro nombre no da nada. */
@@ -343,6 +374,55 @@ final class ClaseFamiliasIntegracionTest extends CasoIntegracion
         }
 
         self::assertSame(1, $this->recuentoDe("Fruits d'Aragó"));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/claseModeloP.php:170-184; modulos/mod_familia/clases/ClaseFamilias.php:190-197
+     *
+     * @group defecto
+     * @group entrada
+     * @group alto
+     *
+     * @que-ocurre-hoy Cambiar el nombre de una familia por uno con una comilla simple no se graba: la
+     *   petición termina con un error de la base.
+     * @que-deberia-ocurrir Que la modificación guarde el nombre tal como se escribió.
+     * @por-que-ocurre La modificación pega cada valor entre comillas simples sin escaparlo.
+     * @como-deberia-funcionar Pasar los valores como parámetros de una sentencia preparada.
+     */
+    public function test_unaModificacionConComillaSeGrabaTalCual(): void
+    {
+        $id = $this->siembra->familia('Frutas');
+
+        try {
+            $this->familias()->grabar($this->datos(['idFamilia' => $id, 'familiaNombre' => "Fruits d'Aragó"]));
+        } catch (\mysqli_sql_exception) {
+            // El error de la base es el síntoma; el caso comprueba lo guardado.
+        }
+
+        self::assertSame("Fruits d'Aragó", $this->fila($id, 'familiaNombre')['familiaNombre']);
+    }
+
+    /**
+     * @comportamiento Una modificación con un número que trae una condición añadida no cambia otras
+     *   familias: el número entra también como valor de su columna, y la base en modo estricto rechaza
+     *   el texto, de modo que no cambia nada y la petición termina con el error de la base.
+     */
+    public function test_unaModificacionConUnNumeroConCondicionNoCambiaOtras(): void
+    {
+        $una = $this->siembra->familia('Una');
+        $otra = $this->siembra->familia('Otra');
+
+        $rechazada = false;
+        try {
+            $this->familias()->grabar($this->datos(['idFamilia' => "$una OR 1=1", 'familiaNombre' => 'Cambiada']));
+        } catch (\mysqli_sql_exception) {
+            $rechazada = true;
+        }
+
+        self::assertTrue($rechazada, 'La base rechaza el número con la condición');
+        self::assertSame('Otra', $this->fila($otra, 'familiaNombre')['familiaNombre']);
+        self::assertSame('Una', $this->fila($una, 'familiaNombre')['familiaNombre']);
     }
 
     /**
@@ -419,6 +499,29 @@ final class ClaseFamiliasIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
+     * @codigo-afectado modulos/mod_familia/clases/ClaseFamilias.php:190-197; modulos/mod_familia/tareas.php:36-54
+     *
+     * @group defecto
+     * @group arbol
+     * @group alto
+     *
+     * @que-ocurre-hoy Grabar una familia con ella misma como padre se acepta: queda fuera del árbol y
+     *   recorrer sus ascendientes no termina.
+     * @que-deberia-ocurrir Que el guardado rechace a la propia familia como padre.
+     * @por-que-ocurre Solo la ficha limita los padres posibles; el guardado escribe el que recibe.
+     * @como-deberia-funcionar Comprobar al guardar que el padre no es la familia ni una descendiente.
+     */
+    public function test_unaFamiliaNoTomaComoPadreASiMisma(): void
+    {
+        $id = $this->siembra->familia('Frutas');
+
+        $this->familias()->grabar($this->datos(['idFamilia' => $id, 'familiaNombre' => 'Frutas', 'familiaPadre' => $id]));
+
+        self::assertSame('0', $this->fila($id, 'familiaPadre')['familiaPadre'], 'La familia queda como su propio padre');
+    }
+
+    /**
+     * @estado rojo
      * @codigo-afectado modulos/claseModeloP.php:116-131; modulos/mod_familia/clases/ClaseFamilias.php:190-197
      *
      * @group defecto
@@ -486,6 +589,33 @@ final class ClaseFamiliasIntegracionTest extends CasoIntegracion
         [, $avisos] = self::recogiendoAvisos(fn () => $familias->leer(999999));
 
         self::assertSame([], $avisos, 'Sin avisos de PHP.');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_familia/clases/ClaseFamilias.php:55-79; modulos/mod_familia/clases/ClaseFamilias.php:109-121
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Leer todas las familias cuando no hay ninguna, una por un número que no es de
+     *   ninguna, o los ascendientes de una que no existe deja avisos de PHP.
+     * @que-deberia-ocurrir Que devuelvan una lista vacía, sin avisos.
+     * @por-que-ocurre Toman la lista de datos, o su primera fila, sin comprobar que la lectura la traiga.
+     * @como-deberia-funcionar Tomar una lista vacía cuando la lectura no trae filas.
+     */
+    public function test_lasLecturasSinFilasNoDejanAvisos(): void
+    {
+        $this->db->query('DELETE FROM familiasTienda');
+        $this->db->query('DELETE FROM articulosFamilias');
+        $this->db->query('DELETE FROM familias');
+        $familias = $this->familias();
+
+        [, $deTodas] = self::recogiendoAvisos(fn () => $familias->todasFamilias());
+        [, $deUna] = self::recogiendoAvisos(fn () => $familias->buscarFamiliaId(999999));
+        [, $deAscendientes] = self::recogiendoAvisos(fn () => $familias->buscarAscendientes(999999));
+
+        self::assertSame([], array_merge($deTodas, $deUna, $deAscendientes), 'Sin avisos de PHP.');
     }
 
     /**

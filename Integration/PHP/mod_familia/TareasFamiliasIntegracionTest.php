@@ -106,6 +106,64 @@ final class TareasFamiliasIntegracionTest extends CasoIntegracion
         self::assertSame([[$peticion['ids'][':f2'], '0', '1']], $peticion['respuesta']['listaError']);
     }
 
+    /** @comportamiento Borrar no quita una familia sin hijas que tiene productos, y la devuelve con sus recuentos. */
+    public function test_borrarFamiliasNoQuitaLasQueTienenProductos(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'borrarFamilias', 'idsfamilias' => [':f1']], [
+            $this->familia('Con producto'),
+            $this->producto(':f1'),
+        ]);
+
+        self::assertNotNull($this->familiaDe($peticion, 'Con producto'));
+        self::assertTrue($peticion['respuesta']['error']);
+        self::assertSame([[$peticion['ids'][':f1'], '1', '0']], $peticion['respuesta']['listaError']);
+    }
+
+    /**
+     * @comportamiento Borrar con un número que trae una condición añadida no quita ninguna familia: los
+     *   recuentos de productos y de hijas, con la condición, cuentan todas las familias.
+     */
+    public function test_borrarConUnNumeroConCondicionNoQuitaNinguna(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'borrarFamilias', 'idsfamilias' => [':f1 OR 1=1']], [
+            $this->familia('Una'),
+            $this->familia('Otra'),
+        ]);
+
+        self::assertNotNull($this->familiaDe($peticion, 'Una'));
+        self::assertNotNull($this->familiaDe($peticion, 'Otra'));
+        self::assertTrue($peticion['respuesta']['error']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_familia/tareas.php:71-90; modulos/mod_familia/clases/ClaseFamilias.php:314-320
+     *
+     * @group defecto
+     * @group borrado
+     * @group medio
+     *
+     * @que-ocurre-hoy Borrar una familia sin productos ni hijas que está relacionada con la tienda web
+     *   termina la petición con un error de la base: la relación impide el borrado.
+     * @que-deberia-ocurrir Que el borrado responda que esa familia no se borró, y por qué, sin terminar la
+     *   petición.
+     * @por-que-ocurre El borrado no mira la relación con la web, que la base exige quitar antes, y nadie
+     *   recoge el rechazo.
+     * @como-deberia-funcionar Comprobar la relación antes de borrar —o quitarla— y recoger el fallo de la
+     *   base.
+     */
+    public function test_borrarUnaFamiliaRelacionadaConLaWebNoTerminaLaPeticion(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'borrarFamilias', 'idsfamilias' => [':f1']], [
+            $this->familia('Relacionada'),
+            'INSERT INTO familiasTienda (idFamilia, idTienda, idFamilia_tienda) VALUES (:f1, :tienda, 77)',
+        ]);
+
+        self::assertNotNull($this->familiaDe($peticion, 'Relacionada'));
+        self::assertStringNotContainsString('Fatal error', $peticion['errores']);
+        self::assertTrue($peticion['respuesta']['error'] ?? null, 'La petición termina sin responder');
+    }
+
     /** @comportamiento Quitar productos de una familia los saca de ella y devuelve su tabla de productos. */
     public function test_quitarProductosDeUnaFamiliaLosSaca(): void
     {
@@ -129,6 +187,59 @@ final class TareasFamiliasIntegracionTest extends CasoIntegracion
 
         self::assertSame([], $peticion['relaciones']);
         self::assertSame('0', $peticion['respuesta']['error']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_familia/clases/ClaseFamilias.php:307-313; modulos/mod_familia/tareas.php:92-94
+     *
+     * @group defecto
+     * @group entrada
+     * @group alto
+     *
+     * @que-ocurre-hoy Quitar la relación con la web de una familia con un número que trae una condición
+     *   añadida —`5 OR 1=1`— quita las relaciones de todas las familias con esa tienda.
+     * @que-deberia-ocurrir Que quite como mucho la relación de esa familia.
+     * @por-que-ocurre El número se pega a la condición del borrado sin convertirlo, y la condición
+     *   añadida se impone a la de la tienda.
+     * @como-deberia-funcionar Tomar el número como entero, en una sentencia preparada.
+     */
+    public function test_quitarLaRelacionConUnNumeroConCondicionSoloQuitaLaSuya(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'eliminarReferenciaFamiliaTienda', 'idFamilia' => ':f1 OR 1=1', 'idTienda' => ':tienda'], [
+            $this->familia('Una'),
+            $this->familia('Otra'),
+            'INSERT INTO familiasTienda (idFamilia, idTienda, idFamilia_tienda) VALUES (:f1, :tienda, 77)',
+            'INSERT INTO familiasTienda (idFamilia, idTienda, idFamilia_tienda) VALUES (:f2, :tienda, 78)',
+        ]);
+
+        self::assertContains($peticion['ids'][':f2'], array_column($peticion['relaciones'], 'idFamilia'), 'Se quitó la relación de otra familia');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_familia/tareas.php:92-94
+     *
+     * @group defecto
+     * @group permisos
+     * @group medio
+     *
+     * @que-ocurre-hoy Un usuario sin el permiso de la tienda web quita la relación de una familia con
+     *   ella por la petición de fondo.
+     * @que-deberia-ocurrir Que quitar una relación con la web pida el permiso de la web, como lo pide
+     *   relacionarla.
+     * @por-que-ocurre La orden de quitar la relación no consulta ningún permiso.
+     * @como-deberia-funcionar Consultar el permiso de la web antes de quitar la relación.
+     */
+    public function test_sinPermisoDeVerLaWebNoSeQuitaLaRelacion(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'eliminarReferenciaFamiliaTienda', 'idFamilia' => ':f1', 'idTienda' => ':tienda'], [
+            $this->familia('Frutas'),
+            'INSERT INTO familiasTienda (idFamilia, idTienda, idFamilia_tienda) VALUES (:f1, :tienda, 77)',
+            $this->quitarPermiso('familia.php', 'VerFamiliaWeb'),
+        ]);
+
+        self::assertCount(1, $peticion['relaciones'], 'Se quitó la relación sin el permiso de la web');
     }
 
     /** @comportamiento Sin el permiso de ver la tienda web, relacionar una familia con ella no se comprueba ni se guarda. */

@@ -128,6 +128,48 @@ describe('la ficha de una familia', () => {
   });
 
   /**
+   * @etiquetas esperado medio
+   * @estado rojo
+   * @codigo-afectado modulos/mod_familia/funciones.js:123-134
+   *
+   * @que-ocurre-hoy Si el guardado responde un error, el aviso enseña el error seguido de la sentencia
+   *   que llegó en la respuesta, con la tabla, sus columnas y los datos.
+   * @que-deberia-ocurrir Que el aviso diga que no se guardó, sin la sentencia.
+   * @por-que-ocurre El aviso pega a su texto lo que llega en la respuesta como sentencia.
+   * @como-deberia-funcionar Enseñar solo el motivo del error.
+   */
+  test('guardar, si responde un error, avisa sin enseñar la sentencia', () => {
+    const pagina = paginaDePrueba({ idfamilia: { valor: '5' }, inputidpadre: { valor: '0' }, inputnombre: { valor: 'Lácteos' }, inputbeneficio: { valor: '25' } });
+
+    pagina.contexto.guardarFamilia();
+    pagina.responder({ insert: "UPDATE familias SET familiaNombre='Lácteos' WHERE idFamilia=5", error: 'Error de la base' });
+
+    const avisos = pagina.contexto.alert.mock.calls.map((llamada) => String(llamada[0]));
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]).not.toContain('UPDATE familias');
+  });
+
+  /**
+   * @etiquetas esperado alto
+   * @estado rojo
+   * @codigo-afectado modulos/mod_familia/funciones.js:257-268
+   *
+   * @que-ocurre-hoy Si la petición de guardar falla —el servidor termina con un error—, la ficha solo
+   *   lo apunta en la consola: quien guarda no sabe que no se guardó.
+   * @que-deberia-ocurrir Que avise de que no se pudo guardar.
+   * @por-que-ocurre La petición común solo escribe el fallo en la consola.
+   * @como-deberia-funcionar Avisar al usuario cuando la petición falla.
+   */
+  test('guardar, si la petición falla, avisa', () => {
+    const pagina = paginaDePrueba({ idfamilia: { valor: '0' }, inputidpadre: { valor: '0' }, inputnombre: { valor: 'Lácteos' }, inputbeneficio: { valor: '' } });
+
+    pagina.contexto.guardarFamilia();
+    pagina.peticiones[0].error({ status: 500 }, 'error', 'Internal Server Error');
+
+    expect(pagina.contexto.alert).toHaveBeenCalled();
+  });
+
+  /**
    * @etiquetas estado-actual
    *
    * @comportamiento Quitar productos de la familia envía los marcados, y sin ninguno marcado no envía.
@@ -284,6 +326,27 @@ describe('el listado de familias', () => {
     expect(vacia.peticiones).toHaveLength(0);
     expect(pagina.peticiones[0].data).toEqual({ pulsado: 'borrarFamilias', idsfamilias: [3] });
     expect(pagina.contexto.alert).toHaveBeenCalledWith('borrado correctamente');
+    expect(pagina.contexto.location.reload).toHaveBeenCalled();
+  });
+
+  /**
+   * @etiquetas esperado bajo
+   * @estado rojo
+   * @codigo-afectado modulos/mod_familia/funciones.js:75-92
+   *
+   * @que-ocurre-hoy Si de las marcadas alguna no se puede borrar, avisa de un error sin decir cuál y no
+   *   recarga: el listado sigue enseñando las que sí se borraron.
+   * @que-deberia-ocurrir Que el listado enseñe lo que quedó y diga qué familias no se borraron.
+   * @por-que-ocurre Ante un error, solo avisa; la lista de las que no se borraron, que llega en la
+   *   respuesta, no se usa.
+   * @como-deberia-funcionar Recargar el listado y avisar de las que no se borraron y por qué.
+   */
+  test('eliminar, si alguna no se borra, recarga el listado', () => {
+    const pagina = paginaDePrueba({ 'fila0-3': { clases: ['seleccionado'], datos: { idfamilia: 3 } }, 'fila0-4': { clases: ['seleccionado'], datos: { idfamilia: 4 } } });
+
+    pagina.contexto.EliminarFamiliasSeleccionadas();
+    pagina.responder({ error: true, listaError: [[4, '0', '1']] });
+
     expect(pagina.contexto.location.reload).toHaveBeenCalled();
   });
 

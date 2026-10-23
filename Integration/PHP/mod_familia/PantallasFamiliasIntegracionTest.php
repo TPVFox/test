@@ -309,6 +309,104 @@ final class PantallasFamiliasIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString('id="btn-fam-grabar"', $pantalla['html']);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado head.php:17-26; modulos/mod_familia/familia.php:10-54; modulos/mod_familia/acces.xml:8
+     *
+     * @group defecto
+     * @group permisos
+     * @group forzado
+     * @group alto
+     *
+     * @que-ocurre-hoy Un usuario con sesión pero sin el permiso de la vista de la ficha —que el módulo
+     *   declara denegada de partida— abre la ficha de una familia por su dirección y la ve.
+     * @que-deberia-ocurrir Que la ficha no se sirva sin su permiso.
+     * @por-que-ocurre Ni la cabecera común ni la ficha consultan el permiso de la vista que se sirve.
+     * @como-deberia-funcionar Comprobar el permiso de la vista antes de pintarla, en el arranque común.
+     */
+    public function test_sinPermisoDeVistaNoSeSirveLaFicha(): void
+    {
+        $pantalla = $this->pintar('familia.php', ['id' => ':f1'], [
+            $this->familia('Solo con permiso'),
+            $this->familia('Otra'),
+            "UPDATE permisos SET permiso = 0 WHERE idUsuario = :usuario AND modulo = 'mod_familia' AND vista = 'familia.php' AND accion IS NULL",
+        ]);
+
+        self::assertStringNotContainsString('Solo con permiso', $pantalla['html'], 'Sin el permiso de la vista se sirve la ficha');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_familia/familia.php:30-57; modulos/mod_familia/clases/ClaseFamilias.php:168-176; modulos/mod_familia/clases/ClaseFamilias.php:268-286
+     *
+     * @group defecto
+     * @group entrada
+     * @group alto
+     *
+     * @que-ocurre-hoy La ficha pedida con un número que trae una condición añadida —`7 OR 1=1`— termina
+     *   con un error fatal: la condición entra en la lectura de la familia, que trae todas, y en la de
+     *   los padres posibles, que las excluye todas.
+     * @que-deberia-ocurrir Que enseñe como mucho la familia de ese número.
+     * @por-que-ocurre El número se pega a las consultas sin convertirlo.
+     * @como-deberia-funcionar Tomar el número como entero, en una sentencia preparada.
+     */
+    public function test_laFichaConUnNumeroConCondicionNoEnsenaOtraFamilia(): void
+    {
+        $pantalla = $this->pintar('familia.php', ['id' => ':f2 OR 1=1'], [
+            $this->familia('Primera'),
+            $this->familia('Pedida'),
+            $this->familia('Tercera'),
+        ]);
+
+        self::assertDoesNotMatchRegularExpression('/id="inputnombre"\s+value="Primera"/', $pantalla['html'], 'La ficha enseña otra familia');
+        self::assertMatchesRegularExpression('/id="inputnombre"\s+value="Pedida"/', $pantalla['html'], 'La ficha no enseña la familia pedida');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_familia/familia.php:365-373; modulos/mod_familia/clases/ClaseFamilias.php:364-396
+     *
+     * @group defecto
+     * @group pantalla
+     * @group medio
+     *
+     * @que-ocurre-hoy La ficha de una familia con dos relaciones con la misma tienda web avisa del error
+     *   y termina la página: sin el formulario ni la tabla de relaciones desde la que se quitaría la
+     *   sobrante.
+     * @que-deberia-ocurrir Que avise y se pinte entera, para poder quitar la relación sobrante.
+     * @por-que-ocurre Un aviso de tipo peligro en los datos de la familia termina la página.
+     * @como-deberia-funcionar Avisar y seguir pintando la ficha.
+     */
+    public function test_laFichaDeUnaFamiliaConDosRelacionesConLaMismaTiendaSePintaEntera(): void
+    {
+        $pantalla = $this->pintar('familia.php', ['id' => ':f1'], [
+            $this->familia('Repetida'),
+            $this->familia('Otra'),
+            'INSERT INTO familiasTienda (idFamilia, idTienda, idFamilia_tienda) SELECT :f1, MIN(idTienda), 77 FROM tiendas',
+            'INSERT INTO familiasTienda (idFamilia, idTienda, idFamilia_tienda) SELECT :f1, MIN(idTienda), 78 FROM tiendas',
+        ]);
+
+        self::assertStringContainsString('tiene duplicado una relacion', $pantalla['html']);
+        self::assertStringContainsString('id="inputnombre"', $pantalla['html'], 'La ficha termina tras el aviso');
+    }
+
+    /**
+     * @comportamiento Con el permiso de ver la tienda web pero sin tienda web en la instalación, la ficha
+     *   no pinta la parte de la web y monta la tabla de relaciones sin avisos de la ruta.
+     */
+    public function test_conElPermisoDeLaWebYSinTiendaWebLaFichaNoPintaLaWeb(): void
+    {
+        $pantalla = $this->pintar('familia.php', ['id' => ':f1'], [
+            $this->familia('Frutas'),
+            $this->familia('Verduras'),
+            "UPDATE permisos SET permiso = 1 WHERE idUsuario = :usuario AND modulo = 'mod_familia' AND vista = 'familia.php' AND accion = 'VerFamiliaWeb'",
+        ]);
+
+        self::assertMatchesRegularExpression('/id="inputnombre"\s+value="Frutas"/', $pantalla['html']);
+        self::assertStringNotContainsString('ruta_categoria', $pantalla['errores']);
+        self::assertStringNotContainsString('Undefined variable', $pantalla['errores']);
+    }
+
     private function familia(string $nombre, string $padre = '0'): string
     {
         return "INSERT INTO familias (familiaNombre, familiaPadre, beneficiomedio, mostrar_tpv) VALUES ('$nombre', $padre, 0, 1)";
