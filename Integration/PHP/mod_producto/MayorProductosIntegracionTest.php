@@ -344,12 +344,76 @@ final class MayorProductosIntegracionTest extends CasoIntegracion
         self::assertSame('', $pantalla['errores']);
     }
 
+    /** @comportamiento Cada mes tiene su subtotal, y el total suma los de todos. */
+    public function test_cadaMesTieneSuSubtotalYElTotalLosSuma(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => ':p1', 'fecha_inicial' => '2026-10-01', 'fecha_final' => '2026-11-30'], [
+            ...$this->producto('Kiwi'), ...$this->terceros(), ...$this->compra('2026-10-01 10:00:00', 10), ...$this->ticket('2026-11-02 10:00:00', 3),
+        ]);
+
+        self::assertSame(2, substr_count($pantalla['html'], '<b>Subtotal</b>'));
+        self::assertSame(['10', '3'], array_slice($this->total($pantalla['html']), 0, 2));
+    }
+
+    /** @comportamiento Las ventas a un cliente especial se cuentan también aparte. */
+    public function test_lasVentasAUnClienteEspecialSeCuentanAparte(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => ':p1', 'fecha_inicial' => '2026-10-01', 'fecha_final' => '2026-10-31'], [
+            ...$this->producto('Kiwi'), ...$this->terceros(), ...$this->ticket('2026-10-02 10:00:00', 3),
+            "INSERT INTO clientes (Nombre, estado) VALUES ('Cliente especial', 'Especial')", ...$this->ticket('2026-10-03 10:00:00', 2),
+        ]);
+
+        self::assertSame('5', $this->total($pantalla['html'])[1]);
+        self::assertSame(1, preg_match('#<b>Especiales</b></td>\s*<td><b>0</b></td>\s*<td><b>2</b></td>#', $pantalla['html']));
+    }
+
+    /** @comportamiento Sin movimientos entre las dos fechas, el total sale a cero. */
+    public function test_sinMovimientosElTotalSaleACero(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => ':p1', 'fecha_inicial' => '2026-10-01', 'fecha_final' => '2026-10-31'], [...$this->producto('Kiwi')]);
+
+        self::assertSame(['0', '0', '0.00', '0.00'], $this->total($pantalla['html']));
+        self::assertSame('', $pantalla['errores']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_productos/DetalleMayor.php:226
+     * @codigo-afectado modulos/mod_productos/DetalleMayor.php:298
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy Los importes de cada mes y del total de un producto por unidades salen en euros
+     *   enteros: las compras de 3,63 € salen 4,00 € y las ventas de 2,42 €, 2,00 €.
+     * @que-deberia-ocurrir Que salgan con sus céntimos.
+     * @por-que-ocurre Las cuentas de cada mes redondean los importes con los decimales de las unidades del
+     *   producto, que por unidades son cero.
+     * @como-deberia-funcionar Redondear los importes a dos decimales.
+     */
+    public function test_losImportesDelTotalLlevanSusCentimos(): void
+    {
+        $pantalla = $this->pintar(['idArticulo' => ':p1', 'fecha_inicial' => '2026-10-01', 'fecha_final' => '2026-10-31'], [
+            ...$this->producto('Kiwi'), ...$this->terceros(), ...$this->compra('2026-10-01 10:00:00', 3), ...$this->ticket('2026-10-02 10:00:00', 1),
+        ]);
+
+        self::assertSame(['3.63', '2.42'], array_slice($this->total($pantalla['html']), 2, 2));
+    }
+
     /** @return list<string> La existencia de cada fila de movimiento, en orden. */
     private function existencias(string $html): array
     {
         preg_match_all('#<td>\d{4}-\d\d-\d\d[^<]*</td>(?:<td>[^<]*</td>){2}<td>(-?[\d.]+)</td>#', $html, $m);
 
         return $m[1];
+    }
+
+    /** @return list<string> Las entradas, las salidas, las compras y las ventas de la fila del total. */
+    private function total(string $html): array
+    {
+        preg_match('#<b>Total</b></td>\s*<td><b>([^<]*)</b></td>\s*<td><b>([^<]*)</b></td>\s*<td></td>\s*<td><b>([^<]*)</b></td>\s*<td><b>([^<]*)</b></td>#', $html, $m);
+
+        return array_slice($m, 1);
     }
 
     /** @return list<string> */
