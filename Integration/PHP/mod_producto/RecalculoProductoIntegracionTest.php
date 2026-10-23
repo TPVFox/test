@@ -395,8 +395,8 @@ final class RecalculoProductoIntegracionTest extends CasoIntegracion
     {
         $pantalla = $this->ejecutar('mod_producto', 'Recalculo_precios.php', ['id' => ':albaran OR 1=1'], [], [...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2), $this->referenciaDelProveedor('REF-KIWI'), ...$this->albaran('Frutas del Sur'), ...$this->producto('Pera'), $this->historico(1, 2), $this->referenciaDelProveedor('REF-PERA')]);
 
-        self::assertStringContainsString('<td>Kiwi</td>', $pantalla['html']);
-        self::assertStringNotContainsString('<td>Pera</td>', $pantalla['html']);
+        self::assertStringContainsString('<td>Pera</td>', $pantalla['html']);
+        self::assertStringNotContainsString('<td>Kiwi</td>', $pantalla['html']);
     }
 
     /**
@@ -588,6 +588,260 @@ final class RecalculoProductoIntegracionTest extends CasoIntegracion
         $impresion = $this->ejecutar('mod_productos', 'tareas.php', [], ['pulsado' => 'imprimirRecalculo', 'id' => ':albaran'], [...$this->albaran(), ...$this->producto('Kiwi')], [], [], true, $cache);
 
         self::assertSame('', $impresion['errores']);
+    }
+
+    /**
+     * @comportamiento En el recálculo de `mod_producto`, detrás de un producto descartado y de uno revisado, el
+     *   precio de cada fila se guarda en su producto: el guardado cuenta las filas como la pantalla.
+     */
+    public function test_cadaPrecioSeGuardaEnSuProductoDetrasDeUnDescartadoYUnRevisado(): void
+    {
+        $pantalla = $this->ejecutar('mod_producto', 'Recalculo_precios.php', ['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '9.99', 'pvpRecomendado_2' => '3.30'], [
+            ...$this->albaran(),
+            ...$this->producto('Kiwi'), $this->historico(1, 2, 'Sin Cambios'), $this->referenciaDelProveedor('REF-KIWI'),
+            ...$this->producto('Pera'), $this->historico(1, 2, 'Revisado'), $this->referenciaDelProveedor('REF-PERA'),
+            ...$this->producto('Uva'), $this->historico(1, 2), $this->referenciaDelProveedor('REF-UVA'),
+        ], ['precios' => 'SELECT pvpCiva FROM articulosPrecios WHERE idArticulo IN (:p1, :p2, :p3) ORDER BY idArticulo']);
+
+        self::assertSame(['2.420000', '2.420000', '3.300000'], array_column($pantalla['leido']['precios'], 'pvpCiva'));
+    }
+
+    /** @comportamiento En el recálculo de `mod_producto`, un albarán sin productos al peso no escribe ningún fichero de balanza. */
+    public function test_unProductoPorUnidadesNoSeEnviaALaBalanza(): void
+    {
+        $pantalla = $this->ejecutar('mod_producto', 'Recalculo_precios.php', ['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '3.00'], [
+            ...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2), $this->referenciaDelProveedor('REF-KIWI'), $this->referenciaDeLaTienda('123'), ...$this->balanzaConTecla(7),
+        ], [], [], true, null, true);
+
+        self::assertSame([], $pantalla['balanzas']);
+    }
+
+    /** @comportamiento En el recálculo de `mod_producto`, una balanza con secciones recibe el producto en su modo, con la sección de la tecla. */
+    public function test_unaBalanzaConSeccionesRecibeLaSeccionDeLaTecla(): void
+    {
+        $pantalla = $this->ejecutar('mod_producto', 'Recalculo_precios.php', ['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '15.00'], [
+            ...$this->albaran(), ...$this->producto('Queso', 12.10, 'peso'), $this->historico(5, 6), $this->referenciaDelProveedor('REF-QUESO'), $this->referenciaDeLaTienda('123'),
+            "INSERT INTO modulo_balanza (nombreBalanza, modelo, conSeccion, Grupo, `Dirección`, IP, soloPLUS) VALUES ('Balanza de secciones', 'Prueba', 'si', 0, 52, '127.0.0.1', 0)",
+            'INSERT INTO modulo_balanza_plus (idBalanza, plu, seccion, idArticulo) VALUES (:b1, 7, 3, :pN)',
+        ], [], [], true, null, true);
+        $fichero = $pantalla['balanzas']['Balanzadesecciones' . $pantalla['ids'][':b1']] ?? '';
+
+        self::assertMatchesRegularExpression('/^00H252A000123007Queso/m', $fichero);
+        self::assertMatchesRegularExpression('/^00H352.{41}03/m', $fichero);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/Recalculo_precios.php:108-117
+     * @codigo-afectado modulos/mod_producto/Recalculo_precios.php:174-182
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy En el recálculo de `mod_producto`, un producto al peso con tecla en dos balanzas de
+     *   envío llega a la segunda con la tecla de la primera: solo marca como suya la primera balanza del
+     *   producto, y la tecla de la anterior se queda para la siguiente.
+     * @que-deberia-ocurrir Que cada balanza reciba el producto con su tecla.
+     * @por-que-ocurre La marca de las balanzas del producto compara cada una solo con la primera en que
+     *   tiene tecla, y la tecla no se pone en blanco entre una balanza y otra.
+     * @como-deberia-funcionar Marcar cada balanza en que el producto tiene tecla, y poner en blanco la tecla
+     *   y la sección para cada balanza.
+     */
+    public function test_conTeclaEnDosBalanzasCadaUnaRecibeLaSuya(): void
+    {
+        $pantalla = $this->ejecutar('mod_producto', 'Recalculo_precios.php', ['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '15.00'], [
+            ...$this->albaran(), ...$this->producto('Queso', 12.10, 'peso'), $this->historico(5, 6), $this->referenciaDelProveedor('REF-QUESO'), $this->referenciaDeLaTienda('123'), ...$this->balanzaConTecla(7),
+            "INSERT INTO modulo_balanza (nombreBalanza, modelo, conSeccion, Grupo, `Dirección`, IP, soloPLUS) VALUES ('Balanza segunda', 'Prueba', 'no', 0, 53, '127.0.0.1', 0)",
+            'INSERT INTO modulo_balanza_plus (idBalanza, plu, seccion, idArticulo) VALUES (:b2, 9, 0, :pN)',
+        ], [], [], true, null, true);
+
+        self::assertStringContainsString('A000123007Queso', $pantalla['balanzas']['Balanzadepruebas' . $pantalla['ids'][':b1']] ?? '');
+        self::assertStringContainsString('A000123009Queso', $pantalla['balanzas']['Balanzasegunda' . $pantalla['ids'][':b2']] ?? '');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/Recalculo_precios.php:119-132
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy En el recálculo de `mod_producto`, con dos productos al peso, una balanza solo de teclas
+     *   en que el primero tiene tecla recibe también el segundo, que no la tiene.
+     * @que-deberia-ocurrir Que una balanza solo de teclas reciba solo los productos que tienen tecla en ella.
+     * @por-que-ocurre El envío añade a la lista de balanzas la del primer producto, y la lista sigue así para
+     *   los siguientes.
+     * @como-deberia-funcionar Componer las balanzas de cada producto sin cambiar la lista de las de envío.
+     */
+    public function test_unaBalanzaSoloDeTeclasNoRecibeUnProductoSinTeclaEnElla(): void
+    {
+        $pantalla = $this->ejecutar('mod_producto', 'Recalculo_precios.php', ['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '15.00', 'pvpRecomendado_2' => '20.00'], [
+            ...$this->albaran(),
+            ...$this->producto('Queso', 12.10, 'peso'), $this->historico(5, 6), $this->referenciaDelProveedor('REF-QUESO'), $this->referenciaDeLaTienda('123'),
+            "INSERT INTO modulo_balanza (nombreBalanza, modelo, conSeccion, Grupo, `Dirección`, IP, soloPLUS) VALUES ('Balanza de teclas', 'Prueba', 'no', 0, 51, '127.0.0.1', 1)",
+            'INSERT INTO modulo_balanza_plus (idBalanza, plu, seccion, idArticulo) VALUES (:b1, 7, 0, :pN)',
+            ...$this->producto('Jamon', 18.15, 'peso'), $this->historico(8, 9), $this->referenciaDelProveedor('REF-JAMON'), $this->referenciaDeLaTienda('124'),
+        ], [], [], true, null, true);
+        $fichero = $pantalla['balanzas']['Balanzadeteclas' . $pantalla['ids'][':b1']] ?? '';
+
+        self::assertStringContainsString('A000123007Queso', $fichero);
+        self::assertStringNotContainsString('A000124', $fichero);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/Recalculo_precios.php:195-196
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy En el recálculo de `mod_producto`, un producto al peso guardado con el precio vacío
+     *   —que el guardado toma como cero— termina el guardado con una excepción del envío a la balanza: el
+     *   precio ya está a cero y apuntado, y las líneas del albarán quedan sin revisar.
+     * @que-deberia-ocurrir Que el guardado no deje el producto a cero y termine, diciendo lo que no guardó.
+     * @por-que-ocurre El traductor de la balanza rechaza un registro sin precio con una excepción, y el
+     *   recálculo no la recoge; el precio cero llega porque el guardado no valida el precio recibido.
+     * @como-deberia-funcionar Validar el precio antes de guardar, y recoger el error del envío a la balanza.
+     */
+    public function test_unProductoAlPesoConElPrecioVacioNoTerminaElGuardado(): void
+    {
+        $pantalla = $this->ejecutar('mod_producto', 'Recalculo_precios.php', ['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => ''], [
+            ...$this->albaran(), ...$this->producto('Queso', 12.10, 'peso'), $this->historico(5, 6), $this->referenciaDelProveedor('REF-QUESO'), $this->referenciaDeLaTienda('123'), ...$this->balanzaConTecla(7),
+        ], ['linea' => 'SELECT estado FROM historico_precios WHERE id = :h1'], [], true, null, true);
+
+        self::assertSame('', $pantalla['errores']);
+        self::assertSame('Revisado', $pantalla['leido']['linea'][0]['estado']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/Recalculo_precios.php:195-196
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy En el recálculo de `mod_producto`, un producto al peso con IVA cero termina el guardado
+     *   con una excepción del envío a la balanza: su precio ya está cambiado y apuntado, la balanza no lo
+     *   recibe, y las líneas del albarán quedan sin revisar.
+     * @que-deberia-ocurrir Que se envíe a la balanza con IVA cero, como los demás, y el guardado termine.
+     * @por-que-ocurre El traductor de la balanza rechaza con una excepción el registro de los datos cuando el
+     *   IVA es cero, aunque sabe traducirlo, y el recálculo no la recoge.
+     * @como-deberia-funcionar Aceptar el IVA cero en el registro de los datos, y recoger el error del envío a
+     *   la balanza.
+     */
+    public function test_unProductoAlPesoConIvaCeroSeEnviaALaBalanza(): void
+    {
+        $pantalla = $this->ejecutar('mod_producto', 'Recalculo_precios.php', ['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '15.00'], [
+            ...$this->albaran(), ...$this->producto('Pan', 10, 'peso', 0), $this->historico(5, 6), $this->referenciaDelProveedor('REF-PAN'), $this->referenciaDeLaTienda('125'), ...$this->balanzaConTecla(7),
+        ], [], [], true, null, true);
+
+        self::assertSame('', $pantalla['errores']);
+        self::assertStringContainsString('A000125007Pan', $pantalla['balanzas']['Balanzadepruebas' . $pantalla['ids'][':b1']] ?? '');
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/Recalculo_precios.php:70-71
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy En el recálculo de `mod_producto`, una línea pendiente cuyo precio no llega en el
+     *   formulario —una línea que entró en el albarán después de pintar la pantalla— deja un aviso y el
+     *   producto con el precio de venta a cero, y lo apunta así en el histórico.
+     * @que-deberia-ocurrir Que una línea sin precio no se guarde, y la pantalla lo diga.
+     * @por-que-ocurre El guardado lee el precio de la fila sin mirar si llegó, y lo convierte en cero.
+     * @como-deberia-funcionar Saltar la línea cuyo precio no llega y avisarlo.
+     */
+    public function test_unaLineaSinSuPrecioEnElFormularioNoDejaElProductoACero(): void
+    {
+        $pantalla = $this->ejecutar('mod_producto', 'Recalculo_precios.php', ['id' => ':albaran'], ['Guardar' => 'Guardar'], [
+            ...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2), $this->referenciaDelProveedor('REF-KIWI'),
+        ], ['precio' => 'SELECT pvpCiva FROM articulosPrecios WHERE idArticulo = :p1']);
+
+        self::assertSame('2.420000', $pantalla['leido']['precio'][0]['pvpCiva']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/Recalculo_precios.php:31
+     * @codigo-afectado modulos/mod_producto/funciones.php:967
+     * @codigo-afectado modulos/mod_producto/funciones.php:974-977
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy El recálculo de `mod_producto` de un albarán ya guardado pasa sus líneas revisadas a
+     *   «Sin revisar» en el histórico y las vuelve a enseñar: el cambio de precio que apuntó el propio
+     *   recálculo cuenta como uno posterior.
+     * @que-deberia-ocurrir Que las líneas revisadas sigan revisadas y no vuelvan a salir.
+     * @por-que-ocurre La marca de los recálculos posteriores mira cualquier línea del histórico del
+     *   producto con fecha mayor, también la del propio recálculo, y cambia el estado de la línea sea cual
+     *   sea.
+     * @como-deberia-funcionar Marcar solo las líneas pendientes, y contar como posteriores solo las líneas
+     *   de coste de otros albaranes.
+     */
+    public function test_unAlbaranYaRecalculadoNoVuelveAEnsenarSusLineas(): void
+    {
+        $pantalla = $this->ejecutar('mod_producto', 'Recalculo_precios.php', ['id' => ':albaran'], [], [
+            ...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2, 'Revisado'), $this->referenciaDelProveedor('REF-KIWI'),
+            "INSERT INTO historico_precios (idArticulo, Antes, Nuevo, Fecha_Creacion, NumDoc, Dedonde, Tipo, idUsuario, estado) VALUES (:pN, 2.42, 3, '2026-10-02 10:00:00', :albaran, 'Recalculo', 'Productos', :usuario, 'A mano')",
+        ], ['linea' => 'SELECT estado FROM historico_precios WHERE id = :h1']);
+
+        self::assertSame('Revisado', $pantalla['leido']['linea'][0]['estado']);
+        self::assertStringNotContainsString('<td>Kiwi</td>', $pantalla['html']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado clases/articulos.php:144
+     * @codigo-afectado modulos/mod_producto/Recalculo_precios.php:336
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy En el recálculo de `mod_producto`, con el producto a precios distintos en dos tiendas,
+     *   la pantalla enseña como precio actual el de la tienda de número más bajo, que puede no ser la de la
+     *   sesión.
+     * @que-deberia-ocurrir Que enseñe el precio de la tienda de la sesión, el que el recálculo cambia.
+     * @por-que-ocurre La lectura del precio busca solo por el producto, sin la tienda, y toma la primera
+     *   fila, que por el índice de la tabla es la de la tienda de número más bajo.
+     * @como-deberia-funcionar Leer el precio de la tienda de la sesión.
+     */
+    public function test_laPantallaEnsenaElPrecioActualDeLaTiendaDeLaSesion(): void
+    {
+        $pantalla = $this->ejecutar('mod_producto', 'Recalculo_precios.php', ['id' => ':albaran'], [], [
+            ...$this->albaran(), $this->producto('Kiwi')[0],
+            'INSERT INTO articulosPrecios (idArticulo, pvpCiva, pvpSiva, idTienda) VALUES (:pN, 9.68, 8, :tienda - 1)',
+            'INSERT INTO articulosPrecios (idArticulo, pvpCiva, pvpSiva, idTienda) VALUES (:pN, 2.42, 2, :tienda)',
+            $this->historico(1, 2), $this->referenciaDelProveedor('REF-KIWI'),
+        ]);
+
+        self::assertMatchesRegularExpression('/<td>Kiwi<\/td>(\s*<td>[^<]*<\/td>){5}\s*<td>2\.4200<\/td>/', $pantalla['html']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/Recalculo_precios.php:20
+     *
+     * @group defecto
+     * @group bajo
+     *
+     * @que-ocurre-hoy Sin sesión, el recálculo de `mod_producto` pide el acceso sin enseñar el recálculo, pero
+     *   deja avisos de PHP: el del usuario de la sesión, que no hay, y los del menú del acceso.
+     * @que-deberia-ocurrir Que pida el acceso sin avisos, como las demás pantallas.
+     * @por-que-ocurre La pantalla toma el usuario de la sesión sin mirar si lo hay, y deja sin usuario al
+     *   menú, al que el arranque había dado el de invitado.
+     * @como-deberia-funcionar Usar el usuario que deja el arranque, o comprobar la sesión antes de leer nada.
+     */
+    public function test_sinSesionLaPantallaPideElAccesoSinAvisos(): void
+    {
+        $pantalla = $this->ejecutar('mod_producto', 'Recalculo_precios.php', ['id' => ':albaran'], [], [
+            ...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2), $this->referenciaDelProveedor('REF-KIWI'),
+        ], [], [], false);
+
+        self::assertStringNotContainsString('<td>Kiwi</td>', $pantalla['html']);
+        self::assertSame('', $pantalla['errores']);
     }
 
     /** @return list<string> */
