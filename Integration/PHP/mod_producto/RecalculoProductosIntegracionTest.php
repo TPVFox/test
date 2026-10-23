@@ -596,6 +596,113 @@ final class RecalculoProductosIntegracionTest extends CasoIntegracion
         self::assertMatchesRegularExpression('/<td>Kiwi<\/td>(\s*<td>[^<]*<\/td>){5}\s*<td>2\.4200<\/td>/', $pantalla['html']);
     }
 
+    /**
+     * @comportamiento Detrás de un producto descartado y de uno revisado, el precio de cada fila se guarda en
+     *   su producto: el guardado cuenta las filas como la pantalla. El descartado no cambia de precio, y su
+     *   línea queda revisada con las demás.
+     */
+    public function test_cadaPrecioSeGuardaEnSuProductoDetrasDeUnDescartadoYUnRevisado(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_2' => '3.30'], [
+            ...$this->albaran(),
+            ...$this->producto('Kiwi'), $this->historico(1, 2, 'Sin Cambios'),
+            ...$this->producto('Pera'), $this->historico(1, 2, 'Revisado'),
+            ...$this->producto('Uva'), $this->historico(1, 2),
+        ], [
+            'precios' => 'SELECT idArticulo, pvpCiva FROM articulosPrecios WHERE idArticulo IN (:p1, :p2, :p3) ORDER BY idArticulo',
+            'kiwi' => 'SELECT estado FROM historico_precios WHERE id = :h1',
+        ]);
+
+        self::assertSame(['2.420000', '2.420000', '3.300000'], array_column($pantalla['leido']['precios'], 'pvpCiva'));
+        self::assertSame('Revisado', $pantalla['leido']['kiwi'][0]['estado']);
+    }
+
+    /** @comportamiento Al guardar, un producto con un recálculo posterior no cambia de precio, y su línea sigue «Sin revisar». */
+    public function test_alGuardarUnProductoSinRevisarNoCambiaNiSeRevisa(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], ['Guardar' => 'Guardar'], [
+            ...$this->albaran(), ...$this->producto('Uva'), $this->historico(1, 2), $this->historico(1, 3, 'Pendiente', '2026-10-05 10:00:00', '0'),
+        ], [
+            'precio' => 'SELECT pvpCiva FROM articulosPrecios WHERE idArticulo = :p1',
+            'linea' => 'SELECT estado FROM historico_precios WHERE id = :h1',
+        ]);
+
+        self::assertSame('2.420000', $pantalla['leido']['precio'][0]['pvpCiva']);
+        self::assertSame('Sin revisar', $pantalla['leido']['linea'][0]['estado']);
+        self::assertSame('', $pantalla['errores']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_productos/Recalculo_precios.php:75
+     *
+     * @group defecto
+     * @group alto
+     *
+     * @que-ocurre-hoy Una línea pendiente cuyo precio no llega en el formulario —una línea que entró en el
+     *   albarán después de pintar la pantalla— deja el producto con el precio de venta a cero, y lo apunta
+     *   así en el histórico.
+     * @que-deberia-ocurrir Que una línea sin precio no se guarde, y la pantalla lo diga.
+     * @por-que-ocurre El guardado toma como cero el precio de una fila que no llega.
+     * @como-deberia-funcionar Saltar la línea cuyo precio no llega y avisarlo.
+     */
+    public function test_unaLineaSinSuPrecioEnElFormularioNoDejaElProductoACero(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], ['Guardar' => 'Guardar'], [...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2)], [
+            'precio' => 'SELECT pvpCiva FROM articulosPrecios WHERE idArticulo = :p1',
+        ]);
+
+        self::assertSame('2.420000', $pantalla['leido']['precio'][0]['pvpCiva']);
+    }
+
+    /**
+     * @comportamiento Dos líneas pendientes del mismo producto en el albarán se guardan una tras otra: cada
+     *   cambio se apunta desde el precio que dejó el anterior, y queda el de la última.
+     */
+    public function test_dosLineasDelMismoProductoApuntanCadaCambioSobreElAnterior(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], ['Guardar' => 'Guardar', 'pvpRecomendado_1' => '3.00', 'pvpRecomendado_2' => '4.00'], [
+            ...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2), $this->historico(2, 3),
+        ], [
+            'precio' => 'SELECT pvpCiva FROM articulosPrecios WHERE idArticulo = :p1',
+            'cambios' => "SELECT Antes, Nuevo FROM historico_precios WHERE idArticulo = :p1 AND Dedonde = 'Recalculo' ORDER BY id",
+        ]);
+
+        self::assertSame('4.000000', $pantalla['leido']['precio'][0]['pvpCiva']);
+        self::assertSame([['Antes' => '2.4200', 'Nuevo' => '3.0000'], ['Antes' => '3.0000', 'Nuevo' => '4.0000']], $pantalla['leido']['cambios']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/funciones.php:967
+     * @codigo-afectado modulos/mod_producto/funciones.php:974-977
+     * @codigo-afectado clases/articulos.php:224
+     *
+     * @group defecto
+     * @group medio
+     *
+     * @que-ocurre-hoy El recálculo de un albarán ya guardado, abierto otra vez sin su caché —por otro
+     *   usuario, o desde el recálculo de `mod_producto`—, pasa sus líneas revisadas a «Sin revisar» en el
+     *   histórico y las vuelve a enseñar: el cambio de precio que apuntó el propio recálculo cuenta como uno
+     *   posterior.
+     * @que-deberia-ocurrir Que las líneas revisadas sigan revisadas y no vuelvan a salir.
+     * @por-que-ocurre La marca de los recálculos posteriores mira cualquier línea del histórico del
+     *   producto con fecha mayor, también la del propio recálculo, y cambia el estado de la línea sea cual
+     *   sea.
+     * @como-deberia-funcionar Marcar solo las líneas pendientes, y contar como posteriores solo las líneas
+     *   de coste de otros albaranes.
+     */
+    public function test_unAlbaranYaRecalculadoNoVuelveAEnsenarSusLineas(): void
+    {
+        $pantalla = $this->pintar(['id' => ':albaran'], [], [
+            ...$this->albaran(), ...$this->producto('Kiwi'), $this->historico(1, 2, 'Revisado'),
+            "INSERT INTO historico_precios (idArticulo, Antes, Nuevo, Fecha_Creacion, NumDoc, Dedonde, Tipo, idUsuario, estado) VALUES (:pN, 2.42, 3, '2026-10-02 10:00:00', :albaran, 'Recalculo', 'Productos', :usuario, 'A mano')",
+        ], ['linea' => 'SELECT estado FROM historico_precios WHERE id = :h1']);
+
+        self::assertSame('Revisado', $pantalla['leido']['linea'][0]['estado']);
+        self::assertStringNotContainsString('<td>Kiwi</td>', $pantalla['html']);
+    }
+
     /** @return list<string> */
     private function albaran(string $proveedor = 'Frutas del Norte'): array
     {
