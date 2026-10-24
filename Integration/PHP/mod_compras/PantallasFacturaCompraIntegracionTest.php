@@ -187,6 +187,24 @@ final class PantallasFacturaCompraIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString('<td>Frutas <b>compra</b></td>', $pagina['html']);
     }
 
+    /** @comportamiento Un listado sin facturas que cumplan la búsqueda lo avisa. */
+    public function test_unListadoSinFacturasLoAvisa(): void
+    {
+        $pagina = $this->pintar('facturasListado.php', ['buscar' => 'Proveedor que no existe']);
+
+        self::assertStringContainsString('No tienes facturas guardados!', $pagina['html']);
+    }
+
+    /** @comportamiento Una factura nueva que llega desde los albaranes de un proveedor deja al JavaScript el proveedor y los albaranes con que empezar. */
+    public function test_unaFacturaDesdeLosAlbaranesDeUnProveedor(): void
+    {
+        $pagina = $this->pintar('factura.php', [], [$this->proveedor(), $this->albaran()], true, [], ['action' => 'crearDesdeAlbaranes', 'idProveedor' => ':p1', 'albaranes' => [':alb1']]);
+
+        self::assertStringContainsString('window.crearDesdeAlbaranes = true;', $pagina['html']);
+        self::assertStringContainsString('window.proveedorInicial = ' . $pagina['ids'][':p1'] . ';', $pagina['html']);
+        self::assertStringContainsString('window.albaranesIniciales = ["' . $pagina['ids'][':alb1'] . '"];', $pagina['html']);
+    }
+
     private function proveedor(): string
     {
         return "INSERT INTO proveedores (nombrecomercial, razonsocial, nif, direccion, fecha_creado, estado) VALUES ('Frutas compra', 'Frutas compra SL', 'X1', 'Sin direccion', NOW(), 'Activo')";

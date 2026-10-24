@@ -226,6 +226,26 @@ final class PantallasPedidoCompraIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString('<td>Frutas <b>compra</b></td>', $pagina['html']);
     }
 
+    /** @comportamiento Un listado sin pedidos que cumplan la búsqueda lo avisa. */
+    public function test_unListadoSinPedidosLoAvisa(): void
+    {
+        $pagina = $this->pintar('pedidosListado.php', ['buscar' => 'Proveedor que no existe']);
+
+        self::assertStringContainsString('No tienes pedidos guardados!', $pagina['html']);
+    }
+
+    /** @comportamiento Guardar desde la pantalla un pedido que llega facturado lo avisa y no lo guarda. */
+    public function test_guardarUnPedidoFacturadoDesdeLaPantallaLoAvisa(): void
+    {
+        $preparacion = [$this->proveedor(), $this->articulo(), $this->temporal(null)];
+
+        $pagina = $this->pintar('pedido.php', ['tActual' => ':tped1'], $preparacion, true, [], ['Guardar' => 'Guardar', 'idTemporal' => ':tped1', 'fecha' => '04-02-2026', 'estado' => 'Facturado']);
+
+        self::assertStringContainsString('No se permite modificar un pedido en estado Facturado', $pagina['html']);
+        self::assertSame([], $pagina['pedidos']);
+        self::assertSame(1, $pagina['temporales']);
+    }
+
     private function proveedor(): string
     {
         return "INSERT INTO proveedores (nombrecomercial, razonsocial, nif, direccion, fecha_creado, estado) VALUES ('Frutas compra', 'Frutas compra SL', 'X1', 'Sin direccion', NOW(), 'Activo')";

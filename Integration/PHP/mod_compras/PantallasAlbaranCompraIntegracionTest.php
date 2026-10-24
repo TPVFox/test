@@ -254,6 +254,14 @@ final class PantallasAlbaranCompraIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString('<td>Frutas <b>compra</b></td>', $pagina['html']);
     }
 
+    /** @comportamiento Un listado sin albaranes que cumplan la búsqueda lo avisa. */
+    public function test_unListadoSinAlbaranesLoAvisa(): void
+    {
+        $pagina = $this->pintar('albaranesListado.php', ['buscar' => 'Proveedor que no existe']);
+
+        self::assertStringContainsString('No tienes albaranes guardados!', $pagina['html']);
+    }
+
     /**
      * Un proveedor con un albarán guardado —el 901, con una línea de pera de 10 € al 4 %— y su desglose.
      *
