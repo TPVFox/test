@@ -147,7 +147,7 @@ final class ClaseTicketsIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_tpv/clases/ClaseTickets.php:477-500
+     * @codigo-afectado modulos/mod_tpv/clases/ClaseTickets.php:469-493
      *
      * @group defecto
      * @group integridad
@@ -173,7 +173,7 @@ final class ClaseTicketsIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_tpv/clases/ClaseTickets.php:485-490; modulos/mod_tpv/tareas.php:195-203
+     * @codigo-afectado modulos/mod_tpv/clases/ClaseTickets.php:478-483; modulos/mod_tpv/tareas.php:195-203
      *
      * @group defecto
      * @group seguridad

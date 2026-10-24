@@ -148,7 +148,7 @@ final class PantallasTpvIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_tpv/ListaTickets.php:36-39,99-104
+     * @codigo-afectado modulos/mod_tpv/ListaTickets.php:40-43,72,99
      *
      * @group defecto
      * @group presentacion
@@ -181,7 +181,7 @@ final class PantallasTpvIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_tpv/ListaTickets.php:133-139; modulos/mod_tpv/ticketCobrado.php:108-110; modulos/mod_tpv/acces.xml
+     * @codigo-afectado modulos/mod_tpv/ListaTickets.php:136-137; modulos/mod_tpv/ticketCobrado.php:110; modulos/mod_tpv/acces.xml
      *
      * @group defecto
      * @group permisos
@@ -207,7 +207,7 @@ final class PantallasTpvIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_tpv/ListaTickets.php:36-39,125,128,159
+     * @codigo-afectado modulos/mod_tpv/ListaTickets.php:40-43,55,72,130,134,148,163
      *
      * @group defecto
      * @group seguridad
@@ -249,7 +249,7 @@ final class PantallasTpvIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_tpv/ticketCobrado.php:166-173
+     * @codigo-afectado modulos/mod_tpv/ticketCobrado.php:174-181,242-246
      *
      * @group defecto
      * @group calculo

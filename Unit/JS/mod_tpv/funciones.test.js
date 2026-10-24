@@ -322,7 +322,7 @@ describe('cobrar el ticket', () => {
 
   /**
    * @estado rojo
-   * @codigo-afectado modulos/mod_tpv/funciones.js:356-370
+   * @codigo-afectado modulos/mod_tpv/funciones.js:354-368
    *
    * @group defecto
    * @group presentacion
