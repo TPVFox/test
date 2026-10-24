@@ -278,6 +278,80 @@ final class PantallasClienteIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('col-md-12 bg-info', $pantalla['html']);
     }
 
+    /** @comportamiento El listado enlaza el móvil de un cliente con su chat y su correo con un mensaje. */
+    public function test_elListadoEnlazaElMovilYElCorreo(): void
+    {
+        $pantalla = $this->ejecutar('ListaClientes.php', ['buscar' => 'Ultramarinos Lucía'], [$this->cliente('Ultramarinos Lucía', "movil = '600000001', email = 'lucia@pruebas.test'")]);
+
+        self::assertStringContainsString('href="https://web.whatsapp.com/send?phone=34+600000001"', $pantalla['html']);
+        self::assertStringContainsString('href="mailto:lucia@pruebas.test"', $pantalla['html']);
+    }
+
+    /** @comportamiento La ficha sin número es la de un cliente nuevo, con el descuento de tickets de la configuración. */
+    public function test_laFichaDeUnClienteNuevo(): void
+    {
+        $pantalla = $this->ejecutar('cliente.php', []);
+
+        self::assertStringContainsString('Cliente: Crear', $pantalla['html']);
+        self::assertStringContainsString("history.replaceState(null,'','?accion=Nuevo')", $pantalla['html']);
+        self::assertMatchesRegularExpression('/id="descuentotickets" name="descuento_ticket" [^>]*value="[^"]+"/', $pantalla['html']);
+    }
+
+    /** @comportamiento Guardar la ficha con el NIF de otro cliente no guarda y lo dice. */
+    public function test_guardarConElNifDeOtroNoGuardaYLoDice(): void
+    {
+        $pantalla = $this->ejecutar('cliente.php', ['id' => ':c1', 'accion' => 'editar'], [$this->cliente('Ultramarinos Lucía'), $this->cliente('Otro', "nif = 'B99000009'")], true, [], $this->ficha(['nif' => 'B99000009']));
+
+        self::assertStringContainsString('No se grabo por un error grave', $pantalla['html']);
+        self::assertSame('', (string) $pantalla['clientes'][0]['nif']);
+    }
+
+    /** @comportamiento El resumen de tickets de este año va desde el 1 de enero; sin cliente, lo dice. */
+    public function test_elResumenDelAnoYSinCliente(): void
+    {
+        $ano = $this->ejecutar('Resumenes/resumenTickets.php', ['id' => ':c1', 'hacerResumen' => 'Si', 'todo' => 'Si'], [$this->cliente('Ultramarinos Lucía'), $this->ticket(date('Y') . '-01-15', '10.00')]);
+        $sinCliente = $this->ejecutar('Resumenes/resumenTickets.php', []);
+
+        self::assertStringContainsString('value="' . date('Y') . '-01-01"', $ano['html']);
+        self::assertStringContainsString('TOTAL: 10', $ano['html']);
+        self::assertStringContainsString('Error no se ha enviado el id del cliente', $sinCliente['html']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_cliente/Resumenes/resumenTickets.php:76-78, :93-100; modulos/mod_cliente/clases/ClaseCliente.php:258-260
+     *
+     * @group defecto
+     * @group resumenes
+     * @group bajo
+     *
+     * @que-ocurre-hoy El resumen de un cliente sin tickets en el periodo pedido —el mes anterior, por
+     *   ejemplo— dice «Error en sql» y corta la página: no se pueden pedir otras fechas.
+     * @que-deberia-ocurrir Que diga que no hay tickets en esas fechas y deje pedir otras.
+     * @por-que-ocurre La falta de tickets se responde como un error, y la página corta ante cualquier
+     *   error.
+     * @como-deberia-funcionar Responder la falta de tickets como un aviso.
+     */
+    public function test_unResumenSinTicketsEnElPeriodoDejaPedirOtrasFechas(): void
+    {
+        $pantalla = $this->ejecutar('Resumenes/resumenTickets.php', ['id' => ':c1', 'hacerResumen' => 'Si', 'mes_anterior' => 'Si'], [$this->cliente('Ultramarinos Lucía')]);
+
+        self::assertStringNotContainsString('Error en sql', $pantalla['html']);
+        self::assertMatchesRegularExpression('/id="fechaInicial" name="fechaInicial" value="\d{4}-\d{2}-01"/', $pantalla['html']);
+    }
+
+    /** @comportamiento El resumen de clientes destaca de otro color al que llega a 3.000 € con IVA sin llegar sin él. */
+    public function test_elResumenDeClientesDestacaPorElTotalConIva(): void
+    {
+        $pantalla = $this->ejecutar('Resumenes/resumenClientes.php', [], [
+            $this->cliente('Cliente de 3.100 con IVA', 'requiere_factura = 1'),
+            "INSERT INTO ticketst (Numticket, Numtempticket, Fecha, idTienda, idUsuario, idCliente, estado, formaPago, entregado, total) SELECT COALESCE(MAX(Numticket), 0) + 1, COALESCE(MAX(Numticket), 0) + 1, '2026-05-10 10:00:00', :tienda, :usuario, :c1, 'Cerrado', 'Efectivo', 0, 3100.00 FROM ticketst;"
+            . " INSERT INTO ticketstIva (idticketst, Numticket, iva, importeIva, totalbase) SELECT id, Numticket, 10, 281.82, 2818.18 FROM ticketst WHERE id = LAST_INSERT_ID()",
+        ]);
+
+        self::assertStringContainsString('col-md-12 bg-warning', $pantalla['html']);
+    }
+
     private function cliente(string $nombre, string $mas = ''): string
     {
         return "INSERT INTO clientes (Nombre, estado) VALUES ('" . str_replace("'", "''", $nombre) . "', 'Activo')" . ($mas !== '' ? '; UPDATE clientes SET ' . $mas . ' WHERE idClientes = LAST_INSERT_ID()' : '');

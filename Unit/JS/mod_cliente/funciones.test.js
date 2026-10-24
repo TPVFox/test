@@ -238,3 +238,55 @@ describe('las impresiones y el informe', () => {
     expect(pagina.pintado['.modal-body']).toBe('Mes de septiembre<br/><br/><table>Descuentos insertados: 1</table>');
   });
 });
+
+describe('el teclado de la tarifa', () => {
+  /** @comportamiento Las cajas de la fila de un producto y de sus botones toman el identificador del elemento pulsado, su fila y su producto. */
+  test('las cajas de teclado toman su fila y su producto', () => {
+    const { contexto } = paginaDePrueba();
+
+    const fila = contexto.before_constructor(contexto.after_constructor({ id_input: 'N_' }, { target: { id: 'N_3' } }));
+    const modificar = contexto.before_constructor(contexto.after_constructor({ id_input: 'btn_modificar_' }, { target: { id: 'btn_modificar_15' } }));
+    const cancelar = contexto.before_constructor(contexto.after_constructor({ id_input: 'btn_cancelar_' }, { target: { id: 'btn_cancelar_16' } }));
+    const busqueda = contexto.before_constructor({ id_input: 'cajaBusqueda', darParametro: () => 'popup' });
+
+    expect([fila.fila, modificar.idArticulo, cancelar.idArticulo, busqueda.dedonde]).toEqual(['3', '15', '16', 'popup']);
+  });
+
+  /** @comportamiento Las teclas de la línea de precios recalculan, graban, cancelan, modifican o quitan un producto. */
+  test('las acciones de teclado de la línea de precios', () => {
+    const pagina = paginaDePrueba({ valores: { '#inputIVA': '10', '#inputPrecioCon': '2.20', '#inputIdArticulo': '5', '#id_cliente': '7' } });
+
+    pagina.contexto.controladorAcciones({ id_input: 'inputPrecioCon' }, 'saltar_preciosCon');
+    pagina.contexto.controladorAcciones({ id_input: 'inputPrecioCon' }, 'grabarArticulo');
+    pagina.contexto.controladorAcciones({}, 'cancelarAnhadir');
+    pagina.contexto.controladorAcciones({ idArticulo: '15' }, 'modificarArticulo');
+    pagina.contexto.controladorAcciones({ idArticulo: '16' }, 'cancelarArticulo');
+
+    expect(pagina.peticiones.map((p) => p.data.pulsado)).toEqual(['Grabar_tarifa_producto_cliente', 'leerArticulo', 'Borrar_producto_tarifa_cliente']);
+    expect(pagina.peticiones[0].data).toMatchObject({ idarticulo: '5', pvpCiva: '2.20', pvpSiva: '2.00' });
+    expect(pagina.peticiones[1].data).toMatchObject({ caja: 'idArticulo', valor: '15' });
+    expect(pagina.peticiones[2].data).toMatchObject({ idarticulo: '16' });
+    expect(pagina.visibles['#formulario']).toBe(false);
+  });
+
+  /** @comportamiento Bajar y subir con las flechas ponen el foco en la fila siguiente o en la anterior. */
+  test('mover arriba y abajo pone el foco', () => {
+    const pagina = paginaDePrueba();
+
+    pagina.contexto.controladorAcciones({ fila: '2', darParametro: () => 'N_' }, 'mover_down');
+    const abajo = pagina.enfocada;
+    pagina.contexto.controladorAcciones({ fila: '2', darParametro: () => 'N_' }, 'mover_up');
+
+    expect([abajo, pagina.enfocada]).toEqual(['#N_3', '#N_1']);
+  });
+
+  /** @comportamiento Cerrar el informe de descuentos cierra su ventana. */
+  test('cerrar el informe cierra su ventana', () => {
+    const pagina = paginaDePrueba();
+
+    pagina.contexto.cerrarModalInforme();
+
+    expect(pagina.cerradas).toBe(1);
+  });
+});
+

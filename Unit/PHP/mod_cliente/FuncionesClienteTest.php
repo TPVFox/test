@@ -159,4 +159,33 @@ final class FuncionesClienteTest extends TestCase
         self::assertStringContainsString('href="./../cliente.php?id=7&accion=ver"', $html);
         self::assertStringContainsString('href="../../mod_venta/facturasListado.php?buscar=Bar+%3CPepe%3E"', $html);
     }
+
+    /** @comportamiento Las tablas de las facturas y de los pedidos enlazan cada documento con su pantalla de ventas, sin ofrecer resumen. */
+    public function test_lasTablasDeFacturasYPedidosEnlazanSuDocumento(): void
+    {
+        $documento = [['fecha' => '2026-10-01', 'num' => '12', 'total' => '50.00', 'estado' => 'Guardado', 'id' => '4', 'idCliente' => '7']];
+
+        $facturas = \htmlTablaGeneral($documento, '/TPVFox', 'facturas');
+        $pedidos = \htmlTablaGeneral($documento, '/TPVFox', 'pedidos');
+
+        self::assertStringContainsString('href="/TPVFox/modulos/mod_venta/factura.php?id=4"', $facturas);
+        self::assertStringContainsString('href="/TPVFox/modulos/mod_venta/pedido.php?id=4"', $pedidos);
+        self::assertStringNotContainsString('resumen(', $facturas . $pedidos);
+    }
+
+    /** @comportamiento Con facturas en el ejercicio, la tabla del resumen anual las enseña con sus trimestres; el resumen de todos salta lo que no tiene. */
+    public function test_laTablaDelResumenAnualEnsenaLasFacturas(): void
+    {
+        $vacio = array_fill_keys(['q1Iva', 'q1', 'q2Iva', 'q2', 'q3Iva', 'q3', 'q4Iva', 'q4', 'totalIva', 'total'], 0);
+        $facturas = ['q2' => 242.0, 'q2Iva' => 42.0, 'total' => 242.0, 'totalIva' => 42.0] + $vacio;
+        $soloFacturas = ['resumen_facturas' => [['idCliente' => '7', 'ejercicio' => '2026'] + $facturas]];
+
+        $html = \htmlTablaResumenAnual(['tickets' => $vacio, 'facturas' => $facturas, 'total' => $facturas]);
+        $todos = \validarResumenAnualTodosClientes($soloFacturas, 2026);
+
+        self::assertStringContainsString('<h4>Facturas</h4>', $html);
+        self::assertStringNotContainsString('<h4>Tickets</h4>', $html);
+        self::assertStringContainsString('<td>200.00</td>', $html);
+        self::assertSame(242.0, $todos[7]['total']['total']);
+    }
 }

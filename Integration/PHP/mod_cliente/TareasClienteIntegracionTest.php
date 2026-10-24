@@ -245,6 +245,51 @@ final class TareasClienteIntegracionTest extends CasoIntegracion
         self::assertSame([['mod_clientes', 'El NIF no coincide']], array_map(static fn (array $i): array => [$i['dedonde'], $i['mensaje']], $grabar['incidencias']));
     }
 
+    /** @comportamiento Buscar productos para la tarifa por su código de barras responde el buscador con ellos. */
+    public function test_buscarProductosPorCodigoDeBarras(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'leerArticulo', 'caja' => 'Codbarras', 'valor' => '8400000000017', 'idcliente' => '0'], [
+            $this->producto('Pera de código de barras'), $this->precio(':a1', '1001', '2.00'), "INSERT INTO articulosCodigoBarras (idArticulo, codBarras) VALUES (:a1, '8400000000017')",
+        ]);
+
+        self::assertSame(1, $peticion['respuesta']['NItems']);
+        self::assertStringContainsString('Pera de código de barras', $peticion['respuesta']['html']['html']);
+    }
+
+    /** @comportamiento Imprimir el resumen de albaranes de un cliente escribe su PDF; sin documentos en el periodo, responde el error. */
+    public function test_imprimirElResumenDeAlbaranesYSinDocumentos(): void
+    {
+        $albaranes = $this->ejecutar(['pulsado' => 'imprimirResumen', 'idCliente' => ':c1', 'fechaInicial' => '2026-09-01', 'fechaFinal' => '2026-09-30', 'dedonde' => 'albaran'], [
+            $this->cliente('Bar Pepe'), $this->producto('Queso'),
+            "INSERT INTO albclit (Numalbcli, Fecha, idTienda, idUsuario, idCliente, estado, formaPago, entregado, total) VALUES (990002, '2026-09-10 10:00:00', :tienda, :usuario, :c1, 'Guardado', 'Efectivo', 0, 12.10)",
+            "INSERT INTO albclilinea (idalbcli, Numalbcli, idArticulo, cref, ccodbar, cdetalle, ncant, nunidades, precioCiva, iva, nfila, estadoLinea, pvpSiva) SELECT MAX(id), 990002, :a1, '', '', 'Queso', 1, 1, 12.10, 10, 1, 'Activo', 11 FROM albclit",
+            "INSERT INTO albcliIva (idalbcli, Numalbcli, iva, importeIva, totalbase) SELECT MAX(id), 990002, 10, 1.10, 11 FROM albclit",
+        ]);
+        $sinDocumentos = $this->ejecutar(['pulsado' => 'imprimirResumen', 'idCliente' => ':c1', 'fechaInicial' => '2026-09-01', 'fechaFinal' => '2026-09-30', 'dedonde' => 'ticket'], [$this->cliente('Bar Pepe')]);
+
+        self::assertStringContainsString('Albaranes del cliente', $albaranes['impreso']['html']);
+        self::assertStringContainsString('990002', $albaranes['impreso']['html']);
+        self::assertSame('No existen ids entre estas fechas', $sinDocumentos['respuesta']['error']['dato']);
+    }
+
+    /** @comportamiento Una incidencia con un usuario elegido lo guarda en sus datos. */
+    public function test_unaIncidenciaConUsuarioElegidoLoGuarda(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'nuevaIncidencia', 'usuario' => (string) $this->idUsuario, 'fecha' => '2026-10-24', 'datos' => '{"vista":"cliente","idReal":"7"}', 'estado' => 'No resuelto', 'mensaje' => 'Revisar el NIF', 'usuarioSelec' => '5']);
+
+        self::assertSame(['mod_clientes', 'Revisar el NIF'], [$peticion['incidencias'][0]['dedonde'], $peticion['incidencias'][0]['mensaje']]);
+        self::assertStringContainsString('"usuarioSelec":"5"', $peticion['respuesta']['sql']);
+    }
+
+    /** @comportamiento Un descuento ya guardado para el periodo, sin sobrescribir, se deja como estaba y se cuenta como ignorado. */
+    public function test_unDescuentoYaGuardadoSinSobrescribirSeIgnora(): void
+    {
+        $peticion = $this->ejecutar($this->descuentos(), [...$this->conTicketsDeSeptiembre(), $this->descuentoSembrado('2026-09-01', '2026-09-30 23:59:59', '10.00', '0.20')]);
+
+        self::assertSame([[':c1', '2026-09-01', '2', '10.00', '0.20']], $this->descuentosDe($peticion));
+        self::assertStringContainsString('Descuentos ignorados: 1', $peticion['respuesta'][0]);
+    }
+
     /** @return list<string> Un cliente con dos tickets en septiembre, de 10 € y de 20 €, y uno en octubre. */
     private function conTicketsDeSeptiembre(): array
     {
