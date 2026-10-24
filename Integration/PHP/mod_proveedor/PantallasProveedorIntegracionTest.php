@@ -442,6 +442,81 @@ final class PantallasProveedorIntegracionTest extends CasoIntegracion
      *   principal y después los asociados, con su coste y su referencia de ese proveedor; quien puede
      *   modificar ve la papelera de los asociados.
      */
+    /** @comportamiento Sin sesión, el resumen de albaranes no enseña las compras del proveedor. */
+    public function test_sinSesionElResumenDeAlbaranesNoEnsenaLasCompras(): void
+    {
+        $preparacion = array_merge(
+            $this->proveedor('p', 'B70000001'),
+            $this->articulo('a', 'Tomate Prueba', 2, 21, '@p'),
+            $this->albaran('al1', '@p', 9001, '2031-05-10 12:00:00', '@a', 10, 2, 21),
+        );
+
+        $pantalla = $this->ejecutar('OtrasVistas/resumenAlbaranes.php', ['id' => '{@p}', 'fechaIni' => '2031-05-01', 'fechaFin' => '2031-05-31'], [], $preparacion, [], null);
+
+        self::assertStringNotContainsString('Tomate Prueba', $pantalla['html']);
+        self::assertStringNotContainsString('SU-9001', $pantalla['html']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_proveedor/OtrasVistas/resumenAlbaranes.php:72,137,144
+     * @codigo-afectado modulos/mod_proveedor/OtrasVistas/ListadoProductosDeProveedor.php:244,252
+     *
+     * @group defecto
+     * @group proveedor
+     * @group medio
+     *
+     * @que-ocurre-hoy Sin el número del proveedor en la dirección, el resumen de albaranes y los productos
+     *   de un proveedor se pintan con avisos de PHP, por un número, un título y unos datos sin definir.
+     * @que-deberia-ocurrir Que sin número avisen de que falta el proveedor, sin avisos de PHP.
+     * @por-que-ocurre Las dos pantallas solo definen el número y lo que leen con él si llega en la
+     *   dirección, y lo usan igual.
+     * @como-deberia-funcionar Comprobar el número al empezar y avisar si falta.
+     */
+    public function test_sinNumeroElResumenYLosProductosAvisanSinAvisosDePhp(): void
+    {
+        foreach (['OtrasVistas/resumenAlbaranes.php', 'OtrasVistas/ListadoProductosDeProveedor.php'] as $fichero) {
+            $this->sinAvisos($this->ejecutar($fichero, [], [], [], [], self::CON_PERMISOS));
+        }
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_proveedor/funciones.php:238-251
+     *
+     * @group defecto
+     * @group proveedor
+     * @group medio
+     *
+     * @que-ocurre-hoy Sin ninguna factura de proveedor en la base, el resumen anual de proveedores se pinta
+     *   con un aviso de PHP.
+     * @que-deberia-ocurrir Que se pinte vacío, sin avisos.
+     * @por-que-ocurre La validación recorre el resumen sin mirar si la lectura trajo filas, y sin ellas
+     *   recorre un valor nulo.
+     * @como-deberia-funcionar Tratar el resumen sin filas como una lista vacía.
+     */
+    public function test_sinFacturasElResumenAnualSePintaSinAvisos(): void
+    {
+        $pantalla = $this->ejecutar('OtrasVistas/resumenProveedores.php', [], [], ['DELETE FROM facprot']);
+
+        $this->sinAvisos($pantalla);
+    }
+
+    /** @comportamiento Sin sesión, la pantalla de los productos de un proveedor no los enseña. */
+    public function test_sinSesionLosProductosDeUnProveedorNoSeEnsenan(): void
+    {
+        $preparacion = array_merge(
+            $this->proveedor('p', 'B70000001'),
+            $this->articulo('principal', 'Tomate Prueba', 2, 21, '@p'),
+            ["INSERT INTO articulosProveedores (idArticulo, idProveedor, crefProveedor, coste, fechaActualizacion, estado) VALUES (@principal, @p, 'TOM-1', 2.10, '2031-01-01', 'Activo')"],
+        );
+
+        $pantalla = $this->ejecutar('OtrasVistas/ListadoProductosDeProveedor.php', ['id' => '{@p}'], [], $preparacion, [], null);
+
+        self::assertStringNotContainsString('Tomate Prueba', $pantalla['html']);
+        self::assertStringNotContainsString('TOM-1', $pantalla['html']);
+    }
+
     public function test_losProductosDeUnProveedor(): void
     {
         $preparacion = array_merge(
