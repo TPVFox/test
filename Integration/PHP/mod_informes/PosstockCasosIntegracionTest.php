@@ -262,7 +262,7 @@ final class PosstockCasosIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_informes/clases/PosstockQueryRepository.php:930-1002; modulos/mod_informes/clases/PosstockC1Detector.php:86-89
+     * @codigo-afectado modulos/mod_informes/clases/PosstockQueryRepository.php:930-995; modulos/mod_informes/clases/PosstockC1Detector.php:86-89
      *
      * @group defecto
      * @group integridad
