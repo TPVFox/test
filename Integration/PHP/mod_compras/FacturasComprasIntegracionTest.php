@@ -242,7 +242,7 @@ final class FacturasComprasIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_compras/clases/facturasCompras.php:340-370
+     * @codigo-afectado modulos/mod_compras/clases/facturasCompras.php:356-383
      *
      * @group defecto
      * @group seguridad
@@ -295,7 +295,7 @@ final class FacturasComprasIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_compras/clases/facturasCompras.php:333-337
+     * @codigo-afectado modulos/mod_compras/clases/facturasCompras.php:332-335
      *
      * @group defecto
      * @group integridad
