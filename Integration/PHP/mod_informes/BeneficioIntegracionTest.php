@@ -335,6 +335,19 @@ final class BeneficioIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento Los PDF de los atípicos, en global y de una familia, y el completo con las
+     *   subfamilias se generan con atípicos que pintar.
+     */
+    public function test_losPdfConAtipicosYConSubfamilias(): void
+    {
+        $siembra = self::BASE . ' $ids["n"] = $siembra->articulo("Zz Rúcula", ["familia" => $ids["sf"], "ultimoCoste" => 2.0, "beneficio" => -50]); $siembra->ventaTicket($ids["n"], 2, "2019-03-15");';
+        $marzo = '"Finicio" => "2019-03-01", "Ffinal" => "2019-03-31"';
+        foreach ([['imprimirBeneficioAtipicosPDF.php', '"idN1" => "__global__", "global" => "1"'], ['imprimirBeneficioAtipicosPDF.php', '"idN1" => (string) $ids["f"]'], ['imprimirBeneficioCompletoPDF.php', '"opcion" => "2"']] as [$script, $extra]) {
+            self::assertStringStartsWith('%PDF', $this->exportar($siembra, $script, '[' . $marzo . ', ' . $extra . ']')['salida'], $script);
+        }
+    }
+
+    /**
      * Los productos del resultado por nombre, de todas las familias.
      *
      * @param array<string, mixed> $resultado

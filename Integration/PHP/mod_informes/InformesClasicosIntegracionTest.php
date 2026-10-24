@@ -194,6 +194,42 @@ final class InformesClasicosIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento Cada informe se pinta en su página con cada una de sus opciones, con su título y los
+     *   nombres de familias y productos como texto.
+     */
+    public function test_cadaInformeSePintaConCadaOpcion(): void
+    {
+        $siembra = self::COMPRAS . ' $siembra->ventaTicket($ids["a"], 2, "2019-03-25");'
+            . ' $BDTpv->query("UPDATE familias SET familiaNombre = \'Zz <i>Hueso</i>\' WHERE idFamilia = " . $ids["sf"]);';
+        $titulos = [1 => 'Informe de Compras por Proveedores.', 2 => 'Suma compras por familias', 4 => 'Suma de ventas por familia', 6 => 'Beneficio por familia', 7 => 'Fluctuacion de coste mensual'];
+        foreach ([[1, '1'], [2, '2'], [2, '3'], [4, '1'], [4, '2'], [4, '3'], [6, '1'], [6, '2'], [7, '1'], [7, '2'], [7, '3']] as [$id, $opcion]) {
+            $pagina = $this->ejecutar($siembra . ' $_GET = ["id" => "' . $id . '", "opcion" => "' . $opcion . '", "Finicio" => "2019-03-01", "Ffinal" => "2019-03-31", "min_recepciones" => "1", "min_meses" => "1"]; ob_start(); include "informes.php"; $resultado = ob_get_clean();', 'informes.php');
+
+            self::assertStringContainsString($titulos[$id], (string) $pagina['resultado'], "informe $id, opción $opcion");
+            self::assertStringNotContainsString('<i>Hueso', (string) $pagina['resultado'], "informe $id, opción $opcion");
+        }
+    }
+
+    /**
+     * @comportamiento Una familia elegida que no es de primer nivel hace de familia y sus hijas de
+     *   subfamilias; lo que cuelga de una nieta se agrupa bajo la hija de la que viene, en las compras y en
+     *   las ventas.
+     */
+    public function test_unaFamiliaElegidaAgrupaLoDeSusNietasBajoSuHija(): void
+    {
+        $siembra = '$ids["f"] = $siembra->familia("Zz Fruta"); $ids["sf"] = $siembra->familia("Zz Hueso", $ids["f"]); $ids["h"] = $siembra->familia("Zz Melocotones", $ids["sf"]); $ids["n"] = $siembra->familia("Zz Rojos", $ids["h"]);'
+            . ' $ids["a"] = $siembra->articulo("Zz Melocotón rojo", ["familia" => $ids["n"], "ultimoCoste" => 2.0, "beneficio" => 50]);'
+            . ' $siembra->entradaProveedor($ids["a"], 10, "2019-03-04"); $siembra->ventaTicket($ids["a"], 4, "2019-03-10");';
+        $r = $this->ejecutar($siembra . ' $p = ["opcion" => "4", "familias" => (string) $ids["sf"], "Finicio" => "2019-03-01", "Ffinal" => "2019-03-31"];'
+            . ' $resultado = [(new ClaseInformes())->ResumenFamilias(["id" => "2"] + $p), (new ClaseInformes())->ResumenVentasFamilias(["id" => "4"] + $p)];');
+
+        foreach ($r['resultado'] as $informe) {
+            self::assertSame(['Zz Hueso'], array_column($informe, 'nombreN1'));
+            self::assertSame(['Zz Melocotones'], array_column($informe[0]['subfamilias'], 'nombreN2'));
+        }
+    }
+
+    /**
      * Ejecuta el código en un PHP aparte, desde la carpeta del módulo, con la sesión, el permiso y la
      * siembra de las pruebas, en una transacción que no se confirma, y devuelve lo que deja en
      * `$resultado`, lo sembrado en `$ids` y los avisos.
