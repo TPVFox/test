@@ -79,7 +79,7 @@ final class ClaseUsuariosIntegracionTest extends CasoIntegracion
         self::assertSame('0', $this->valor("SELECT COUNT(*) FROM usuarios WHERE id <> {$ana} AND estado <> 'inactivo'"));
     }
 
-    /** @comportamiento Cambiar la contraseña alcanza a todos los usuarios de la lista y a ninguno más; hoy la guarda como md5. */
+    /** @comportamiento Cambiar la contraseña alcanza a todos los usuarios de la lista y a ninguno más; la guarda con `password_hash()`. */
     public function test_cambiarLaContrasenaAlcanzaALosDeLaLista(): void
     {
         $ana = $this->usuario('ana');
@@ -88,8 +88,8 @@ final class ClaseUsuariosIntegracionTest extends CasoIntegracion
 
         self::assertSame('0', (new \ClaseUsuarios())->cambiarContraseñaUsuarios([$ana, $luis], 'Nueva-2027')['error']);
 
-        self::assertSame(md5('Nueva-2027'), $this->valor("SELECT password FROM usuarios WHERE id = {$ana}"));
-        self::assertSame(md5('Nueva-2027'), $this->valor("SELECT password FROM usuarios WHERE id = {$luis}"));
+        self::assertTrue(password_verify('Nueva-2027', $this->valor("SELECT password FROM usuarios WHERE id = {$ana}")));
+        self::assertTrue(password_verify('Nueva-2027', $this->valor("SELECT password FROM usuarios WHERE id = {$luis}")));
         self::assertSame(md5('anterior'), $this->valor("SELECT password FROM usuarios WHERE id = {$eva}"));
     }
 

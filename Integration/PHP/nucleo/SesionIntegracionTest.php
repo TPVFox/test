@@ -418,6 +418,28 @@ final class SesionIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento Un usuario con la contraseña guardada en md5 entra con ella, y desde ese
+     *   momento queda guardada con `password_hash()`: la siguiente vez entra igual.
+     *
+     * @runInSeparateProcess
+     * @preserveGlobalState disabled
+     */
+    public function test_T15_unaContrasenaEnMd5SeGuardaConPasswordHashAlEntrar(): void
+    {
+        $nombre = $this->nombreNuevo();
+        $id = $this->usuario($nombre, 'clave-correcta');
+
+        $this->peticion(['usr' => $nombre, 'pwd' => 'clave-correcta']);
+        $guardada = $this->db->query("SELECT password FROM usuarios WHERE id = $id")->fetch_assoc()['password'];
+        $_SESSION = [];
+        $this->peticion(['usr' => $nombre, 'pwd' => 'clave-correcta']);
+
+        self::assertNotSame(md5('clave-correcta'), $guardada);
+        self::assertTrue(password_verify('clave-correcta', $guardada));
+        self::assertSame('Correcto', $_SESSION['estadoTpv'], 'Vuelve a entrar con la contraseña ya convertida.');
+    }
+
+    /**
      * Construye la sesión de una petición, con el formulario de acceso que se le pase, sobre la
      * conexión del caso.
      *

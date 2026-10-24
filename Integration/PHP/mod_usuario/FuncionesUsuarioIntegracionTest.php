@@ -78,7 +78,7 @@ final class FuncionesUsuarioIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @comportamiento El alta guarda el usuario con su contraseña en md5, y crea su índice a cero en la
+     * @comportamiento El alta guarda el usuario con su contraseña con `password_hash()`, y crea su índice a cero en la
      *   tienda indicada.
      */
     public function test_elAltaGuardaElUsuarioYSuIndice(): void
@@ -87,7 +87,10 @@ final class FuncionesUsuarioIntegracionTest extends CasoIntegracion
 
         self::assertArrayNotHasKey('error', $alta);
         $guardado = $this->db->query("SELECT username, password, fecha, group_id, estado, nombre FROM usuarios WHERE id = {$alta['id']}")->fetch_assoc();
-        self::assertSame(['marta', md5('Clave-1'), '2026-10-23', '1', 'activo', 'Marta Ruiz'], array_map('strval', array_values($guardado)));
+        $clave = $guardado['password'];
+        unset($guardado['password']);
+        self::assertSame(['marta', '2026-10-23', '1', 'activo', 'Marta Ruiz'], array_map('strval', array_values($guardado)));
+        self::assertTrue(password_verify('Clave-1', $clave));
         self::assertSame("{$this->idTienda}|0|0", $this->valor("SELECT CONCAT(idTienda, '|', numticket, '|', tempticket) FROM indices WHERE idUsuario = {$alta['id']}"));
     }
 
@@ -118,7 +121,7 @@ final class FuncionesUsuarioIntegracionTest extends CasoIntegracion
         \modificarUsuario(['idUsuario' => $ana, 'username' => 'ana', 'nombreEmpleado' => 'Ana Gil', 'fecha' => '2026-01-01', 'password' => 'Nueva-1', 'grupo' => '9', 'estado' => 'activo'], $this->db, 'usuarios');
 
         self::assertSame(['ana', md5('anterior'), '9', 'inactivo', 'Ana Gil'], array_map('strval', array_values($sinClave)));
-        self::assertSame(md5('Nueva-1'), $this->valor("SELECT password FROM usuarios WHERE id = {$ana}"));
+        self::assertTrue(password_verify('Nueva-1', $this->valor("SELECT password FROM usuarios WHERE id = {$ana}")));
     }
 
     /**

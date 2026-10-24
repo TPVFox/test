@@ -123,8 +123,11 @@ final class TareasUsuariosIntegracionTest extends CasoIntegracion
         ]);
 
         self::assertSame('Operación realizada con éxito.', $cambio['respuesta']['mensaje']);
-        self::assertSame('activo|' . md5('Ano-2027'), $cambio['consultas']['admin']);
-        self::assertSame('activo|' . md5('Ano-2027'), $cambio['consultas']['ana']);
+        [$estadoAdmin, $claveAdmin] = explode('|', $cambio['consultas']['admin'], 2);
+        [$estadoAna, $claveAna] = explode('|', $cambio['consultas']['ana'], 2);
+        self::assertSame(['activo', 'activo'], [$estadoAdmin, $estadoAna]);
+        self::assertTrue(password_verify('Ano-2027', $claveAdmin));
+        self::assertTrue(password_verify('Ano-2027', $claveAna));
         self::assertSame('inactivo|' . md5('anterior'), $cambio['consultas']['luis']);
         self::assertSame('2', $cambio['consultas']['activos']);
     }

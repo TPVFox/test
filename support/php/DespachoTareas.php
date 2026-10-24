@@ -70,6 +70,14 @@ final class DespachoTareas
         $_POST = $post;
         extract($variables);
 
+        // tareas.php corta con `exit` la petición que llega sin sesión iniciada, y ese `exit` cerraría
+        // PHPUnit. Un caso que no fija `estadoTpv` despacha como un usuario que ha entrado, que es como
+        // despachaba antes de la puerta; el que lo fija lo conserva. Al terminar se deja como estaba.
+        $sinEstadoDeSesion = !isset($_SESSION['estadoTpv']);
+        if ($sinEstadoDeSesion) {
+            $_SESSION['estadoTpv'] = 'Correcto';
+        }
+
         $cwdOriginal = getcwd();
         chdir(sys_get_temp_dir());
         set_error_handler(static fn (): bool => true);
@@ -81,6 +89,9 @@ final class DespachoTareas
             restore_error_handler();
             chdir($cwdOriginal);
             $_POST = [];
+            if ($sinEstadoDeSesion) {
+                unset($_SESSION['estadoTpv']);
+            }
         }
 
         return $respuesta;

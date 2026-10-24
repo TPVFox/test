@@ -619,8 +619,8 @@ final class PantallasProveedorIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @comportamiento Sin sesión, quitar la relación de un artículo con el proveedor se rechaza por permiso;
-     *   con el de modificar, se quita.
+     * @comportamiento Sin sesión, quitar la relación de un artículo con el proveedor se rechaza por la sesión,
+     *   antes de mirar el permiso; con el de modificar, se quita.
      */
     public function test_quitarLaRelacionDeUnArticuloExigeElPermiso(): void
     {
@@ -635,7 +635,7 @@ final class PantallasProveedorIntegracionTest extends CasoIntegracion
         $sinSesion = $this->ejecutar('tareas.php', [], $post, $preparacion, $consulta, null);
         $conPermiso = $this->ejecutar('tareas.php', [], $post, $preparacion, $consulta, self::CON_PERMISOS);
 
-        self::assertStringContainsString('No tienes permisos', json_decode(explode("\n", $sinSesion['html'])[0], true)['error']);
+        self::assertSame('No autenticado', json_decode(explode("\n", $sinSesion['html'])[0], true)['error']);
         self::assertSame('1', $sinSesion['consultas']['relaciones']);
         self::assertSame('0', $conPermiso['consultas']['relaciones']);
     }
