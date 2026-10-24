@@ -394,6 +394,62 @@ final class ComplementoProductosIntegracionTest extends CasoIntegracion
         self::assertSame('', $escrito);
     }
 
+    /**
+     * @comportamiento Los datos completos de un producto relacionado dicen cuándo la respuesta de la web no
+     *   trae el producto, y cuándo fallan sus notificaciones.
+     */
+    public function test_lasRespuestasIncompletasDeLaWebEnLosDatosCompletosLoDicen(): void
+    {
+        $id = $this->tiendaWeb();
+        $ivas = ['items' => [['virtuemart_calc_id' => '3', 'calc_value' => '10.0000']]];
+        $this->responde('ObtenerProducto', (string) json_encode(['Datos' => ['ivasWeb' => $ivas]]));
+        $sinProducto = $this->complemento()->datosCompletosTiendaWeb(31, '10.00', 5, $id);
+        $this->responde('ObtenerProducto', $this->productoWeb());
+        $this->responde('ObtenerNotificacionesProducto', '{"Datos":{"error":"Tabla de notificaciones"}}');
+        $sinNotificaciones = $this->complemento()->datosCompletosTiendaWeb(31, '10.00', 5, $id);
+
+        self::assertSame('Los datos del producto devueltos por la web no tienen la estructura esperada.', $sinProducto['errores']['mensaje']);
+        self::assertStringContainsString('Error de SQL: Tabla de notificaciones', $sinNotificaciones['htmlnotificaciones']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado plugins/mod_producto/virtuemart/ClaseVirtuemart.php:256-257, :565-578
+     *
+     * @group defecto
+     * @group errores
+     * @group bajo
+     *
+     * @que-ocurre-hoy Si la web devuelve el producto sin su IVA, los datos completos lo avisan, pero al
+     *   pintarlo leen el IVA que no viene y dejan un aviso de PHP.
+     * @que-deberia-ocurrir Que el producto se pinte sin el precio con IVA, sin avisos.
+     * @por-que-ocurre El HTML del producto calcula el precio con IVA sin comprobar que el IVA venga.
+     * @como-deberia-funcionar Comprobarlo antes de calcular, como hacen los datos completos.
+     */
+    public function test_sinElIvaDeLaWebLosDatosCompletosLoDicenSinAvisos(): void
+    {
+        $id = $this->tiendaWeb();
+        $datos = $this->datosWeb();
+        unset($datos['iva']);
+        $this->responde('ObtenerProducto', (string) json_encode(['Datos' => ['ivasWeb' => ['items' => [['virtuemart_calc_id' => '3', 'calc_value' => '10.0000']]], 'datosProducto' => ['item' => $datos]]]));
+        $this->responde('ObtenerNotificacionesProducto', '{"Datos":{"items":[]}}');
+        $complemento = $this->complemento();
+        $avisos = [];
+        set_error_handler(static function (int $nivel, string $mensaje) use (&$avisos): bool {
+            $avisos[] = $mensaje;
+
+            return true;
+        });
+        try {
+            $sinIva = $complemento->datosCompletosTiendaWeb(31, '10.00', 5, $id);
+        } finally {
+            restore_error_handler();
+        }
+
+        self::assertSame('No se pudo leer el iva del producto en la web para comparar.', $sinIva['errores']['mensaje']);
+        self::assertSame([], $avisos);
+    }
+
     /** El complemento, creado sin su constructor con la conexión del caso, y la tienda web tomada como lo hace el constructor. */
     private function complemento(): \PluginClaseVirtuemart
     {

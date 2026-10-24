@@ -318,6 +318,102 @@ final class TareasComplementosIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('Subida Familia a la web correctamente', $peticion['respuesta']['htmlAlerta'] ?? '');
     }
 
+    /** @comportamiento Si la web responde un error al modificar el producto, la respuesta lo dice con su consulta, y la relación no cambia. */
+    public function test_unErrorDeLaWebAlModificarUnProductoSeDice(): void
+    {
+        $web = $this->tiendaWeb();
+        $pera = $this->articulo('Pera de la web');
+        $this->relacion($pera, $web, 31, 'Publicado');
+        $this->responde('ObtenerProducto', $this->ivasWeb());
+        $this->responde('ModificarProducto', '{"Datos":{"error":"Sin permiso","consulta":"UPDATE"}}');
+
+        $peticion = $this->ejecutar('mod_producto', ['pulsado' => 'modificarDatosWeb', 'datos' => $this->datosProducto($pera, $web, 31, '4', 0)]);
+
+        self::assertStringContainsString('Error de sql : Sin permiso consulta: UPDATE', $peticion['respuesta']['htmlAlerta']);
+        self::assertSame('Publicado', $this->estadoRelacion($pera, $web));
+    }
+
+    /** @comportamiento Si la web no da de alta el producto, la respuesta dice su error y no se guarda la relación. */
+    public function test_unErrorDeLaWebAlAnadirUnProductoSeDice(): void
+    {
+        $web = $this->tiendaWeb();
+        $pera = $this->articulo('Pera de la web');
+        $this->familiaWeb($pera, $web, 12);
+        $this->responde('ObtenerProducto', $this->ivasWeb());
+        $this->responde('AddProducto', '{"Datos":{"idArticulo":0,"error":"Duplicado","consulta":"INSERT"}}');
+
+        $peticion = $this->ejecutar('mod_producto', ['pulsado' => 'modificarDatosWeb', 'datos' => $this->datosProducto($pera, $web, 0, '4')]);
+
+        self::assertSame('Duplicado', $peticion['respuesta']['error']);
+        self::assertStringContainsString('Error al añadir el producto a la web. Duplicado', $peticion['respuesta']['htmlAlerta']);
+        self::assertNull($this->estadoRelacion($pera, $web));
+    }
+
+    /** @comportamiento Si la web envía el correo pero no marca la notificación, la respuesta lleva el error de la marca. */
+    public function test_unaNotificacionQueLaWebNoMarcaSeDice(): void
+    {
+        $this->tiendaWeb();
+        $this->responde('enviarCorreo', '{"Datos":{"mailer":true}}');
+        $this->responde('modificarNotificacion', '{"Datos":{"error":"Sin notificacion"}}');
+
+        $peticion = $this->ejecutar('mod_producto', ['pulsado' => 'enviarCorreoNotificacion', 'datos' => ['idProducto' => '31', 'email' => 'ana@example.com', 'numLinea' => '1']]);
+
+        self::assertSame([2, 'Sin notificacion'], [$peticion['respuesta']['mail'], $peticion['respuesta']['errorModificacion']]);
+    }
+
+    /** @comportamiento La petición del complemento de la reorganización cuenta los productos de la web con la clave de su tienda web. */
+    public function test_laPeticionDelComplementoDeLaReorganizacionCuentaLosProductosDeLaWeb(): void
+    {
+        $this->tiendaWeb();
+        $this->responde('contarProductos', '{"Datos":{"item":{"productosWeb":120}}}');
+
+        $peticion = $this->ejecutar('mod_reorganizacion', ['pulsado' => 'contarProductosWeb']);
+
+        self::assertSame(120, $peticion['respuesta']['Datos']['item']['productosWeb']);
+        self::assertSame([[$this->clave, 'contarProductos']], array_map(static fn (array $p): array => [$p['key'], $p['action']], $this->peticiones()));
+    }
+
+    /**
+     * @comportamiento La petición del complemento de la reorganización es una copia de la del de productos y
+     *   crea la clase de ese complemento: modificar un producto en la web funciona igual.
+     */
+    public function test_laPeticionDelComplementoDeLaReorganizacionModificaUnProducto(): void
+    {
+        $web = $this->tiendaWeb();
+        $pera = $this->articulo('Pera de la web');
+        $this->relacion($pera, $web, 31, 'Publicado');
+        $this->responde('ObtenerProducto', $this->ivasWeb());
+
+        $peticion = $this->ejecutar('mod_reorganizacion', ['pulsado' => 'modificarDatosWeb', 'datos' => $this->datosProducto($pera, $web, 31, '4')]);
+
+        self::assertStringNotContainsString('Fatal error', $peticion['errores']);
+        self::assertStringContainsString('Has modificados los datos del producto', $peticion['respuesta']['htmlAlerta'] ?? '');
+    }
+
+    /** @comportamiento El complemento de familias, al crearse, lee la tienda web con su clave y arma la ruta de su API; sin tienda web, no tiene ruta. */
+    public function test_elComplementoDeFamiliasLeeLaTiendaWebAlCrearse(): void
+    {
+        $sin = $this->crearComplemento('mod_familia', 'ClaseVirtuemartFamilia.php', 'PluginClaseVirtuemartFamilia');
+        $web = $this->tiendaWeb();
+        $con = $this->crearComplemento('mod_familia', 'ClaseVirtuemartFamilia.php', 'PluginClaseVirtuemartFamilia');
+
+        self::assertSame([null, null, null], $sin);
+        self::assertSame([(string) $web, $this->clave], [$con[0], $con[1]]);
+        self::assertStringEndsWith('/test/Integration/PHP/mod_virtuemart/web/administrator/apisv/tareas.php', (string) $con[2]);
+    }
+
+    /** @comportamiento El complemento de la reorganización, al crearse, lee la tienda web con su clave y arma la ruta de su API; sin tienda web, no tiene ruta. */
+    public function test_elComplementoDeLaReorganizacionLeeLaTiendaWebAlCrearse(): void
+    {
+        $sin = $this->crearComplemento('mod_reorganizacion', 'ClaseVirtuemart.php', 'PluginClaseVirtuemart');
+        $web = $this->tiendaWeb();
+        $con = $this->crearComplemento('mod_reorganizacion', 'ClaseVirtuemart.php', 'PluginClaseVirtuemart');
+
+        self::assertSame([null, null, null], $sin);
+        self::assertSame([(string) $web, $this->clave], [$con[0], $con[1]]);
+        self::assertStringEndsWith('/test/Integration/PHP/mod_virtuemart/web/administrator/apisv/tareas.php', (string) $con[2]);
+    }
+
     /**
      * Ejecuta la petición de un complemento en un PHP aparte y devuelve su respuesta, lo que escribió y sus
      * avisos.
@@ -347,6 +443,26 @@ final class TareasComplementosIntegracionTest extends CasoIntegracion
         unlink($errores);
 
         return $ejecucion;
+    }
+
+    /**
+     * Crea un complemento con su constructor en un PHP aparte, desde su carpeta, y devuelve el id de la
+     * tienda web que tomó, su clave y la ruta de su API.
+     *
+     * @return array{0: ?string, 1: ?string, 2: ?string}
+     */
+    private function crearComplemento(string $modulo, string $fichero, string $clase): array
+    {
+        $guion = '$_SERVER["DOCUMENT_ROOT"] = "";'
+            . ' chdir(' . var_export(RUTA_TPVFOX . '/plugins/' . $modulo . '/virtuemart', true) . ');'
+            . ' include_once "./../../../configuracion.php";'
+            . ' include_once $RutaServidor . $HostNombre . "/clases/ClaseConexion.php";'
+            . ' include_once ' . var_export($fichero, true) . ';'
+            . ' $c = new ' . $clase . '();'
+            . ' echo json_encode([$c->TiendaWeb["idTienda"] ?? null, $c->key_api, $c->ruta_web]);';
+        exec(escapeshellarg(PHP_BINARY) . ' -d display_errors=stderr -d log_errors=0 -d error_log=/dev/null -r ' . escapeshellarg($guion) . ' 2>/dev/null', $salida);
+
+        return (array) json_decode(implode("\n", $salida), true);
     }
 
     /** Graba de verdad la tienda web de pega, con su dominio y la clave del caso. */
