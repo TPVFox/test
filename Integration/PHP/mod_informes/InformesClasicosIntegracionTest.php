@@ -112,14 +112,14 @@ final class InformesClasicosIntegracionTest extends CasoIntegracion
     {
         $siembra = '$ids["p"] = $siembra->proveedor("Zz Aceites SL"); $ids["f"] = $siembra->familia("Zz Aceite");'
             . ' $especial = $siembra->proveedor("Zz Especial"); $BDTpv->query("UPDATE proveedores SET estado = \'Especial\' WHERE idProveedor = " . $especial);'
-            . ' foreach (["Zz Oliva" => [2.0, 2.2, 2.6], "Zz Girasol" => [1.0, 1.0, 1.0], "Zz Corto" => [3.0, 3.5]] as $nombre => $costes) { $ids[$nombre] = $id = $siembra->articulo($nombre, ["familia" => $ids["f"]]);'
+            . ' foreach (["Zz Picual" => [2.0, 2.2, 2.6], "Zz Girasol" => [1.0, 1.0, 1.0], "Zz Corto" => [3.0, 3.5]] as $nombre => $costes) { $ids[$nombre] = $id = $siembra->articulo($nombre, ["familia" => $ids["f"]]);'
             . ' foreach ($costes as $m => $coste) { $BDTpv->query("UPDATE articulos SET ultimoCoste = $coste WHERE idArticulo = $id"); $s = new \TPVFox\Test\Siembra\Siembra($BDTpv); $s->entradaProveedor($id, 10, sprintf("2019-%02d-10", $m + 1), ["idProveedor" => $ids["p"]]); } }'
             . ' $BDTpv->query("UPDATE articulos SET ultimoCoste = 9 WHERE idArticulo = " . $ids["Zz Girasol"]); $s = new \TPVFox\Test\Siembra\Siembra($BDTpv); $s->entradaProveedor($ids["Zz Girasol"], 10, "2019-02-12", ["idProveedor" => $especial]);';
         $parametros = '["fecha_inicio" => "2019-01-01", "fecha_final" => "2019-03-31", "min_recepciones" => 1, "min_meses" => 3, "familias" => (string) $ids["f"]';
         $r = $this->ejecutar($siembra . ' $calc = new CosteFluctuacionCalculator($BDTpv); $resultado = ["sin" => $calc->calcular(' . $parametros . ']), "con" => $calc->calcular(' . $parametros . ', "incluir_proveedor_especial" => 1]), "familia" => $calc->calcular(' . $parametros . ', "agrupacion" => "familia"])];');
 
         $oliva = $r['resultado']['sin']['articulos'][0];
-        self::assertSame(['Zz Oliva'], array_column($r['resultado']['sin']['articulos'], 'articulo_name'));
+        self::assertSame(['Zz Picual'], array_column($r['resultado']['sin']['articulos'], 'articulo_name'));
         self::assertEqualsWithDelta([2.2667, 26.47, -11.76], [$oliva['coste_media'], $oliva['rango_pct'], $oliva['meses'][0]['desviacion_pct']], 0.01);
         self::assertSame(['2019-01', '2019-02', '2019-03'], $r['resultado']['sin']['resumen']['meses_rango']);
         self::assertContains('Zz Girasol', array_column($r['resultado']['con']['articulos'], 'articulo_name'));
@@ -186,7 +186,7 @@ final class InformesClasicosIntegracionTest extends CasoIntegracion
      */
     public function test_losProductosSinSubfamiliaCuentanBajoSuFamilia(): void
     {
-        $siembra = '$ids["p"] = $siembra->proveedor("Zz Aceites SL"); $ids["f"] = $siembra->familia("Zz Aceite"); $ids["a"] = $id = $siembra->articulo("Zz Oliva", ["familia" => $ids["f"]]);'
+        $siembra = '$ids["p"] = $siembra->proveedor("Zz Aceites SL"); $ids["f"] = $siembra->familia("Zz Aceite"); $ids["a"] = $id = $siembra->articulo("Zz Picual", ["familia" => $ids["f"]]);'
             . ' foreach ([2.0, 2.2, 2.6] as $m => $coste) { $BDTpv->query("UPDATE articulos SET ultimoCoste = $coste WHERE idArticulo = $id"); $s = new \TPVFox\Test\Siembra\Siembra($BDTpv); $s->entradaProveedor($id, 10, sprintf("2019-%02d-10", $m + 1), ["idProveedor" => $ids["p"]]); }';
         $r = $this->ejecutar($siembra . ' $resultado = (new CosteFluctuacionCalculator($BDTpv))->calcular(["fecha_inicio" => "2019-01-01", "fecha_final" => "2019-03-31", "min_recepciones" => 1, "min_meses" => 3, "familias" => (string) $ids["f"], "agrupacion" => "familia"]);');
 

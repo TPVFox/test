@@ -207,12 +207,12 @@ describe('la fluctuación del coste en la lista', () => {
     document.getElementById('idFechaFinal').value = '2019-02-28';
     window.ejecutarInformeCosteFluctuacion();
     responder(0, { coste_fluctuacion: { resumen: { articulos_con_fluctuacion: 1, meses_rango: ['2019-01', '2019-02'] }, articulos: [
-      { idArticulo: 7, articulo_name: '<b>Oliva</b>', nombreN1: 'Aceite', idN1: 1, nombreN2: 'Virgen', idN2: 2, meses: [{ ym: '2019-01', coste_promedio: 2, cumple_min_recepciones: true }, { ym: '2019-02', coste_promedio: 2.5, cumple_min_recepciones: false }] },
+      { idArticulo: 7, articulo_name: '<b>Picual</b>', nombreN1: 'Aceite', idN1: 1, nombreN2: 'Virgen', idN2: 2, meses: [{ ym: '2019-01', coste_promedio: 2, cumple_min_recepciones: true }, { ym: '2019-02', coste_promedio: 2.5, cumple_min_recepciones: false }] },
     ], familias: [] } });
 
     expect(document.getElementById('cfResumen').textContent).toContain('Con fluctuacion: 1');
     expect(document.getElementById('cfTablaHeadRow').children).toHaveLength(3);
-    expect(document.getElementById('cfTablaBody').textContent).toContain('<b>Oliva</b>');
+    expect(document.getElementById('cfTablaBody').textContent).toContain('<b>Picual</b>');
     expect(document.querySelector('#cfTablaBody b')).toBeNull();
     expect(document.querySelector('#cfTablaBody td[title="Recepciones por debajo del minimo"] em').textContent).toBe('2,5000');
   });
