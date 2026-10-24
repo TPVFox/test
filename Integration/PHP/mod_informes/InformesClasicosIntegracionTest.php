@@ -123,7 +123,7 @@ final class InformesClasicosIntegracionTest extends CasoIntegracion
         self::assertEqualsWithDelta([2.2667, 26.47, -11.76], [$oliva['coste_media'], $oliva['rango_pct'], $oliva['meses'][0]['desviacion_pct']], 0.01);
         self::assertSame(['2019-01', '2019-02', '2019-03'], $r['resultado']['sin']['resumen']['meses_rango']);
         self::assertContains('Zz Girasol', array_column($r['resultado']['con']['articulos'], 'articulo_name'));
-        self::assertSame('Zz Aceite', $r['resultado']['familia']['familias'][0]['nombreN1'] ?? $r['resultado']['familia']['familias'][0]['nombre'] ?? null);
+        self::assertContains('Zz Aceite', array_column($r['resultado']['familia']['familias'], 'nombreN1'));
     }
 
     /** @comportamiento La orden de la fluctuación responde el mismo cálculo con lo que manda la página. */
@@ -168,6 +168,29 @@ final class InformesClasicosIntegracionTest extends CasoIntegracion
         $r = $this->ejecutar(self::COMPRAS . ' $BDTpv->query("UPDATE albprot SET estado = \'Facturado\' WHERE idProveedor = " . $ids["p"]); $resultado = (new ClaseInformes())->ResumenProveedores(["id" => "1", "opcion" => "2", "Finicio" => "2019-03-01", "Ffinal" => "2019-03-31"]);');
 
         self::assertContains($r['ids']['p'], array_map('intval', array_column($r['resultado']['datos'], 'idProveedor')));
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_informes/clases/CosteFluctuacionCalculator.php:380-445
+     *
+     * @group defecto
+     * @group integridad
+     * @group medio
+     *
+     * @que-ocurre-hoy Agrupada por familias, la fluctuación de los productos de una familia que no tienen
+     *   subfamilia sale bajo su familia y, otra vez, bajo una familia «(Sin familia)» que no existe.
+     * @que-deberia-ocurrir Que cada producto cuente una vez, bajo su familia.
+     * @por-que-ocurre La subfamilia vacía no se asocia a ninguna familia y se cuelga de una de partida.
+     * @como-deberia-funcionar Dejar sin subfamilia a los productos de la familia, dentro de ella.
+     */
+    public function test_losProductosSinSubfamiliaCuentanBajoSuFamilia(): void
+    {
+        $siembra = '$ids["p"] = $siembra->proveedor("Zz Aceites SL"); $ids["f"] = $siembra->familia("Zz Aceite"); $ids["a"] = $id = $siembra->articulo("Zz Oliva", ["familia" => $ids["f"]]);'
+            . ' foreach ([2.0, 2.2, 2.6] as $m => $coste) { $BDTpv->query("UPDATE articulos SET ultimoCoste = $coste WHERE idArticulo = $id"); $s = new \TPVFox\Test\Siembra\Siembra($BDTpv); $s->entradaProveedor($id, 10, sprintf("2019-%02d-10", $m + 1), ["idProveedor" => $ids["p"]]); }';
+        $r = $this->ejecutar($siembra . ' $resultado = (new CosteFluctuacionCalculator($BDTpv))->calcular(["fecha_inicio" => "2019-01-01", "fecha_final" => "2019-03-31", "min_recepciones" => 1, "min_meses" => 3, "familias" => (string) $ids["f"], "agrupacion" => "familia"]);');
+
+        self::assertSame(['Zz Aceite'], array_column($r['resultado']['familias'], 'nombreN1'));
     }
 
     /**
