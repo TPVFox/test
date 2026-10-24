@@ -47,6 +47,8 @@ final class Vocabulario
         'tipoDeRelacion' => 'un tipo de relacion entre productos',
         'relacionVigente' => 'una relacion entre productos que ya rige',
         'versionDeRelacion' => 'una version mas de esa relacion, con su estado y su fecha',
+        'tarea' => 'una tarea programada',
+        'entradaDeDiario' => 'una entrada en el diario de tareas',
     ];
 
     /** Trozos del nombre de la clase que revelan sobre que documento trabaja el caso. */

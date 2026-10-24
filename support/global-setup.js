@@ -20,6 +20,7 @@ module.exports = async () => {
   const guiones = [
     ['venta', 'sembrar-e2e-venta.php'],
     ['productos relacionados', 'sembrar-e2e-relaciones.php'],
+    ['tareas programadas', 'sembrar-e2e-tareas.php'],
   ];
 
   for (const [nombre, fichero] of guiones) {
