@@ -232,6 +232,46 @@ final class ListadoProductosIntegracionTest extends CasoIntegracion
         self::assertSame('', $pantalla['errores']);
     }
 
+    /** @comportamiento La existencia de un producto al peso sale con tres decimales. */
+    public function test_unProductoAlPesoEnsenaSuExistenciaConTresDecimales(): void
+    {
+        $alPeso = array_map(static fn ($sql) => str_replace("'unidad'", "'peso'", $sql), $this->producto('Zqx Kiwi'));
+        $pantalla = $this->pintar(['buscar' => 'Zqx'], $alPeso);
+
+        self::assertStringContainsString('5.000', $pantalla['html']);
+    }
+
+    /** @comportamiento Una búsqueda sin resultados lo dice. */
+    public function test_unaBusquedaSinResultadosLoDice(): void
+    {
+        $pantalla = $this->pintar(['buscar' => 'Zqx'], []);
+
+        self::assertSame([], $this->nombres($pantalla['html']));
+        self::assertStringContainsString('No hay productos para mostrar', $pantalla['html']);
+    }
+
+    /**
+     * @comportamiento Sin buscar, el listado enseña la primera página de todos los productos de la tienda,
+     *   por su nombre. El producto del caso empieza por signos para ser el primero.
+     */
+    public function test_sinBuscarElListadoEnsenaLaPrimeraPaginaDeTodos(): void
+    {
+        $pantalla = $this->pintar([], $this->producto('!!!Zqx Kiwi'));
+
+        self::assertStringContainsString("UnProductoClick('" . $pantalla['ids'][':p1'] . "')", $pantalla['html']);
+    }
+
+    /** @comportamiento Sin buscar, el filtro de estado de la configuración se aplica igual. */
+    public function test_sinBuscarElFiltroDeEstadoSeAplica(): void
+    {
+        $pantalla = $this->pintar([], [
+            ...$this->producto('!!!Zqx Kiwi'), ...$this->producto('!!!Zqx Pera', 'Baja'), $this->configuracion(['estado_filtro' => 'Baja']),
+        ]);
+
+        self::assertStringContainsString("UnProductoClick('" . $pantalla['ids'][':p2'] . "')", $pantalla['html']);
+        self::assertStringNotContainsString("UnProductoClick('" . $pantalla['ids'][':p1'] . "')", $pantalla['html']);
+    }
+
     /** @return list<string> El nombre de cada producto del listado, en orden. */
     private function nombres(string $html): array
     {
