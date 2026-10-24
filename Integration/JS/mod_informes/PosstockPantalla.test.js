@@ -169,6 +169,24 @@ describe('la configuración', () => {
     expect(document.getElementById('posstockTablaWrap').textContent).toBe('Configuración guardada.');
     expect(window.cerrarModal).toHaveBeenCalled();
   });
+
+  /**
+   * @estado rojo
+   * @codigo-afectado modulos/mod_informes/informes/posstock/PosstockConfig.js:91-98; modulos/mod_informes/tareas/abrirModalConfigPosstock.php:106, :147
+   * @que-ocurre-hoy Elegir otro modelo estadístico en la ventana de configuración no cambia su
+   *   descripción: la función busca el selector y la caja por unos identificadores que la ventana no usa.
+   * @que-deberia-ocurrir Que la descripción sea la del modelo elegido.
+   * @por-que-ocurre Los identificadores del JavaScript y del HTML de la ventana no coinciden.
+   * @como-deberia-funcionar Usar los mismos identificadores en los dos.
+   */
+  test('defecto: elegir otro modelo cambia su descripción', () => {
+    document.body.insertAdjacentHTML('beforeend', '<select id="modalModeloEstadistico"><option value="automatico">a</option><option value="gamma" selected>g</option></select><div id="modalModeloDesc">Automático</div>');
+    window._modeloDescPosstock = { automatico: 'Automático', gamma: 'Gamma' };
+
+    window.modalToggleModeloEstadistico();
+
+    expect(document.getElementById('modalModeloDesc').textContent).toBe('Gamma');
+  });
 });
 
 describe('los filtros de familias y proveedores', () => {
