@@ -437,11 +437,6 @@ final class PantallasProveedorIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString('Proveedor Pequeño', $pantalla['html']);
     }
 
-    /**
-     * @comportamiento El listado de productos de un proveedor enseña primero los artículos de los que es el
-     *   principal y después los asociados, con su coste y su referencia de ese proveedor; quien puede
-     *   modificar ve la papelera de los asociados.
-     */
     /** @comportamiento Sin sesión, el resumen de albaranes no enseña las compras del proveedor. */
     public function test_sinSesionElResumenDeAlbaranesNoEnsenaLasCompras(): void
     {
@@ -517,6 +512,11 @@ final class PantallasProveedorIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString('TOM-1', $pantalla['html']);
     }
 
+    /**
+     * @comportamiento El listado de productos de un proveedor enseña primero los artículos de los que es el
+     *   principal y después los asociados, con su coste y su referencia de ese proveedor; quien puede
+     *   modificar ve la papelera de los asociados.
+     */
     public function test_losProductosDeUnProveedor(): void
     {
         $preparacion = array_merge(
@@ -567,20 +567,6 @@ final class PantallasProveedorIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @estado rojo
-     * @codigo-afectado modulos/mod_proveedor/OtrasVistas/ListadoProductosDeProveedor.php:337-354
-     *
-     * @group defecto
-     * @group proveedor
-     * @group bajo
-     *
-     * @que-ocurre-hoy Un artículo sin familia no lleva la clase de su estado: el filtro por estado no lo
-     *   esconde, y la pantalla deja un aviso de PHP por la variable que no llega a calcularse.
-     * @que-deberia-ocurrir Que todo artículo se filtre por su estado, tenga o no familia.
-     * @por-que-ocurre El índice del estado se calcula dentro del bucle de las familias del artículo.
-     * @como-deberia-funcionar Calcularlo fuera de ese bucle.
-     */
-    /**
      * @comportamiento Con productos en una familia, la pantalla ofrece el filtro por familias, cada una en
      *   su nivel y con las familias de las que cuelga, marcadas.
      */
@@ -605,6 +591,20 @@ final class PantallasProveedorIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('id="Familia_' . $pantalla['consultas']['citricos'] . '"', $pantalla['html']);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_proveedor/OtrasVistas/ListadoProductosDeProveedor.php:337-354
+     *
+     * @group defecto
+     * @group proveedor
+     * @group bajo
+     *
+     * @que-ocurre-hoy Un artículo sin familia no lleva la clase de su estado: el filtro por estado no lo
+     *   esconde, y la pantalla deja un aviso de PHP por la variable que no llega a calcularse.
+     * @que-deberia-ocurrir Que todo artículo se filtre por su estado, tenga o no familia.
+     * @por-que-ocurre El índice del estado se calcula dentro del bucle de las familias del artículo.
+     * @como-deberia-funcionar Calcularlo fuera de ese bucle.
+     */
     public function test_unArticuloSinFamiliaSeFiltraPorSuEstado(): void
     {
         $preparacion = array_merge(
