@@ -264,7 +264,7 @@ final class AlbaranesComprasIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_compras/clases/albaranesCompras.php:200-209, :303
+     * @codigo-afectado modulos/mod_compras/clases/albaranesCompras.php:197-205, :296
      *
      * @group defecto
      * @group integridad

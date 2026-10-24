@@ -205,14 +205,15 @@ final class PantallasAlbaranCompraIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_compras/albaranesListado.php:211-218
+     * @codigo-afectado modulos/mod_compras/albaranesListado.php:215-218
      *
      * @group defecto
      * @group integridad
-     * @group medio
+     * @group bajo
      *
      * @que-ocurre-hoy El listado busca los costes pendientes de recalcular de un albarán por su número, pero
      *   el guardado los deja con su id: en un albarán cuyo número no es su id, el enlace al recálculo no sale.
+     *   El guardado numera cada albarán con su id, así que hoy solo le pasa a uno numerado de otra forma.
      * @que-deberia-ocurrir Que el enlace salga cuando el albarán tiene costes pendientes.
      * @por-que-ocurre La consulta del histórico usa `Numalbpro`, y el enlace y el histórico, el `id`.
      * @como-deberia-funcionar Buscar el histórico por el id del albarán.
@@ -231,13 +232,14 @@ final class PantallasAlbaranCompraIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_compras/albaranesListado.php:229
+     * @codigo-afectado modulos/mod_compras/albaranesListado.php:148, :247
      *
      * @group defecto
      * @group seguridad
      * @group alto
      *
-     * @que-ocurre-hoy El nombre del proveedor se pinta sin escapar en el listado de albaranes.
+     * @que-ocurre-hoy El nombre del proveedor se pinta sin escapar en el listado de albaranes y en el de sus
+     *   temporales.
      * @que-deberia-ocurrir Que se pinte como texto.
      * @por-que-ocurre Se escribe tal cual.
      * @como-deberia-funcionar Escaparlo al pintarlo.
