@@ -27,7 +27,24 @@ function elemento(selector, pagina) {
     after(contenido) { pagina.anadidas.push(contenido); return el; },
     remove() { pagina.quitadas.push(selector); return el; },
     each(funcion) { (pagina.filas[selector] || []).forEach((fila) => funcion.call(fila)); return el; },
-    prop(nombre, valor) { pagina.props.push([selector, nombre, valor]); return el; },
+    prop(nombre, valor) {
+      if (valor === undefined) { return (pagina.estado[selector] || {})[nombre]; }
+      pagina.props.push([selector, nombre, valor]);
+      (pagina.estado[selector] = pagina.estado[selector] || {})[nombre] = valor;
+      return el;
+    },
+    data(nombre, valor) {
+      const datos = (pagina.datos[selector] = pagina.datos[selector] || {});
+      if (valor === undefined) { return datos[nombre]; }
+      datos[nombre] = valor;
+      return el;
+    },
+    show() { pagina.visibles[selector] = true; return el; },
+    hide() { pagina.visibles[selector] = false; return el; },
+    toggle() { pagina.visibles[selector] = !pagina.visibles[selector]; return el; },
+    add(otro) { return grupo([el, otro], pagina); },
+    off() { return el; },
+    on(evento, manejador) { pagina.manejadores[selector + ' ' + evento] = manejador; return el; },
     empty() { pagina.pintado[selector] = ''; return el; },
     addClass() { return el; },
     append(contenido) { pagina.pintado[selector] = (pagina.pintado[selector] || '') + contenido; return el; },
@@ -35,8 +52,17 @@ function elemento(selector, pagina) {
   return el;
 }
 
+/** Varios elementos de pega a la vez, como los junta `add()`. */
+function grupo(elementos, pagina) {
+  const g = {
+    off() { return g; },
+    on(evento, manejador) { elementos.forEach((e) => { pagina.manejadores[e.selector + ' ' + evento] = manejador; }); return g; },
+  };
+  return g;
+}
+
 function paginaDePrueba({ valores = {}, marcados = [], marcadas = ['7'], confirma = true, tecla = '12' } = {}) {
-  const pagina = { peticiones: [], avisos: [], pintado: {}, anadidas: [], quitadas: [], props: [], valores: { ...valores }, marcados, filas: {} };
+  const pagina = { peticiones: [], avisos: [], pintado: {}, anadidas: [], quitadas: [], props: [], valores: { ...valores }, marcados, filas: {}, estado: {}, datos: {}, visibles: {}, manejadores: {}, modales: [], cerradas: 0, elementos: {} };
   const $ = (selector) => elemento(selector, pagina);
   $.ajax = (opciones) => { pagina.peticiones.push(opciones); };
   $.parseJSON = JSON.parse;
@@ -49,7 +75,13 @@ function paginaDePrueba({ valores = {}, marcados = [], marcadas = ['7'], confirm
     console: { log() {}, error() {} },
     window: pagina.window,
     location: pagina.window.location,
-    document: { addEventListener() {}, getElementById: () => null, querySelectorAll: () => [] },
+    document: {
+      addEventListener() {},
+      getElementById: (id) => pagina.elementos[id] || null,
+      querySelectorAll: (selector) => Object.values(pagina.elementos).filter((e) => selector === '.' + e.clase),
+    },
+    abrirModal: (titulo, html) => { pagina.modales.push([titulo, html]); },
+    cerrarPopUp: () => { pagina.cerradas++; },
     TfObtenerCheck: () => marcadas.slice(),
     plusBalanza: [{ idArticulo: '5', plu: '7' }],
   });
@@ -271,3 +303,150 @@ describe('el volcado completo', () => {
     expect(exito.pintado['#divAlertas']).toContain('alert-success');
   });
 });
+
+describe('lo que la ficha hace en la página', () => {
+  /** @comportamiento Modificar una balanza comprueba sus datos, envía el nombre, el modelo y las secciones, y vuelve al listado. */
+  test('modificar una balanza envía sus datos y vuelve al listado', () => {
+    const mal = paginaDePrueba({ valores: { ...BALANZA, '#modeloBalanza': '' } });
+    const bien = paginaDePrueba({ valores: BALANZA });
+
+    mal.contexto.ModificarBalanza(3);
+    bien.contexto.ModificarBalanza(3);
+    bien.responder({ modif: { error: '0' } });
+
+    expect(mal.peticiones).toHaveLength(0);
+    expect(mal.avisos).toEqual(['Debe completar Nombre Balanza, Modelo Balanza y Secciones.']);
+    expect(bien.peticiones[0].data).toEqual({ pulsado: 'modificarBalanza', idBalanza: 3, nombreBalanza: 'Mostrador', modeloBalanza: 'Dibal 500', secciones: 'no' });
+    expect(bien.window.location).toBe('ListaBalanzas.php');
+  });
+
+  /** @comportamiento Quitar una tecla la pide, quita su línea y recarga la página. */
+  test('quitar una tecla la pide y recarga', () => {
+    const pagina = paginaDePrueba();
+
+    pagina.contexto.eliminarPlu('7', 3);
+    pagina.responder({ success: true });
+
+    expect(pagina.peticiones[0].data).toEqual({ pulsado: 'eliminarPlu', plu: '7', idBalanza: 3 });
+    expect(pagina.quitadas).toEqual(['#plu_7']);
+    expect(pagina.recargada).toBe(true);
+  });
+
+  /** @comportamiento Guardar una tecla envía su número y, si la balanza usa secciones, su sección; y recarga la página. */
+  test('guardar una tecla envía su número y su sección', () => {
+    const conSeccion = paginaDePrueba({ valores: { '#editPlu_5': '9', '#editTecla_5': '2' } });
+    const sinSeccion = paginaDePrueba({ valores: { '#editPlu_5': '9' } });
+
+    conSeccion.contexto.guardarPlu(5, 3);
+    sinSeccion.contexto.guardarPlu(5, 3);
+    sinSeccion.ultima().success('{}');
+
+    expect(conSeccion.peticiones[0].data).toEqual({ pulsado: 'guardarPlu', idArticulo: 5, plu: '9', seccion: '2', idBalanza: 3 });
+    expect(sinSeccion.peticiones[0].data.seccion).toBeNull();
+    expect(sinSeccion.recargada).toBe(true);
+  });
+
+  /** @comportamiento Modificar una tecla la hace editable; al cambiarla ofrece guardar, y con Intro la guarda; cancelar devuelve su valor. */
+  test('modificar una tecla la hace editable y ofrece guardarla', () => {
+    const pagina = paginaDePrueba({ valores: { '#editPlu_5': '7' } });
+    pagina.estado['#editPlu_5'] = { readonly: true };
+
+    pagina.contexto.modificarPlu(5, 3);
+    pagina.valores['#editPlu_5'] = '9';
+    pagina.manejadores['#editPlu_5 input._pluEdit']();
+    const ofreceGuardar = pagina.visibles['#guardar_5'];
+    pagina.manejadores['#editPlu_5 keydown._pluEdit']({ key: 'Enter' });
+    pagina.contexto.cancelarEdicionPlu(5);
+
+    expect(ofreceGuardar).toBe(true);
+    expect(pagina.peticiones[0].data).toEqual({ pulsado: 'guardarPlu', idArticulo: 5, plu: '9', seccion: null, idBalanza: 3 });
+    expect(pagina.valores['#editPlu_5']).toBe('7');
+    expect(pagina.estado['#editPlu_5'].readonly).toBe(true);
+  });
+
+  /** @comportamiento Modificar todas hace editables todas las teclas y ofrece guardarlas; otra vez, las deja como estaban. */
+  test('modificar todas alterna la edición', () => {
+    const pagina = paginaDePrueba();
+
+    pagina.contexto.toggleEditarTodos();
+    const editando = [pagina.estado['input[id^="editPlu_"]'].readonly, pagina.visibles['#btnGuardarTodos']];
+    pagina.contexto.toggleEditarTodos();
+
+    expect(editando).toEqual([false, true]);
+    expect([pagina.estado['input[id^="editPlu_"]'].readonly, pagina.visibles['#btnGuardarTodos']]).toEqual([true, false]);
+  });
+
+  /** @comportamiento Buscar un producto rellena sus datos si hay uno, o abre el buscador; elegir uno del buscador rellena sus datos y lo cierra. */
+  test('buscar un producto rellena sus datos o abre el buscador', () => {
+    const caja = { id_input: 'nombreProducto', darParametro: () => 'a.articulo_name' };
+    const uno = paginaDePrueba({ valores: { '#nombreProducto': 'Pera' } });
+    const varios = paginaDePrueba({ valores: { '#nombreProducto': 'Pe' } });
+
+    uno.contexto.controladorAcciones(caja, 'BuscarProducto');
+    uno.responder({ datos: { idArticulo: '5', nombre: 'Pera', referencia: '1001', codBarras: '8400000000017' } });
+    varios.contexto.controladorAcciones(caja, 'BuscarProducto');
+    varios.responder({ html: '<table></table>' });
+    varios.contexto.seleccionProductoModal('6', 'Pera limonera', '1002', '', '2.50');
+
+    expect(uno.peticiones[0].data).toEqual({ pulsado: 'buscarProducto', busqueda: 'Pera', idcaja: 'nombreProducto', campo: 'a.articulo_name' });
+    expect([uno.valores['#idArticulo'], uno.valores['#referencia'], uno.valores['#codBarras']]).toEqual(['5', '1001', '8400000000017']);
+    expect(varios.modales).toEqual([['Listado Productos ', '<table></table>']]);
+    expect([varios.valores['#idArticulo'], varios.valores['#precioConIva'], varios.cerradas]).toEqual(['6', '2.50', 1]);
+  });
+
+  /** @comportamiento Añadir una tecla pide su formulario con las secciones de la balanza; añadir un producto al peso pide los productos al peso. */
+  test('los formularios de añadir se piden y se pintan', () => {
+    const tecla = paginaDePrueba({ valores: { '#secciones': 'si' } });
+    const peso = paginaDePrueba();
+
+    tecla.contexto.mostrarTablaPluAdd(3);
+    tecla.responder({ html: '<th>formulario</th>' });
+    tecla.contexto.toggleTablaPlus();
+    peso.contexto.mostrarTablaArtPesoAdd(3);
+    peso.responder({ html: '<table>peso</table>' });
+    peso.contexto.toggleTablaArtPeso();
+
+    expect(tecla.peticiones[0].data).toEqual({ pulsado: 'htmlPlu', secciones: 'si', idBalanza: 3 });
+    expect([tecla.pintado['#addPlu'], tecla.visibles['#agregar'], tecla.visibles['#addPlu']]).toEqual(['<th>formulario</th>', false, false]);
+    expect(peso.peticiones[0].data).toEqual({ pulsado: 'mostrarArticulosPeso', idBalanza: 3 });
+    expect([peso.pintado['#addArticuloPeso'], peso.visibles['#addArticuloPeso']]).toEqual(['<table>peso</table>', false]);
+  });
+
+  /** @comportamiento Añadir un producto al peso sin escribir su tecla no envía nada; con ella, al responder, vuelve a pedir las teclas y los productos. */
+  test('añadir un producto al peso sin tecla no envía nada', () => {
+    const sinTecla = paginaDePrueba({ tecla: '' });
+    const conTecla = paginaDePrueba();
+
+    sinTecla.contexto.addArticuloPeso(5, 3);
+    conTecla.contexto.addArticuloPeso(5, 3);
+    conTecla.responder({ html: '<tr></tr>' });
+
+    expect(sinTecla.peticiones).toHaveLength(0);
+    expect(conTecla.peticiones.map((p) => p.data.pulsado)).toEqual(['addPlu', 'mostrarDatosBalanza', 'mostrarArticulosPeso']);
+  });
+
+  /** @comportamiento La configuración avanzada se abre y se cierra; la IP del PC solo se enseña en el modo «Balctrol»; y el botón de ocultar la lista aparece al pulsar una balanza. */
+  test('el panel de la configuración y la IP del PC', () => {
+    const pagina = paginaDePrueba();
+    pagina.elementos = {
+      panelConfigAvanzada: { style: {} },
+      modoDirectorio: { value: 'automatico' },
+      ipPc: { clase: 'ipPcGroup', style: {} },
+      btnOcultarLista: { style: { display: 'none' } },
+    };
+
+    pagina.contexto.abrirConfigAvanzada();
+    const abierto = pagina.elementos.panelConfigAvanzada.style.display;
+    pagina.contexto.cerrarConfigAvanzada();
+    pagina.contexto.toggleIpPcInput();
+    const automatico = pagina.elementos.ipPc.style.display;
+    pagina.elementos.modoDirectorio.value = 'Balctrol';
+    pagina.contexto.toggleIpPcInput();
+    pagina.contexto.mostrarBotonOcultarLista();
+
+    expect([abierto, pagina.elementos.panelConfigAvanzada.style.display]).toEqual(['block', 'none']);
+    expect([automatico, pagina.elementos.ipPc.style.display]).toEqual(['none', '']);
+    expect(pagina.elementos.btnOcultarLista.style.display).toBe('');
+  });
+});
+

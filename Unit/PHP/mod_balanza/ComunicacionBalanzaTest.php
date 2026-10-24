@@ -43,6 +43,58 @@ final class ComunicacionBalanzaTest extends TestCase
         parent::tearDown();
     }
 
+    /**
+     * @comportamiento Los campos opcionales del registro del tipo —las fechas, la tara, el formato de la
+     *   etiqueta y del código de barras, el «smiley», el EAN13, la oferta y la congelación— van en su sitio.
+     */
+    public function test_losCamposOpcionalesDelRegistroDelTipoVanEnSuSitio(): void
+    {
+        $registro = $this->registroH3([
+            'codigo' => '1001', 'tipoProducto' => 'unidad', 'iva' => 10, 'seccion' => 4,
+            'fechaCaducidad' => '2026-11-30', 'fechaConsumoPreferente' => '2026-11-15', 'tara' => '15', 'formatoEtiqueta' => '3',
+            'formatoCodigoBarras' => '1', 'codigoSmiley' => '2', 'codigoEAN13' => '8400000000017', 'oferta' => '12', 'fechaCongelacion' => '2026-10-01',
+        ]);
+
+        self::assertStringStartsWith('00H300001001' . '10' . '301126' . '151126' . '0000000' . '0015' . '00' . '03' . '00' . '0000' . '04' . '02' . '01' . '00000' . '02' . '0000' . '8400000000017' . str_repeat('0', 11) . '0012' . '000000' . '011026' . '00', $registro);
+    }
+
+    /** @comportamiento Un tipo de producto que no es al peso ni por unidad se envía como al peso. */
+    public function test_unTipoDesconocidoSeEnviaComoPeso(): void
+    {
+        self::assertSame('0', substr($this->registroH3(['codigo' => '1001', 'tipoProducto' => 'litro', 'iva' => 21]), 12, 1));
+    }
+
+    /** @comportamiento Sin su sección y su nombre, el registro de la sección se rechaza, al ponerlo y al traducirlo. */
+    public function test_elRegistroDeLaSeccionExigeSusDatos(): void
+    {
+        $rechazos = 0;
+        foreach ([fn () => (new \ClaseComunicacionBalanza())->setDSData(['seccion' => 2]), fn () => (new \ClaseComunicacionBalanza())->traducirDS()] as $intento) {
+            try {
+                $intento();
+            } catch (\InvalidArgumentException) {
+                $rechazos++;
+            }
+        }
+
+        self::assertSame(2, $rechazos);
+    }
+
+    /** @comportamiento Crear otra vez la carpeta de una balanza no crea nada nuevo y avisa de lo que ya existe. */
+    public function test_crearLaCarpetaOtraVezAvisaDeLoQueYaExiste(): void
+    {
+        $datos = ['ipPc' => '192.168.1.10', 'grupoBalanza' => '01', 'ipBalanza' => '192.168.1.50', 'direccionBalanza' => '02', 'serieTipo' => '1', 'serieH' => '0'];
+        $traductor = new \ClaseComunicacionBalanza();
+        $traductor->setRutaBalanza($this->carpeta . '/Mostrador1');
+        $traductor->crearDirectorioBalanza($datos);
+        $otra = new \ClaseComunicacionBalanza();
+        $otra->setRutaBalanza($this->carpeta . '/Mostrador1');
+
+        $otra->crearDirectorioBalanza($datos);
+
+        self::assertContains('El directorio ya existe: ' . $this->carpeta . '/Mostrador1', $otra->getAlertas());
+        self::assertContains('El archivo ya existe: ' . $this->carpeta . '/Mostrador1/filetx', $otra->getAlertas());
+    }
+
     /** @param array<string, mixed> $datos */
     private function registroH2(array $datos, string $modo = 'H'): string
     {

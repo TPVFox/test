@@ -153,6 +153,15 @@ final class PantallasBalanzaIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString('id="nombreBalanza" value="Mostrador"', $pantalla['html']);
     }
 
+    /** @comportamiento La ficha de una balanza con secciones enseña la sección de cada tecla, con su filtro. */
+    public function test_laFichaConSeccionesEnsenaLaSeccionDeCadaTecla(): void
+    {
+        $pantalla = $this->ejecutar('balanza.php', ['id' => ':b1'], [$this->balanza('Mostrador', 'si'), ...$this->producto('Pera conferencia', '1001', '2.30'), $this->teclaSembrada('7', '2', ':a1')]);
+
+        self::assertStringContainsString('<th>Sección</th>', $pantalla['html']);
+        self::assertStringContainsString('id="editTecla_' . $pantalla['ids'][':a1'] . '" value="2"', $pantalla['html']);
+    }
+
     private function balanza(string $nombre, string $secciones = 'no'): string
     {
         return 'INSERT INTO modulo_balanza (nombreBalanza, modelo, conSeccion, Grupo, `Dirección`, IP, soloPLUS) VALUES (' . var_export($nombre, true) . ", 'Dibal 500', '{$secciones}', 1, 2, '192.168.1.50', 1)";

@@ -488,6 +488,167 @@ final class TareasBalanzaIntegracionTest extends CasoIntegracion
         self::assertTrue($peticion['respuesta']['error']);
     }
 
+    /** @comportamiento El formulario de una tecla esconde la sección en una balanza sin secciones, y la enseña con ellas. */
+    public function test_elFormularioDeUnaTeclaEscondeLaSeccionSinSecciones(): void
+    {
+        $sin = $this->ejecutar(['pulsado' => 'htmlPlu', 'secciones' => 'no', 'idBalanza' => '3']);
+        $con = $this->ejecutar(['pulsado' => 'htmlPlu', 'secciones' => 'si', 'idBalanza' => '3']);
+
+        self::assertStringContainsString('<div class="col-md-12" style="display:none"><label>Sección:</label>', $sin['respuesta']['html']);
+        self::assertStringNotContainsString('display:none', $con['respuesta']['html']);
+        self::assertStringContainsString('onclick="addPlu(3)"', $con['respuesta']['html']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_balanza/tareas.php:87-90, :107-115; modulos/mod_balanza/funciones.php:193, :206
+     *
+     * @group defecto
+     * @group teclas
+     * @group medio
+     *
+     * @que-ocurre-hoy Añadir una tecla libre responde su línea con cuatro avisos de PHP: la búsqueda de
+     *   la tecla sin resultados no trae lista, y la línea pide el tipo y el proveedor del producto, que
+     *   la petición no le pasa.
+     * @que-deberia-ocurrir Que la tecla se añada sin avisos, y su línea lleve el tipo y el proveedor.
+     * @por-que-ocurre La consulta sin filas no devuelve lista, y la petición la recorre sin mirarlo; la
+     *   línea se compone con los datos que manda el navegador.
+     * @como-deberia-funcionar Tomar como lista vacía la consulta sin filas, y componer la línea con los
+     *   datos del producto en la base.
+     */
+    public function test_anadirUnaTeclaNoDejaAvisos(): void
+    {
+        $peticion = $this->ejecutar($this->tecla(['plu' => '7']), [$this->balanza('Mostrador'), ...$this->producto('Pera conferencia', '1001', '2.30')]);
+
+        self::assertStringContainsString('<tr id="plu_7">', $peticion['respuesta']['html']);
+        self::assertSame('', $peticion['errores']);
+    }
+
+    /**
+     * @comportamiento Buscar un producto con varios resultados, o por un código de barras que no es
+     *   exactamente el suyo, responde el buscador con los productos encontrados.
+     */
+    public function test_buscarConVariosResultadosRespondeElBuscador(): void
+    {
+        $preparacion = [...$this->producto('Pera balanza uno', '1001', '2.30'), ...$this->producto('Pera balanza dos', '1002', '2.50'), 'INSERT INTO articulosCodigoBarras (idArticulo, codBarras) VALUES (:a1, \'8400000000017\')'];
+
+        $varios = $this->ejecutar(['pulsado' => 'buscarProducto', 'campo' => 'a.articulo_name', 'busqueda' => 'Pera  balanza', 'idcaja' => 'nombreProducto'], $preparacion);
+        $codigo = $this->ejecutar(['pulsado' => 'buscarProducto', 'campo' => 'c.codBarras', 'busqueda' => '840000000001', 'idcaja' => 'codBarras'], $preparacion);
+
+        self::assertCount(2, $varios['respuesta']['buscar']['datos']);
+        self::assertStringContainsString('Pera balanza dos', $varios['respuesta']['html']);
+        self::assertStringContainsString('seleccionProductoModal(' . $codigo['ids'][':a1'] . ",'Pera balanza uno','1001','8400000000017'", $codigo['respuesta']['html']);
+        self::assertArrayNotHasKey('datos', $codigo['respuesta']);
+    }
+
+    /** @comportamiento Buscar un producto por su número responde sus datos. */
+    public function test_buscarPorNumeroRespondeElProducto(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'buscarProducto', 'campo' => 'a.idArticulo', 'busqueda' => ':a1', 'idcaja' => 'idArticulo'], [...$this->producto('Pera conferencia', '1001', '2.30')]);
+
+        self::assertSame($peticion['ids'][':a1'], $peticion['respuesta']['datos']['idArticulo']);
+    }
+
+    /** @comportamiento Guardar una tecla sin cambios no la toca y lo dice. */
+    public function test_guardarUnaTeclaSinCambiosNoLaToca(): void
+    {
+        $peticion = $this->ejecutar(
+            ['pulsado' => 'guardarPlu', 'idBalanza' => ':b1', 'idArticulo' => ':a1', 'plu' => '7', 'seccion' => '0'],
+            [$this->balanza('Mostrador'), ...$this->producto('Pera', '1001', '2.30'), $this->teclaSembrada('7', '0', ':a1')]
+        );
+
+        self::assertSame(['success' => true, 'mensaje' => 'Sin cambios'], $peticion['respuesta']['resultado']);
+    }
+
+    /** @comportamiento Ordenadas por tecla de sección, las teclas de una balanza llevan ese orden en el selector. */
+    public function test_losDatosOrdenadosPorSeccion(): void
+    {
+        $peticion = $this->ejecutar(
+            ['pulsado' => 'mostrarDatosBalanza', 'idBalanza' => ':b1', 'filtro' => 'a.seccion'],
+            [$this->balanza('Mostrador', 'si'), ...$this->producto('Pera', '1001', '2.30'), ...$this->producto('Manzana', '1002', '1.90'), $this->teclaSembrada('7', '2', ':a1'), $this->teclaSembrada('8', '1', ':a2')]
+        );
+
+        self::assertSame(['8', '7'], array_column(json_decode($peticion['respuesta']['datosPlu'], true)['datos'], 'plu'));
+        self::assertMatchesRegularExpression('/<select id="filtroBalanza" ><option value="a.seccion"/', $peticion['respuesta']['htmlDatosBalanza']);
+    }
+
+    /** @comportamiento Sin productos al peso sin tecla, se dice que no hay. */
+    public function test_sinProductosAlPesoSeDiceQueNoHay(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'mostrarArticulosPeso', 'idBalanza' => ':b1'], [$this->balanza('Mostrador'), ...$this->producto('Pera', '1001', '2.30'), $this->teclaSembrada('7', '0', ':a1')]);
+
+        self::assertStringContainsString('No hay artículos de peso disponibles.', $peticion['respuesta']['html']);
+    }
+
+    /** @comportamiento Modificar una balanza que no existe lo dice, y sin cambios, también. */
+    public function test_modificarSinBalanzaOSinCambiosLoDice(): void
+    {
+        $datos = ['pulsado' => 'modificarBalanza', 'nombreBalanza' => 'Mostrador', 'modeloBalanza' => 'Dibal 500', 'secciones' => 'no'];
+
+        $sinBalanza = $this->ejecutar($datos + ['idBalanza' => '0']);
+        $sinCambios = $this->ejecutar($datos + ['idBalanza' => ':b1'], [$this->balanza('Mostrador')]);
+
+        self::assertSame(['error' => 'Balanza no encontrada'], $sinBalanza['respuesta']['modif']);
+        self::assertSame(['mensaje' => 'No hay cambios para actualizar'], $sinCambios['respuesta']['modif']);
+    }
+
+    /** @comportamiento Sin la carpeta de la balanza, el volcado responde que no pudo escribir el fichero de envío. */
+    public function test_elVolcadoSinCarpetaRespondeQueNoPudoEscribir(): void
+    {
+        $peticion = $this->ejecutar($this->volcado(), $this->conDosTeclas());
+
+        self::assertTrue($peticion['respuesta']['error']);
+        self::assertStringContainsString('No se pudo escribir el archivo', $peticion['respuesta']['mensaje']);
+    }
+
+    /** @comportamiento Buscar un producto por su código de barras exacto responde sus datos. */
+    public function test_buscarPorSuCodigoDeBarrasRespondeElProducto(): void
+    {
+        $peticion = $this->ejecutar(
+            ['pulsado' => 'buscarProducto', 'campo' => 'c.codBarras', 'busqueda' => '8400000000017', 'idcaja' => 'codBarras'],
+            [...$this->producto('Pera conferencia', '1001', '2.30'), 'INSERT INTO articulosCodigoBarras (idArticulo, codBarras) VALUES (:a1, \'8400000000017\')']
+        );
+
+        self::assertSame(['idArticulo' => $peticion['ids'][':a1'], 'nombre' => 'Pera conferencia', 'referencia' => '1001', 'codBarras' => '8400000000017'], $peticion['respuesta']['datos']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_balanza/tareas.php:49-50, :67-70; modulos/mod_balanza/funciones.php:293-338
+     *
+     * @group defecto
+     * @group teclas
+     * @group alto
+     *
+     * @que-ocurre-hoy Buscar un producto que no existe termina la petición con un error de PHP: no
+     *   llega respuesta, y el buscador no se abre.
+     * @que-deberia-ocurrir Que responda el buscador diciendo que no hay resultados, como prevé.
+     * @por-que-ocurre La consulta sin filas no devuelve lista, y la petición la cuenta.
+     * @como-deberia-funcionar Tomar como lista vacía la consulta sin filas.
+     */
+    public function test_buscarUnProductoQueNoExisteRespondeQueNoHay(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'buscarProducto', 'campo' => 'a.articulo_name', 'busqueda' => 'Producto que no existe en ninguna tienda', 'idcaja' => 'nombreProducto']);
+
+        self::assertIsArray($peticion['respuesta']);
+        self::assertStringContainsString('cajaBusquedaProducto', $peticion['respuesta']['html']);
+    }
+
+    /** @comportamiento El volcado de una balanza con secciones prepara sus registros y, sin driver, responde el error. */
+    public function test_elVolcadoConSeccionesRespondeElErrorDelDriver(): void
+    {
+        $peticion = $this->ejecutar(
+            ['pulsado' => 'volcadoCompleto', 'idBalanza' => ':b1', 'plusBalanza' => '[{"idArticulo":":a1","crefTienda":"1001","pvpCiva":"2.30","plu":"7","seccion":"2"}]'],
+            [$this->balanza('Mostrador', 'si'), ...$this->producto('Pera', '1001', '2.30'), $this->teclaSembrada('7', '2', ':a1')],
+            true,
+            true,
+            true
+        );
+
+        self::assertTrue($peticion['respuesta']['error']);
+        self::assertStringContainsString('Fallo al ejecutar el driver', $peticion['respuesta']['mensaje']);
+    }
+
     /** @return list<string> */
     private function conDosTeclas(): array
     {
