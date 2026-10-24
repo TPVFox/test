@@ -11,9 +11,6 @@
  * las pruebas unitarias, y las clases desde la carpeta del módulo. Las funciones tienen el nombre de las de
  * la venta: cada caso corre en su propio proceso. Los documentos de compra se siembran en la transacción del
  * caso.
- *
- * @runTestsInSeparateProcesses
- * @preserveGlobalState disabled
  */
 
 declare(strict_types=1);
@@ -24,6 +21,10 @@ use TPVFox\Test\CargaAislada;
 use TPVFox\Test\CasoIntegracion;
 use TPVFox\Test\Siembra\Siembra;
 
+/**
+ * @runTestsInSeparateProcesses
+ * @preserveGlobalState disabled
+ */
 final class FuncionesComprasIntegracionTest extends CasoIntegracion
 {
     protected bool $compartirConexionConElProducto = true;
