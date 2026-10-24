@@ -580,6 +580,31 @@ final class PantallasProveedorIntegracionTest extends CasoIntegracion
      * @por-que-ocurre El índice del estado se calcula dentro del bucle de las familias del artículo.
      * @como-deberia-funcionar Calcularlo fuera de ese bucle.
      */
+    /**
+     * @comportamiento Con productos en una familia, la pantalla ofrece el filtro por familias, cada una en
+     *   su nivel y con las familias de las que cuelga, marcadas.
+     */
+    public function test_conFamiliasSeOfreceElFiltroPorNiveles(): void
+    {
+        $preparacion = array_merge(
+            $this->proveedor('p', 'B70000001'),
+            ["INSERT INTO familias (familiaNombre, familiaPadre, beneficiomedio, mostrar_tpv) VALUES ('Frutas Prueba', 0, 0, 1)", 'SET @frutas = LAST_INSERT_ID()',
+             "INSERT INTO familias (familiaNombre, familiaPadre, beneficiomedio, mostrar_tpv) VALUES ('Citricos Prueba', @frutas, 0, 1)", 'SET @citricos = LAST_INSERT_ID()'],
+            $this->articulo('principal', 'Naranja Prueba', 2, 21, '@p'),
+            ['INSERT INTO articulosFamilias (idArticulo, idFamilia) VALUES (@principal, @citricos)',
+             "INSERT INTO articulosProveedores (idArticulo, idProveedor, crefProveedor, coste, fechaActualizacion, estado) VALUES (@principal, @p, 'NAR-1', 2.10, '2031-01-01', 'Activo')"],
+        );
+
+        $pantalla = $this->ejecutar('OtrasVistas/ListadoProductosDeProveedor.php', ['id' => '{@p}'], [], $preparacion,
+            ['frutas' => 'SELECT @frutas', 'citricos' => 'SELECT @citricos'], self::CON_PERMISOS);
+
+        $this->sinAvisos($pantalla);
+        self::assertStringContainsString('<h5>Nivel 1</h5>', $pantalla['html']);
+        self::assertStringContainsString('<h5>Nivel 2</h5>', $pantalla['html']);
+        self::assertStringContainsString('id="Familia_' . $pantalla['consultas']['frutas'] . '"', $pantalla['html']);
+        self::assertStringContainsString('id="Familia_' . $pantalla['consultas']['citricos'] . '"', $pantalla['html']);
+    }
+
     public function test_unArticuloSinFamiliaSeFiltraPorSuEstado(): void
     {
         $preparacion = array_merge(
