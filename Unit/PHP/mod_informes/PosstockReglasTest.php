@@ -25,6 +25,7 @@ use PosstockC5Detector;
 use PosstockC6Detector;
 use PosstockC7aAnalyzer;
 use PosstockC7bAnalyzer;
+use PosstockC7cdeAnalyzer;
 use PosstockC9Detector;
 use PosstockParamsDTO;
 use ReflectionClass;
@@ -227,5 +228,27 @@ final class PosstockReglasTest extends TestCase
         $dto = PosstockParamsDTO::fromArray(['fecha_inicio_movimientos' => '2025-03-01', 'fecha_fin_movimientos' => '2025-03-31', 'fecha_inicio_stock' => '2025-01-01', 'fecha_fin_stock' => '2025-02-28', 'familias_incluir' => [3]]);
 
         self::assertSame(['2025-03-01', '2025-01-01', '2025-03-31', [3], [], [], false], [$dto->fecha_inicio_periodo, $dto->fecha_inicio_stats, $dto->fecha_fin_stats, $dto->familias_incluir, $dto->ids_filter, $dto->casos_incluir, $dto->proveedor_todos_productos]);
+    }
+
+    /**
+     * @comportamiento Un producto con merma aparente y otro con déficit que se compensan en las mismas
+     *   fechas, del mismo departamento, se cruzan como una confusión en la balanza, en los dos sentidos; de
+     *   departamentos distintos, no.
+     */
+    public function test_elCruceDeUnParC7aYC7b(): void
+    {
+        $fechas = ['2019-03-04', '2019-03-11', '2019-03-18', '2019-03-25', '2019-04-01'];
+        $par = [
+            ['idArticulo' => 1, 'c7_subcaso' => 'C7a', '_floors_raw' => array_combine($fechas, [3.0, 3.5, 2.5, 3.2, 2.8])],
+            ['idArticulo' => 2, 'c7_subcaso' => 'C7b', '_floors_raw' => array_combine($fechas, [-3.0, -3.5, -2.5, -3.2, -2.8]), 'offset_estimado' => -3.0],
+        ];
+        $mismo = $par;
+        $distinto = $par;
+        (new PosstockC7cdeAnalyzer())->detectarCrucesPares($mismo, [1 => ['nombre' => 'Zz Pera', 'familias_n1' => [5]], 2 => ['nombre' => 'Zz Pera conferencia', 'familias_n1' => [5]]]);
+        (new PosstockC7cdeAnalyzer())->detectarCrucesPares($distinto, [1 => ['nombre' => 'Zz Pera', 'familias_n1' => [5]], 2 => ['nombre' => 'Zz Pera conferencia', 'familias_n1' => [6]]]);
+
+        self::assertSame([2, 'confirmado'], [$mismo[0]['posible_cruce_con'], $mismo[0]['cruce_nivel']]);
+        self::assertSame(1, $mismo[1]['posible_cruce_con']);
+        self::assertArrayNotHasKey('posible_cruce_con', $distinto[0]);
     }
 }
