@@ -86,6 +86,28 @@ final class FichaProductoIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('Se creo el producto con id ' . $ficha['leido']['producto'][0]['idArticulo'] . ' nuevo', $ficha['html']);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/producto.php:229
+     *
+     * @group defecto
+     * @group permisos
+     * @group bajo
+     *
+     * @que-ocurre-hoy Sin el permiso de ver los productos de otras tiendas, la ficha enseña igual el panel
+     *   de los productos en otras tiendas.
+     * @que-deberia-ocurrir Que sin ese permiso el panel no salga.
+     * @por-que-ocurre El módulo declara el permiso, pero la ficha no lo consulta al pintar el panel.
+     * @como-deberia-funcionar Consultar el permiso antes de pintar el panel.
+     */
+    public function test_sinElPermisoDeVerOtrasTiendasNoSeEnsenanSusProductos(): void
+    {
+        $ficha = $this->pintar(['id' => ':p1'], [], [...$this->producto('Kiwi'), $this->quitarPermiso('verProductosTienda')]);
+
+        self::assertStringContainsString('value="Kiwi"', $ficha['html']);
+        self::assertStringNotContainsString('Productos en otras tiendas.', $ficha['html']);
+    }
+
     /** @comportamiento La ficha sin número es la de crear un producto, vacía y con el IVA predeterminado de la configuración. */
     public function test_laFichaNuevaSaleVaciaConElIvaPredeterminado(): void
     {

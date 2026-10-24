@@ -229,6 +229,29 @@ final class ListadoProductoIntegracionTest extends CasoIntegracion
         self::assertSame([$pantalla['ids'][':p2']], array_values(array_unique($m[1])));
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_producto/ListaProductos.php:222-224
+     *
+     * @group defecto
+     * @group permisos
+     * @group bajo
+     *
+     * @que-ocurre-hoy Sin el permiso de filtrar la selección, el listado ofrece igual la casilla de filtrar
+     *   los seleccionados.
+     * @que-deberia-ocurrir Que sin ese permiso la casilla no se ofrezca.
+     * @por-que-ocurre El módulo declara el permiso, pero el listado no lo consulta al pintar la casilla.
+     * @como-deberia-funcionar Consultar el permiso antes de pintar la casilla, como hace con eliminar la
+     *   selección.
+     */
+    public function test_sinElPermisoDeFiltrarLaSeleccionNoSeOfrece(): void
+    {
+        $pantalla = $this->pintar(['buscar' => 'Zqx'], [...$this->producto('Zqx Kiwi'), $this->quitarPermiso('filtrarSeleccion')], [':p1']);
+
+        self::assertSame(['Zqx Kiwi'], $this->nombres($pantalla['html']));
+        self::assertStringNotContainsString('id="checkSeleccion"', $pantalla['html']);
+    }
+
     /** @return list<string> El nombre de cada producto del listado, en orden. */
     private function nombres(string $html): array
     {
