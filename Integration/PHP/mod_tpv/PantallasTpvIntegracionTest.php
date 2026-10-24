@@ -43,6 +43,9 @@ final class PantallasTpvIntegracionTest extends CasoIntegracion
     /** @var list<int> */
     private array $temporalesGrabados = [];
 
+    /** @var list<int> */
+    private array $cierresGrabados = [];
+
     private string $carpeta;
 
     protected function setUp(): void
@@ -60,6 +63,10 @@ final class PantallasTpvIntegracionTest extends CasoIntegracion
 
     protected function tearDown(): void
     {
+        foreach ($this->cierresGrabados as $id) {
+            $this->db->query('DELETE FROM cierres_usuarios_tickets WHERE idCierre = ' . $id);
+            $this->db->query('DELETE FROM cierres WHERE idCierre = ' . $id);
+        }
         foreach ($this->temporalesGrabados as $id) {
             $this->db->query('DELETE FROM ticketstemporales WHERE id = ' . $id);
         }
@@ -361,6 +368,21 @@ final class PantallasTpvIntegracionTest extends CasoIntegracion
 
         self::assertStringContainsString('<span title="2026-10-24 12:00:00(1)">Correcto</span>', $pantalla['html']);
         self::assertStringContainsString('>Erroneo</span>', $pantalla['html']);
+    }
+
+    /** @comportamiento Con un cierre, el listado enseña los tickets de su rango de números para el usuario y la tienda. */
+    public function test_elListadoDeUnCierreEnsenaSusTickets(): void
+    {
+        $id = $this->grabado('Cerrado', '2026-10-24 10:00:00', [['Pera', '3', '1.10']]);
+        $this->db->query("INSERT INTO cierres (FechaCierre, idTienda, idUsuario, FechaInicio, FechaFinal, FechaCreacion, Total) VALUES ('2026-10-24', {$this->idTienda}, {$this->idUsuario}, '2026-10-24 00:00:00', '2026-10-24 23:59:59', '2026-10-24 23:59:59', 3.30)");
+        $cierre = (int) $this->db->insert_id;
+        $this->cierresGrabados[] = $cierre;
+        $this->db->query("INSERT INTO cierres_usuarios_tickets (idCierre, idUsuario, idTienda, Importe, Num_ticket_inicial, Num_ticket_final) VALUES ({$cierre}, {$this->idUsuario}, {$this->idTienda}, 3.30, 9001, 9001)");
+
+        $pantalla = $this->ejecutar('ListaTickets.php', ['idCierre' => (string) $cierre, 'idUsuario' => (string) $this->idUsuario, 'estado' => 'Cerrado']);
+
+        self::assertStringContainsString('value="' . $id . '"', $pantalla['html']);
+        self::assertStringContainsString('<strong>1 tickets Cerrados </strong>', $pantalla['html']);
     }
 
     /** @comportamiento La petición cambia el cliente, la forma de pago y la fecha de un ticket cobrado, y responde su mensaje. */
