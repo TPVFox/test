@@ -257,6 +257,31 @@ final class CierreStockIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
+     * @codigo-afectado modulos/mod_reorganizacion/tareas.php:247-254
+     *
+     * @group defecto
+     * @group existencias
+     * @group medio
+     *
+     * @que-ocurre-hoy Cerrar una familia a mano cierra también los productos de una familia excluida en la
+     *   configuración, y deja a cero sus existencias.
+     * @que-deberia-ocurrir Que el cierre a mano deje fuera las familias excluidas, como el automático.
+     * @por-que-ocurre El cierre a mano lee los productos de la familia sin pasar las familias excluidas,
+     *   que solo recibe el automático.
+     * @como-deberia-funcionar Pasar las familias excluidas también a las lecturas del cierre a mano.
+     */
+    public function test_cerrarAManoTampocoCierraLosProductosDeUnaFamiliaExcluida(): void
+    {
+        $this->configuracion(fn (\SimpleXMLElement $xml) => $this->excluir($xml, '%f3%'));
+        $cierre = $this->cerrar('manual', ':f1', [...$this->arbol(), ...$this->producto('Naranja', ':f3', 5), ...$this->producto('Limón', ':f2', 3)], [
+            'existencias' => 'SELECT GROUP_CONCAT(ROUND(stockOn, 2) ORDER BY idArticulo) FROM articulosStocks WHERE idArticulo IN (:p1, :p2)',
+        ]);
+
+        self::assertSame('5.00,0.00', $cierre['consultas']['existencias']);
+    }
+
+    /**
+     * @estado rojo
      * @codigo-afectado modulos/mod_reorganizacion/clases/ClaseReorganizar.php:85-266
      * @codigo-afectado modulos/mod_reorganizacion/funciones.php:40-84
      *
