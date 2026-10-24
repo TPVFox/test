@@ -349,6 +349,31 @@ final class AlbaranesComprasIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_compras/clases/albaranesCompras.php:681-874
+     *
+     * @group defecto
+     * @group integridad
+     * @group medio
+     *
+     * @que-ocurre-hoy Guardar el albarán de un temporal con un número del proveedor que ese proveedor ya tiene
+     *   en otro albarán lo guarda: el mismo albarán del proveedor entra dos veces, con sus existencias.
+     * @que-deberia-ocurrir Que el guardado lo avise y no guarde el segundo.
+     * @por-que-ocurre La comprobación del número repetido existe, pero solo la llama la importación del cierre.
+     * @como-deberia-funcionar Comprobarlo al guardar un albarán nuevo.
+     */
+    public function test_unNumeroDelProveedorRepetidoNoSeGuardaDosVeces(): void
+    {
+        $pan = $this->siembra->articulo('Pan del número repetido');
+        $this->albaranes->AddAlbaranGuardado($this->datos([$this->linea($pan)]), 0);
+        $temporal = (int) $this->albaranes->insertarDatosAlbaranTemporal($this->usuario, $this->tienda, 'Sin guardar', '2026-02-03', [$this->linea($pan)], $this->proveedor, [], 'A-7')['id'];
+
+        $this->guardar($temporal);
+
+        self::assertSame(1, $this->cuantos('albprot', "idProveedor = {$this->proveedor} AND Su_numero = 'A-7'"));
+    }
+
+    /**
      * @comportamiento Un albarán se lee con sus productos —con los nombres del formulario— y sus pedidos
      *   —también con los datos de cada pedido—, su desglose y su suma; un número de factura de un albarán
      *   se lee de su relación.
