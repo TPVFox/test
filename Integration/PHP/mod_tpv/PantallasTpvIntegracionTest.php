@@ -10,9 +10,11 @@
  * la configuración del usuario; lo que la página guarda por esa conexión se deshace al terminar el
  * proceso. Antes de terminar, el proceso escribe los temporales del caso y la configuración del usuario.
  *
- * Los tickets cobrados los lee la clase de tickets, que abre su propia conexión, fuera de la
- * transacción: los que el caso necesita se graban de verdad antes de ejecutar la página y se borran al
- * terminar el caso, con su producto. Salvo que el caso diga lo contrario, el usuario tiene la impresión
+ * Los tickets cobrados y los temporales abiertos los lee la clase de tickets, que abre su propia
+ * conexión, fuera de la transacción: los que el caso necesita se graban de verdad antes de ejecutar la
+ * página y se borran al terminar el caso, con su producto y su registro del stock de la web. Por esa
+ * misma conexión, la petición de fondo cambia un ticket cobrado: los casos que la piden con un
+ * formulario lo hacen sobre uno de esos tickets. Salvo que el caso diga lo contrario, el usuario tiene la impresión
  * de tickets desactivada, para que la página no compruebe ninguna impresora.
  */
 
@@ -38,6 +40,9 @@ final class PantallasTpvIntegracionTest extends CasoIntegracion
     /** @var list<int> */
     private array $grabados = [];
 
+    /** @var list<int> */
+    private array $temporalesGrabados = [];
+
     private string $carpeta;
 
     protected function setUp(): void
@@ -55,7 +60,11 @@ final class PantallasTpvIntegracionTest extends CasoIntegracion
 
     protected function tearDown(): void
     {
+        foreach ($this->temporalesGrabados as $id) {
+            $this->db->query('DELETE FROM ticketstemporales WHERE id = ' . $id);
+        }
         foreach ($this->grabados as $id) {
+            $this->db->query('DELETE FROM importar_virtuemart_tickets WHERE idTicketst = ' . $id);
             $this->db->query('DELETE FROM ticketslinea WHERE idticketst = ' . $id);
             $this->db->query('DELETE FROM ticketstIva WHERE idticketst = ' . $id);
             $this->db->query('DELETE FROM ticketst WHERE id = ' . $id);
@@ -281,6 +290,101 @@ final class PantallasTpvIntegracionTest extends CasoIntegracion
         self::assertStringNotContainsString('id="tabla"', $pantalla['html']);
     }
 
+    /** @comportamiento El TPV lista los temporales abiertos de la tienda, con su total y el enlace a los del usuario. */
+    public function test_elTpvListaLosTemporalesAbiertosDeLaTienda(): void
+    {
+        $this->temporalGrabado(77);
+
+        $pantalla = $this->ejecutar('tpv.php', []);
+
+        self::assertStringContainsString('<a class="btn" href="tpv.php?tAbierto=77">77</a>', $pantalla['html']);
+        self::assertMatchesRegularExpression('#<td class="text-right">\s*3\.30\s*</td>#', $pantalla['html']);
+    }
+
+    /** @comportamiento Un temporal que no está no se abre: la página lo dice y se detiene. */
+    public function test_unTemporalQueNoEstaNoSeAbre(): void
+    {
+        $pantalla = $this->ejecutar('tpv.php', ['tAbierto' => '99']);
+
+        self::assertStringContainsString('Numeros tickets obtenidos: 0', $pantalla['html']);
+        self::assertStringNotContainsString('id="tabla"', $pantalla['html']);
+    }
+
+    /** @comportamiento Con la impresora configurada y presente, el corte y el campo de peso, el TPV marca imprimir y cortar y enseña la columna del peso. */
+    public function test_conLaImpresoraElCorteYElPesoElTpvLosMarca(): void
+    {
+        touch($this->carpeta . '/impresora');
+
+        $pantalla = $this->ejecutar('tpv.php', [], [], true, [], ['impresion_ticket' => 'Si', 'impresora_ticket' => $this->carpeta . '/impresora', 'corte_tickets' => 'Si', 'campo_peso' => 'si']);
+
+        self::assertSame(2, substr_count($pantalla['html'], 'value="Si" checked'));
+        self::assertStringNotContainsString('La impresora de tickets esta mal configurada', $pantalla['html']);
+        self::assertStringContainsString('<th>Cant/Kilo</th>', $pantalla['html']);
+    }
+
+    /** @comportamiento Los temporales abiertos de otro usuario se listan sin enlace, con de quién son; se listan seis como mucho. */
+    public function test_losTemporalesDeOtroUsuarioSeListanSinEnlaceYSeisComoMucho(): void
+    {
+        $otro = (int) $this->db->query("SELECT id FROM usuarios WHERE id <> {$this->idUsuario} ORDER BY id LIMIT 1")->fetch_row()[0];
+        foreach (range(81, 87) as $numero) {
+            $this->temporalGrabado($numero, $otro);
+        }
+
+        $pantalla = $this->ejecutar('tpv.php', []);
+
+        self::assertSame(6, substr_count($pantalla['html'], 'title="Este ticket abierto no es tuyo, es de '));
+        self::assertStringNotContainsString('href="tpv.php?tAbierto=8', $pantalla['html']);
+    }
+
+    /** @comportamiento Con los botones de familias, el TPV ofrece un botón por familia del TPV, con las hijas dentro de su padre. */
+    public function test_conLosBotonesDeFamiliasElTpvLasOfrece(): void
+    {
+        $pantalla = $this->ejecutar('tpv.php', [], [
+            "INSERT INTO familias (familiaNombre, familiaPadre, mostrar_tpv) VALUES ('Frutas de tpv', 0, 1)",
+            "INSERT INTO familias (familiaNombre, familiaPadre, mostrar_tpv) SELECT 'Frutas de hueso de tpv', MAX(idFamilia), 1 FROM familias WHERE familiaNombre = 'Frutas de tpv'",
+        ], true, [], ['impresion_ticket' => 'No', 'btn_familias' => 'Si']);
+
+        self::assertMatchesRegularExpression('#<button class="btn btn-warning" onclick="listadofamilia\(\d+\)">Frutas de tpv</button>#', $pantalla['html']);
+        self::assertStringNotContainsString('>Frutas de hueso de tpv</button>', $pantalla['html']);
+    }
+
+    /** @comportamiento El listado enseña si el stock de cada ticket se descontó en la web; con más de un registro, que es erróneo. */
+    public function test_elListadoEnsenaElStockDescontadoEnLaWeb(): void
+    {
+        $uno = $this->grabado('Cobrado', date('Y-m-d') . ' 10:00:00', [['Pera', '3', '1.10']]);
+        $dos = $this->grabado('Cobrado', date('Y-m-d') . ' 11:00:00', [['Pera', '1', '1.10']]);
+        foreach ([$uno, $dos, $dos] as $id) {
+            $this->db->query("INSERT INTO importar_virtuemart_tickets (idTicketst, Fecha, estado, respuesta) VALUES ({$id}, '2026-10-24 12:00:00', 'Correcto', 'Registros cambiados 1')");
+        }
+
+        $pantalla = $this->ejecutar('ListaTickets.php', []);
+
+        self::assertStringContainsString('<span title="2026-10-24 12:00:00(1)">Correcto</span>', $pantalla['html']);
+        self::assertStringContainsString('>Erroneo</span>', $pantalla['html']);
+    }
+
+    /** @comportamiento La petición cambia el cliente, la forma de pago y la fecha de un ticket cobrado, y responde su mensaje. */
+    public function test_laPeticionCambiaUnTicketCobrado(): void
+    {
+        $id = $this->grabado('Cobrado', '2026-10-24 10:00:00', [['Pera', '3', '1.10']]);
+        $otro = (string) $this->db->query('SELECT MIN(idClientes) FROM clientes WHERE idClientes <> ' . $this->idCliente)->fetch_row()[0];
+
+        $cliente = $this->ejecutar('tareas.php', [], [], true, [], ['impresion_ticket' => 'No'], ['pulsado' => 'cambiarClienteTicketGuardado', 'id_ticketst' => (string) $id, 'idCliente' => $otro]);
+        $pago = $this->ejecutar('tareas.php', [], [], true, [], ['impresion_ticket' => 'No'], ['pulsado' => 'cambiarFormaPagoTicketGuardado', 'id_ticketst' => (string) $id, 'formaPago' => 'tarjeta']);
+        $fecha = $this->ejecutar('tareas.php', [], [], true, [], ['impresion_ticket' => 'No'], ['pulsado' => 'cambiarFechaTicketsSeleccionados', 'Tickets' => [(string) $id], 'FechaNueva' => '2026-10-23']);
+
+        $fila = $this->db->query('SELECT idCliente, formaPago, Fecha FROM ticketst WHERE id = ' . $id)->fetch_assoc();
+        self::assertSame([$otro, 'tarjeta', '2026-10-23 00:00:00'], [$fila['idCliente'], $fila['formaPago'], $fila['Fecha']]);
+        self::assertSame(['Cliente Modificado con Éxito', 'Forma pago modificada con éxito', 'Ok, todo'], [json_decode(trim($cliente['html']), true)['mensaje'] ?? null, json_decode(trim($pago['html']), true)['mensaje'] ?? null, json_decode(trim($fecha['html']), true)['mensaje'] ?? null]);
+    }
+
+    /** Graba de verdad un temporal abierto, del usuario de pruebas o del que se dé, de tres de Pera, y lo apunta para borrarlo al terminar. */
+    private function temporalGrabado(int $numero, ?int $usuario = null): void
+    {
+        $this->db->query(strtr($this->temporal($numero, 'Abierto'), [':tienda' => (string) $this->idTienda, ':usuario' => (string) ($usuario ?? $this->idUsuario), ':cliente' => (string) $this->idCliente]));
+        $this->temporalesGrabados[] = (int) $this->db->insert_id;
+    }
+
     /**
      * Graba de verdad un ticket del estado y la fecha dados, con sus líneas —nombre, unidades, precio y,
      * si se da, su estado— al 10 % y su desglose, y lo apunta para borrarlo al terminar.
@@ -322,19 +426,21 @@ final class PantallasTpvIntegracionTest extends CasoIntegracion
      * @param list<string> $preparacion
      * @param list<string> $sinPermiso Las acciones del módulo que se quitan.
      * @param array<string, string> $configuracion La configuración del TPV del usuario.
+     * @param array<string, mixed> $formulario Si se da, la página se pide con él por POST.
      * @return array{html: string, errores: string, temporales: list<array<string, ?string>>, configuraciones: list<array<string, ?string>>}
      */
-    private function ejecutar(string $fichero, array $consulta, array $preparacion = [], bool $conSesion = true, array $sinPermiso = [], array $configuracion = ['impresion_ticket' => 'No']): array
+    private function ejecutar(string $fichero, array $consulta, array $preparacion = [], bool $conSesion = true, array $sinPermiso = [], array $configuracion = ['impresion_ticket' => 'No'], array $formulario = []): array
     {
         $sesion = $conSesion ? [
             'estadoTpv' => 'Correcto',
-            'usuarioTpv' => ['id' => $this->idUsuario, 'group_id' => 1, 'login' => 'pruebas', 'nombre' => 'Usuario de pruebas'],
+            // Como la deja el inicio de sesión, con los datos del usuario leídos de la base: texto.
+            'usuarioTpv' => ['id' => (string) $this->idUsuario, 'group_id' => '1', 'login' => 'pruebas', 'nombre' => 'Usuario de pruebas'],
             'tiendaTpv' => ['idTienda' => $this->idTienda, 'razonsocial' => 'Tienda de pruebas SL', 'NombreComercial' => 'Tienda de pruebas', 'nif' => 'B00000000', 'direccion' => 'Calle de pruebas 1', 'telefono' => '986000000', 'ano' => '2026'],
         ] : [];
         array_unshift($preparacion, "INSERT INTO modulos_configuracion (idusuario, nombre_modulo, configuracion, fecha) VALUES (:usuario, 'mod_tpv', '" . json_encode($configuracion, JSON_UNESCAPED_SLASHES) . "', NOW())");
         $quitar = $sinPermiso === [] ? 'FALSE' : 'accion IN (' . implode(', ', array_map(static fn (string $a): string => "'{$a}'", $sinPermiso)) . ')';
         $guion = '$_SESSION = ' . var_export($sesion, true) . ';'
-            . ' $_SERVER["REQUEST_METHOD"] = "GET"; $_SERVER["DOCUMENT_ROOT"] = "";'
+            . ' $_SERVER["REQUEST_METHOD"] = ' . var_export($formulario === [] ? 'GET' : 'POST', true) . '; $_SERVER["DOCUMENT_ROOT"] = "";'
             . ' $_SERVER["PHP_SELF"] = $_SERVER["REQUEST_URI"] = ' . var_export("/TPVFox/modulos/mod_tpv/{$fichero}", true) . ';'
             . ' chdir(' . var_export(RUTA_TPVFOX . '/modulos/mod_tpv', true) . ');'
             . ' require ' . var_export(RUTA_TPVFOX . '/inicial.php', true) . ';'
@@ -348,6 +454,7 @@ final class PantallasTpvIntegracionTest extends CasoIntegracion
             . ' $antes = (int) $BDTpv->query("SELECT COALESCE(MAX(id), 0) FROM ticketstemporales")->fetch_row()[0];'
             . ' foreach (' . var_export($preparacion, true) . ' as $sql) { $BDTpv->query(strtr($sql, $ids)); }'
             . ' $_GET = ' . var_export($consulta, true) . ';'
+            . ' $_POST = ' . var_export($formulario, true) . ';'
             . ($conSesion ? ' $ClasePermisos = $thisTpv->permisos = new ClasePermisos($Usuario, $BDTpv);' : '')
             . ' register_shutdown_function(function () use ($BDTpv, $antes) { echo "\n@@DATOS@@" . json_encode(['
             . ' "temporales" => $BDTpv->query("SELECT * FROM ticketstemporales WHERE id > " . $antes . " ORDER BY id")->fetch_all(MYSQLI_ASSOC),'

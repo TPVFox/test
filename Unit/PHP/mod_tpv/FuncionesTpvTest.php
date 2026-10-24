@@ -433,4 +433,39 @@ final class FuncionesTpvTest extends TestCase
 
         self::assertFileDoesNotExist($this->carpeta . '/ejecutado');
     }
+
+    /** @comportamiento Cada sección del XML y cada dato que falte rechaza la configuración base con su nombre. */
+    public function test_cadaClaveQueFaltaSeRechazaConSuNombre(): void
+    {
+        $mensajes = [];
+        foreach (['impresion_ticket', 'impresora_ticket', 'corte_tickets', 'input_pordefecto', 'campo_peso', 'btn_familias'] as $seccion) {
+            $xml = $this->configuracion();
+            unset($xml->{$seccion});
+            $mensajes[] = $this->rechazo($xml, $this->datosDeConfiguracion());
+        }
+        $sinIncidencias = $this->configuracion();
+        unset($sinIncidencias->incidencias[1]);
+        $mensajes[] = $this->rechazo($sinIncidencias, $this->datosDeConfiguracion());
+        foreach (array_keys($this->datosDeConfiguracion()) as $clave) {
+            $datos = $this->datosDeConfiguracion();
+            unset($datos[$clave]);
+            $mensajes[] = $this->rechazo($this->configuracion(), $datos);
+        }
+
+        self::assertSame("El XML no tiene la sección 'btn_familias'", $mensajes[5]);
+        self::assertSame("El XML no tiene la sección 'incidencias' con al menos 2 valores", $mensajes[6]);
+        self::assertSame("Los datos no tienen la clave 'incidencias_usuario_Defecto'", $mensajes[14]);
+        self::assertCount(15, array_unique(array_filter($mensajes)));
+    }
+
+    private function rechazo(\SimpleXMLElement $xml, array $datos): ?string
+    {
+        try {
+            \validarXML($xml, $datos);
+        } catch (\Exception $e) {
+            return $e->getMessage();
+        }
+
+        return null;
+    }
 }

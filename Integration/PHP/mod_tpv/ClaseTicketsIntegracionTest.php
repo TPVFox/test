@@ -194,6 +194,41 @@ final class ClaseTicketsIntegracionTest extends CasoIntegracion
         self::assertSame('3.30', $this->cabecera($id, ['total'])[0]);
     }
 
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_tpv/clases/ClaseTickets.php:166-173,268-291; modulos/mod_tpv/funciones.php:678-690
+     *
+     * @group defecto
+     * @group errores
+     * @group medio
+     *
+     * @que-ocurre-hoy Un ticket sin desglose —el de cero euros, que el cobro graba sin él— se lee con un
+     *   error, y la lectura deja avisos de PHP.
+     * @que-deberia-ocurrir Que se lea sin error, con el desglose vacío.
+     * @por-que-ocurre La lectura del desglose toma la falta de filas como error, y arma el mensaje con una
+     *   variable que no existe.
+     * @como-deberia-funcionar Tomar la falta de desglose como desglose vacío.
+     */
+    public function test_unTicketSinDesgloseSeLeeSinError(): void
+    {
+        $id = $this->ticket('Cobrado', '2026-10-24 10:00:00', '0.00');
+        $this->db->query('DELETE FROM ticketstIva WHERE idticketst = ' . $id);
+        $avisos = [];
+        set_error_handler(static function (int $nivel, string $mensaje) use (&$avisos): bool {
+            $avisos[] = $mensaje;
+
+            return true;
+        });
+        try {
+            $ticket = $this->tickets()->obtenerUnTicket($id);
+        } finally {
+            restore_error_handler();
+        }
+
+        self::assertSame([], $avisos);
+        self::assertArrayNotHasKey('error', $ticket);
+    }
+
     private function tickets(): \ClaseTickets
     {
         $tickets = (new \ReflectionClass(\ClaseTickets::class))->newInstanceWithoutConstructor();

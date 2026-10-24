@@ -19,8 +19,9 @@
  * parámetros del módulo.
  *
  * La preparación es una lista de sentencias; cada alta de un producto queda con un nombre —`:a1`,
- * `:a2`…—, que las sentencias siguientes y el formulario pueden usar, como `:usuario`, `:tienda` y
- * `:cliente`. Salvo que el caso diga lo contrario, el usuario tiene sus índices: el último ticket
+ * `:a2`…—, y lo mismo las de clientes, familias y tiendas —`:c1`, `:f1`, `:t1`…—, que las sentencias
+ * siguientes y el formulario pueden usar, como `:usuario`, `:tienda` y `:cliente`. Reimprimir y preparar
+ * el stock de la web leen con la clase de tickets un ticket cerrado de los que ya hay en la base. Salvo que el caso diga lo contrario, el usuario tiene sus índices: el último ticket
  * cobrado es el 40 y el último temporal el 7.
  */
 
@@ -447,6 +448,123 @@ final class TareasTpvIntegracionTest extends CasoIntegracion
         self::assertSame([], $sinMensaje['incidencias']);
     }
 
+    /**
+     * @comportamiento Reimprimir un ticket cobrado lo escribe en la impresora de la configuración del
+     *   usuario, con su número, y lo corta si la configuración lo dice.
+     */
+    public function test_reimprimirUnTicketLoEscribeEnLaImpresoraDeLaConfiguracion(): void
+    {
+        touch($this->carpeta . '/impresora');
+        [$id, $numero] = $this->ticketCerrado();
+
+        $peticion = $this->ejecutar(['pulsado' => 'ImprimirTicketCerrados', 'idTicketst' => (string) $id], [$this->configuracionSembrada(['impresion_ticket' => 'Si', 'corte_tickets' => 'Si', 'impresora_ticket' => $this->carpeta . '/impresora'])]);
+
+        $impreso = (string) file_get_contents($this->carpeta . '/impresora');
+        self::assertSame((string) $id, (string) $peticion['respuesta']['idTicketST']);
+        self::assertStringContainsString('FACTURA  SIMPLIFICADA', $impreso);
+        self::assertStringContainsString('Numero:' . $numero, $impreso);
+        self::assertStringContainsString("\x1dV", $impreso);
+    }
+
+    /** @comportamiento Reimprimir sin la impresora de la configuración responde el aviso. */
+    public function test_reimprimirSinImpresoraLoAvisa(): void
+    {
+        [$id] = $this->ticketCerrado();
+
+        $peticion = $this->ejecutar(['pulsado' => 'ImprimirTicketCerrados', 'idTicketst' => (string) $id], [$this->configuracionSembrada(['impresion_ticket' => 'Si', 'impresora_ticket' => $this->carpeta . '/no-existe'])]);
+
+        self::assertSame(' no existe la impresora asignada, hay un error', $peticion['respuesta']['error_impresora']);
+    }
+
+    /** @comportamiento Preparar el stock de la web responde la tienda web y los productos del ticket con su número en la web. */
+    public function test_prepararElStockDeLaWebTraeElNumeroDeCadaProducto(): void
+    {
+        [$id, , $producto] = $this->ticketCerrado();
+
+        $peticion = $this->ejecutar(['pulsado' => 'ObtenerRefTiendaWeb', 'idTicket' => (string) $id, 'web' => ':t1'], [
+            "INSERT INTO tiendas (tipoTienda, razonsocial, nif, telefono, estado, NombreComercial, direccion, ano) VALUES ('web', 'Tienda web de pruebas', 'X0000000X', '000000000', 'Activo', 'Web de pruebas', 'Sin direccion', '2026')",
+            "INSERT INTO articulosTiendas (idArticulo, idTienda, crefTienda, idVirtuemart, estado) VALUES ({$producto}, :t1, '', 31, 'Activo')",
+        ]);
+
+        self::assertSame('Web de pruebas', $peticion['respuesta']['tienda']['NombreComercial']);
+        self::assertSame([[(string) $producto, '31']], array_map(static fn (array $p): array => [$p['idArticulo'], $p['idVirtuemart'] ?? null], $peticion['respuesta']['productos']));
+    }
+
+    /** @comportamiento Abrir una incidencia responde su ventana, con de dónde viene. */
+    public function test_abrirUnaIncidenciaRespondeSuVentana(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'abririncidencia', 'dedonde' => 'tpv.php', 'idReal' => '7', 'configuracion' => [['descripcion' => 'mostrar_Select', 'valor' => 'Si'], ['descripcion' => 'usuario_Defecto', 'valor' => '1']]]);
+
+        self::assertStringContainsString('id="inci_dedonde" value="tpv.php"', $peticion['respuesta']['html']);
+        self::assertSame(['vista' => 'tpv.php', 'idReal' => '7'], json_decode($peticion['respuesta']['datos'], true));
+    }
+
+    /** @comportamiento Una incidencia nueva para otro usuario guarda a quién va dirigida. */
+    public function test_unaIncidenciaParaOtroUsuarioLoGuarda(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'nuevaIncidencia', 'fecha' => '2026-10-24', 'datos' => '{"vista":"tpv.php"}', 'estado' => 'No resuelto', 'mensaje' => 'La impresora no corta', 'usuarioSelec' => ':usuario']);
+
+        self::assertSame([['mod_tpv', 'La impresora no corta']], array_map(static fn (array $i): array => [$i['dedonde'], $i['mensaje']], $peticion['incidencias']));
+    }
+
+    /** @comportamiento Buscar clientes sin nada que buscar responde la lista vacía. */
+    public function test_buscarClientesSinNadaRespondeLaListaVacia(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'buscarClientes', 'busqueda' => '', 'dedonde' => 'tpv']);
+
+        self::assertSame(0, $peticion['respuesta']['Nitems']);
+        self::assertStringContainsString('<label>Busqueda Cliente en tpv</label>', $peticion['respuesta']['html']);
+    }
+
+    /** @comportamiento Buscar clientes por unas cifras los busca en el NIF y en los teléfonos. */
+    public function test_buscarClientesPorTelefono(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'buscarClientes', 'busqueda' => '986123', 'dedonde' => 'tpv'], ["INSERT INTO clientes (Nombre, razonsocial, telefono, estado) VALUES ('Bar Pepe de tpv', 'Bar Pepe de tpv', '986123456', 'Activo')"]);
+
+        self::assertSame([1, $peticion['ids'][':c1']], [$peticion['respuesta']['Nitems'], $peticion['respuesta']['id']]);
+    }
+
+    /** @comportamiento Un entregado que no es un número se graba como cero. */
+    public function test_unEntregadoQueNoEsUnNumeroSeGrabaComoCero(): void
+    {
+        $peticion = $this->ejecutar($this->cerrar('14.30', ['entregado' => 'veinte']), $this->conTicketDeTresLineas());
+
+        self::assertSame('0.00', $peticion['tickets'][0]['entregado']);
+    }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_tpv/tareas/CerrarTicket.php:19-27
+     *
+     * @group defecto
+     * @group errores
+     * @group medio
+     *
+     * @que-ocurre-hoy Cobrar un temporal que no está termina en un error de PHP al armar el mensaje, sin
+     *   responder a la página.
+     * @que-deberia-ocurrir Que responda el error de que no se encontró el ticket.
+     * @por-que-ocurre El mensaje se arma sumando textos con «+».
+     * @como-deberia-funcionar Unir los textos con «.» y responder una sola vez.
+     */
+    public function test_cobrarUnTemporalQueNoEstaLoDice(): void
+    {
+        $peticion = $this->ejecutar($this->cerrar('14.30', ['numTickTemporal' => '99']));
+
+        self::assertStringNotContainsString('Fatal error', $peticion['errores']);
+        self::assertArrayHasKey('error', $peticion['respuesta'] ?? []);
+    }
+
+    /** @return array{0: int, 1: string, 2: int} Un ticket cerrado de los que hay en la base, con líneas y desglose: su número interno, su número y su primer producto. */
+    private function ticketCerrado(): array
+    {
+        $fila = $this->db->query('SELECT t.id, t.Numticket, (SELECT l.idArticulo FROM ticketslinea l WHERE l.idticketst = t.id ORDER BY l.id LIMIT 1) AS producto FROM ticketst t'
+            . ' WHERE t.idTienda = ' . $this->idTienda . " AND t.estado = 'Cerrado' AND EXISTS (SELECT 1 FROM ticketslinea l WHERE l.idticketst = t.id)"
+            . ' AND EXISTS (SELECT 1 FROM ticketstIva i WHERE i.idticketst = t.id) ORDER BY t.id LIMIT 1')->fetch_assoc();
+        self::assertNotNull($fila, 'La base de pruebas no tiene un ticket cerrado con líneas y desglose');
+
+        return [(int) $fila['id'], (string) $fila['Numticket'], (int) $fila['producto']];
+    }
+
     /** @return list<string> Dos productos, Pera al 10 % y Vino al 21 %, y el temporal 8 con dos de Pera, uno de Vino y cinco de Pera eliminados. */
     private function conTicketDeTresLineas(): array
     {
@@ -578,10 +696,10 @@ final class TareasTpvIntegracionTest extends CasoIntegracion
             . ' $BDTpv->begin_transaction();'
             . ' require_once $RutaServidor . $HostNombre . "/modulos/claseModeloP.php";'
             . ' ModeloP::usarConexion($BDTpv);'
-            . ' $ids = [":usuario" => "' . $this->idUsuario . '", ":tienda" => "' . $this->idTienda . '", ":cliente" => "' . $this->idCliente . '"]; $cuentas = ["clientes" => 0, "articulos" => 0, "familias" => 0];'
+            . ' $ids = [":usuario" => "' . $this->idUsuario . '", ":tienda" => "' . $this->idTienda . '", ":cliente" => "' . $this->idCliente . '"]; $cuentas = ["clientes" => 0, "articulos" => 0, "familias" => 0, "tiendas" => 0];'
             . ' $antes = []; foreach (["ticketst" => "id", "ticketstemporales" => "id", "articulos" => "idArticulo", "importar_virtuemart_tickets" => "id", "modulos_configuracion" => "id", "modulo_incidencia" => "id"] as $tabla => $clave) { $antes[$tabla] = (int) $BDTpv->query("SELECT COALESCE(MAX(" . $clave . "), 0) FROM " . $tabla)->fetch_row()[0]; }'
             . ' foreach (' . var_export($preparacion, true) . ' as $sql) { $BDTpv->multi_query(strtr($sql, $ids)); $id = $BDTpv->insert_id; do { if ($r = $BDTpv->store_result()) { $r->free(); } } while ($BDTpv->more_results() && $BDTpv->next_result());'
-            . ' if (preg_match("/^INSERT INTO (clientes|articulos|familias) /", $sql, $t)) { $ids[[":c", ":a", ":f"][array_search($t[1], ["clientes", "articulos", "familias"])] . ++$cuentas[$t[1]]] = (string) $id; } }'
+            . ' if (preg_match("/^INSERT INTO (clientes|articulos|familias|tiendas) /", $sql, $t)) { $ids[[":c", ":a", ":f", ":t"][array_search($t[1], ["clientes", "articulos", "familias", "tiendas"])] . ++$cuentas[$t[1]]] = (string) $id; } }'
             . ' $_POST = json_decode(strtr(' . var_export((string) json_encode($formulario), true) . ', $ids), true);'
             . ' $foto = function () use ($BDTpv, $antes) { return ['
             . ' "temporales" => $BDTpv->query("SELECT * FROM ticketstemporales WHERE id > " . $antes["ticketstemporales"] . " ORDER BY id")->fetch_all(MYSQLI_ASSOC),'
