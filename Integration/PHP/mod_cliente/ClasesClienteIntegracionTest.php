@@ -415,4 +415,28 @@ final class ClasesClienteIntegracionTest extends CasoIntegracion
 
         self::assertSame((string) $this->db->query('SELECT COUNT(*) FROM fac_cobros')->fetch_row()[0], (string) $cobros->num_rows);
     }
+
+    /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_cliente/clases/ClaseCliente.php:202-225, :471-523
+     *
+     * @group defecto
+     * @group ficha
+     * @group medio
+     *
+     * @que-ocurre-hoy Un móvil de más de once caracteres —el de un cliente extranjero con su prefijo—
+     *   no se guarda: el guardado termina con un error de la base.
+     * @que-deberia-ocurrir Que se guarde, o que la ficha diga que no cabe antes de guardar.
+     * @por-que-ocurre La columna del móvil tiene once caracteres, y nadie comprueba el largo antes de
+     *   guardar.
+     * @como-deberia-funcionar Dar a la columna el largo de un teléfono internacional, o comprobarlo al
+     *   validar.
+     */
+    public function test_unMovilExtranjeroSeGuarda(): void
+    {
+        $guardado = (new \ClaseCliente())->guardarCliente($this->ficha(['movil' => '+447700900123']));
+
+        self::assertSame('OK', $guardado['estado']);
+        self::assertSame('+447700900123', $this->clienteGuardado((int) $guardado['datos']['idClientes'])['movil']);
+    }
 }
