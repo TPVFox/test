@@ -172,7 +172,7 @@ final class InformesClasicosIntegracionTest extends CasoIntegracion
 
     /**
      * @estado rojo
-     * @codigo-afectado modulos/mod_informes/clases/CosteFluctuacionCalculator.php:380-445
+     * @codigo-afectado modulos/mod_informes/clases/CosteFluctuacionCalculator.php:380-443
      *
      * @group defecto
      * @group integridad
