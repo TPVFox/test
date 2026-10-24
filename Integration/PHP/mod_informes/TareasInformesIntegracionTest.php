@@ -195,6 +195,29 @@ final class TareasInformesIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @estado rojo
+     * @codigo-afectado modulos/mod_informes/tareas.php:1-12
+     *
+     * @group defecto
+     * @group seguridad
+     * @group alto
+     *
+     * @que-ocurre-hoy Sin sesión, la petición de fondo de los informes se atiende: responde los catálogos,
+     *   los periodos y las órdenes de los informes, sin mirar la sesión ni el permiso.
+     * @que-deberia-ocurrir Que sin sesión no se atienda ninguna orden, y que cada una exija su permiso.
+     * @por-que-ocurre El arranque común no corta sin sesión, y la petición no consulta ningún permiso.
+     * @como-deberia-funcionar Comprobar la sesión y el permiso al empezar.
+     */
+    public function test_sinSesionNoSeRespondeLaListaDeProveedores(): void
+    {
+        $peticion = $this->ejecutar(['pulsado' => 'getProveedoresList'], [
+            "INSERT INTO proveedores (nombrecomercial, razonsocial, nif, direccion, fecha_creado, estado) VALUES ('Zz Frutas activo', 'Zz SL', 'X1', 'Sin direccion', NOW(), 'Activo')",
+        ], false);
+
+        self::assertNotContains('Zz Frutas activo', array_column((array) ($peticion['respuesta']['proveedores'] ?? []), 'nombre'));
+    }
+
+    /**
      * Ejecuta la petición en un PHP aparte, en una transacción que no se confirma, y devuelve su respuesta,
      * lo que escribió, sus avisos y los nombres de lo sembrado.
      *
@@ -202,13 +225,13 @@ final class TareasInformesIntegracionTest extends CasoIntegracion
      * @param list<string> $preparacion
      * @return array<string, mixed>
      */
-    private function ejecutar(array $formulario, array $preparacion = []): array
+    private function ejecutar(array $formulario, array $preparacion = [], bool $conSesion = true): array
     {
-        $sesion = [
+        $sesion = $conSesion ? [
             'estadoTpv' => 'Correcto',
             'usuarioTpv' => ['id' => (string) $this->idUsuario, 'group_id' => '1', 'login' => 'pruebas', 'nombre' => 'Usuario de pruebas'],
             'tiendaTpv' => ['idTienda' => (string) $this->idTienda, 'razonsocial' => 'Tienda de pruebas SL', 'NombreComercial' => 'Tienda de pruebas'],
-        ];
+        ] : [];
         $marcas = ['familias' => ':fam', 'proveedores' => ':p'];
         $guion = '$_SESSION = ' . var_export($sesion, true) . ';'
             . ' $_SERVER["DOCUMENT_ROOT"] = ' . var_export(dirname(RUTA_TPVFOX), true) . '; $_SERVER["PHP_SELF"] = $_SERVER["REQUEST_URI"] = "/TPVFox/modulos/mod_informes/tareas.php";'
