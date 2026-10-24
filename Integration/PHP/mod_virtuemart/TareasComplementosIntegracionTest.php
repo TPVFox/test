@@ -349,6 +349,22 @@ final class TareasComplementosIntegracionTest extends CasoIntegracion
         self::assertNull($this->estadoRelacion($pera, $web));
     }
 
+    /** @comportamiento Un producto sin familia relacionada con la tienda web no se añade a la web, ni desde la ficha ni al subir los seleccionados: la respuesta lo dice. */
+    public function test_unProductoSinFamiliaEnLaWebNoSeAnade(): void
+    {
+        $web = $this->tiendaWeb();
+        $pera = $this->articulo('Pera de la web');
+        $this->responde('ObtenerProducto', $this->ivasWeb());
+
+        $ficha = $this->ejecutar('mod_producto', ['pulsado' => 'modificarDatosWeb', 'datos' => $this->datosProducto($pera, $web, 0, '4')]);
+        $subida = $this->ejecutar('mod_producto', ['pulsado' => 'subirProductosWeb', 'idTiendaWeb' => (string) $web], true, [$pera]);
+
+        self::assertStringContainsString('Hubo un error al obtener la relacion de la familia en la web de este producto', $ficha['respuesta']['htmlAlerta']);
+        self::assertSame([(string) $pera], $subida['respuesta']['productosError']);
+        self::assertSame(['ObtenerProducto', 'ObtenerProducto'], array_column($this->peticiones(), 'action'));
+        self::assertNull($this->estadoRelacion($pera, $web));
+    }
+
     /** @comportamiento Si la web envía el correo pero no marca la notificación, la respuesta lleva el error de la marca. */
     public function test_unaNotificacionQueLaWebNoMarcaSeDice(): void
     {
