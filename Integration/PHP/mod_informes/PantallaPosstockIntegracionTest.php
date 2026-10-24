@@ -185,6 +185,34 @@ final class PantallaPosstockIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento Las incidencias de cada caso que da el motor se pintan en la tabla con su tipo y su
+     *   severidad, una fila por incidencia y sin avisos de PHP: el negativo, el desajuste puntual, el stock
+     *   alto, el inactivo, el agotamiento y la merma por lotes de productos de un proveedor sembrado.
+     */
+    public function test_laTablaDeCadaCaso(): void
+    {
+        $siembra = '$ids[":p1"] = $siembra->proveedor("Zz Frutas SL"); $nuevo = function ($nombre, $opciones = []) use ($siembra, &$ids) { $id = $siembra->articulo($nombre, $opciones); $siembra->articuloProveedor($id, $ids[":p1"], 1.0); return $id; };'
+            . ' $a = $nuevo("Zz Negativo"); $siembra->entradaProveedor($a, 5, "2019-01-10"); $siembra->ventaTicket($a, 4, "2019-03-05"); $siembra->ventaTicket($a, 4, "2019-03-12");'
+            . ' $a = $nuevo("Zz Puntual"); $siembra->ventaTicket($a, 3, "2019-03-05"); $siembra->entradaProveedor($a, 10, "2019-03-06");'
+            . ' $a = $nuevo("Zz Parado"); $siembra->entradaProveedor($a, 20, "2019-01-10"); $siembra->entradaProveedor($a, 10, "2019-03-10");'
+            . ' $a = $nuevo("Zz Quieto"); $siembra->existenciaRegistrada($a, 5);'
+            . ' $a = $nuevo("Zz Rapido"); $siembra->existenciaRegistrada($a, 3); for ($d = 1; $d <= 31; $d++) { $siembra->ventaTicket($a, 2, sprintf("2019-03-%02d", $d)); }'
+            . ' $a = $nuevo("Zz Queso", ["tipo" => "peso"]); foreach (["2019-03-04", "2019-03-11", "2019-03-18", "2019-04-02"] as $f) { $siembra->entradaProveedor($a, 10, $f); } foreach (["2019-03-06" => 6, "2019-03-13" => 6, "2019-03-20" => 6, "2019-03-27" => 2] as $f => $v) { $siembra->ventaTicket($a, $v, $f); } $siembra->existenciaRegistrada($a, 10);';
+        $datos = $this->atender('tareas.php', ['pulsado' => 'getPOSStockData', 'proveedores_incluir' => ':p1'] + $this->marzo('caso1,caso2,caso4,caso5,caso6a,caso9'), $siembra);
+        $tabla = $this->atender('tareas.php', ['pulsado' => 'renderizarTablaPosstock', 'filas_json' => json_encode($datos['respuesta']['filas']), 'fecha_fin_movimientos' => '2019-03-31', 'fecha_inicio_stock' => '2019-01-01', 'anio' => '2019']);
+
+        $tipos = [];
+        foreach ($datos['respuesta']['filas'] as $fila) {
+            $tipos[$fila['nombre']][] = $fila['tipo'];
+        }
+        foreach (['Zz Negativo' => 'Inventario en negativo', 'Zz Puntual' => 'Desajuste Puntual de Stock', 'Zz Parado' => 'Entrada con stock alto', 'Zz Quieto' => 'Stock Inactivo en Periodo', 'Zz Rapido' => 'Agotamiento Estimado', 'Zz Queso' => 'Merma backstaging'] as $nombre => $tipo) {
+            self::assertContains($tipo, $tipos[$nombre] ?? [], $nombre);
+        }
+        self::assertSame(count($datos['respuesta']['filas']), substr_count($tabla['respuesta']['html'], '<tr data-tipo=') + substr_count($tabla['respuesta']['html'], '<tr class="articulo-compra-activa" data-tipo='));
+        self::assertSame('', $datos['errores'] . $tabla['errores']);
+    }
+
+    /**
      * @comportamiento El CSV lleva la marca de UTF-8, el periodo, la cabecera y una línea por incidencia
      *   con su producto, nombre, tipo, severidad, detalle y causa; con productos filtrados, solo esos. El
      *   PDF se escribe en la carpeta de temporales y se responde su dirección.
