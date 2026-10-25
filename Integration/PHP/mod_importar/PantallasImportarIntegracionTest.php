@@ -31,10 +31,22 @@ final class PantallasImportarIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * `$_FILES` de una subida con el nombre pedido y el `ARTICULO.DBF` de ejemplo como contenido.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function ficheroSubido(string $nombre): array
+    {
+        $ejemplo = dirname(__DIR__, 3) . '/support/siembra/ARTICULO.DBF';
+
+        return ['fichero' => ['name' => $nombre, 'type' => 'application/octet-stream', 'tmp_name' => $ejemplo, 'error' => 0, 'size' => filesize($ejemplo)]];
+    }
+
+    /**
      * Ejecuta un fichero del módulo en un PHP aparte y devuelve su HTML, su stderr y lo que responden las
      * consultas del caso. La siembra va dentro de la transacción del proceso, que no se confirma.
      */
-    private function ejecutar(string $fichero, array $post = [], array $preparacion = [], array $consultas = [], bool $conSesion = true): array
+    private function ejecutar(string $fichero, array $post = [], array $preparacion = [], array $consultas = [], bool $conSesion = true, array $ficheros = []): array
     {
         $sesion = $conSesion ? [
             'estadoTpv' => 'Correcto',
@@ -52,6 +64,7 @@ final class PantallasImportarIntegracionTest extends CasoIntegracion
             . ' $sembrado = [];'
             . ' foreach (' . var_export($preparacion, true) . ' as $sql) { $BDTpv->query($sql); if (stripos($sql, "INSERT") === 0) { $sembrado[":id"] = (string) $BDTpv->insert_id; } }'
             . ' $post = ' . var_export($post, true) . '; foreach ($post as $k => $v) { $_POST[$k] = strtr((string) $v, $sembrado); }'
+            . ' $_FILES = ' . var_export($ficheros, true) . ';'
             . ' register_shutdown_function(function () use ($BDTpv, &$sembrado) { $r = [];'
             . ' foreach (' . var_export($consultas, true) . ' as $n => $sql) { $fila = $BDTpv->query(strtr($sql, $sembrado))->fetch_row(); $r[$n] = $fila === null || $fila[0] === null ? null : (string) $fila[0]; }'
             . ' echo "\n@@ESTADO@@" . json_encode(["sembrado" => $sembrado, "consultas" => $r]); });'
@@ -242,6 +255,25 @@ final class PantallasImportarIntegracionTest extends CasoIntegracion
         $pantalla = $this->ejecutar('upload.php', ['uploadBtn' => 'Enviar'], [$this->registrar('Fusionado')]);
 
         self::assertStringContainsString('No subiste ficheros', $pantalla['html']);
+    }
+
+    /** @comportamiento Un fichero que no es `.dbf` no se sube: la pantalla dice que solo se admiten `.dbf`. */
+    public function test_laSubidaRechazaUnFicheroQueNoEsDbf(): void
+    {
+        $pantalla = $this->ejecutar('upload.php', ['uploadBtn' => 'Enviar'], [$this->registrar('Fusionado')], [], true, $this->ficheroSubido('importar.php'));
+
+        self::assertStringContainsString('solo se admiten .dbf', $pantalla['html']);
+    }
+
+    /**
+     * @comportamiento El `ARTICULO.DBF` de ejemplo pasa la comprobación de la extensión, aunque venga en
+     *   mayúsculas. Fuera de un servidor web no se puede mover, y la pantalla lo dice.
+     */
+    public function test_laSubidaAdmiteUnDbfEnMayusculas(): void
+    {
+        $pantalla = $this->ejecutar('upload.php', ['uploadBtn' => 'Enviar'], [$this->registrar('Fusionado')], [], true, $this->ficheroSubido('ARTICULO.DBF'));
+
+        self::assertStringNotContainsString('solo se admiten .dbf', $pantalla['html']);
     }
 
     /**
