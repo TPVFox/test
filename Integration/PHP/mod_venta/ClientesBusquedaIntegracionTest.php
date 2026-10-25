@@ -79,6 +79,31 @@ final class ClientesBusquedaIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * Via por nombre x ninguna coincidencia: la lista de datos llega vacia.
+     */
+    public function test_porNombreSinCoincidenciasDevuelveLaListaVacia(): void
+    {
+        $this->siembra->cliente('Panaderia Central');
+
+        $r = $this->cliente->BuscarClientePorNombre('Ningunclienteseasi');
+
+        self::assertSame([], $r['datos']);
+    }
+
+    /**
+     * Via por nombre x un termino con comillas y una condicion: se busca como texto, no amplia la
+     * busqueda a todos los clientes.
+     */
+    public function test_porNombreUnTerminoConUnaCondicionSeBuscaComoTexto(): void
+    {
+        $this->siembra->cliente('Panaderia Central');
+
+        $r = $this->cliente->BuscarClientePorNombre('nadie" OR "1"="1');
+
+        self::assertSame([], $r['datos'] ?? null);
+    }
+
+    /**
      * Via por nombre x palabras repartidas entre los dos campos: la consulta exige todas las
      * palabras en el nombre comercial O todas en la razon social. Un cliente con una palabra en cada
      * campo no cumple ninguno de los dos grupos y no aparece, aunque cada palabra exista en el.

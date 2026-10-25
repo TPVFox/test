@@ -189,7 +189,8 @@ final class PermisosIntegracionTest extends CasoIntegracion
 
     /**
      * @comportamiento Cambiar un permiso de un usuario escribe el valor en su fila del módulo, la
-     *   vista o la acción, y devuelve la sentencia que ejecutó, no su resultado.
+     *   vista o la acción, y devuelve la sentencia que ejecutó, con `?` en lugar de los valores, no su
+     *   resultado.
      */
     public function test_E1_cambiarUnPermisoEscribeSuValorYDevuelveLaSentencia(): void
     {
@@ -203,7 +204,7 @@ final class PermisosIntegracionTest extends CasoIntegracion
         );
 
         self::assertSame(0, $this->filas($usuario['id'])['mod_venta|albaranesListado.php|Crear']);
-        self::assertStringStartsWith('UPDATE `permisos` SET permiso=0', $devuelto);
+        self::assertStringStartsWith('UPDATE `permisos` SET permiso=?', $devuelto);
 
         $permisos->modificarPermisoUsuario(['modulo' => 'mod_venta', 'vista' => '', 'accion' => ''], 0, $usuario['id']);
 

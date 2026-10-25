@@ -278,7 +278,7 @@ final class TareasClienteIntegracionTest extends CasoIntegracion
         $peticion = $this->ejecutar(['pulsado' => 'nuevaIncidencia', 'usuario' => (string) $this->idUsuario, 'fecha' => '2026-10-24', 'datos' => '{"vista":"cliente","idReal":"7"}', 'estado' => 'No resuelto', 'mensaje' => 'Revisar el NIF', 'usuarioSelec' => '5']);
 
         self::assertSame(['mod_clientes', 'Revisar el NIF'], [$peticion['incidencias'][0]['dedonde'], $peticion['incidencias'][0]['mensaje']]);
-        self::assertStringContainsString('"usuarioSelec":"5"', $peticion['respuesta']['sql']);
+        self::assertStringContainsString('"usuarioSelec":"5"', $peticion['incidencias'][0]['datos']);
     }
 
     /** @comportamiento Un descuento ya guardado para el periodo, sin sobrescribir, se deja como estaba y se cuenta como ignorado. */
@@ -398,7 +398,7 @@ final class TareasClienteIntegracionTest extends CasoIntegracion
             . ' register_shutdown_function(function () use ($BDTpv, &$ids, $antes) { echo "\n@@DATOS@@" . json_encode(["ids" => $ids,'
             . ' "tarifas" => $BDTpv->query("SELECT * FROM articulosClientes WHERE idClientes > " . $antes["clientes"])->fetch_all(MYSQLI_ASSOC),'
             . ' "descuentos" => $BDTpv->query("SELECT * FROM descuentos_tickets WHERE idCliente > " . $antes["clientes"] . " ORDER BY fechaInicio")->fetch_all(MYSQLI_ASSOC),'
-            . ' "incidencias" => $BDTpv->query("SELECT dedonde, mensaje FROM modulo_incidencia WHERE id > " . $antes["incidencia"])->fetch_all(MYSQLI_ASSOC),'
+            . ' "incidencias" => $BDTpv->query("SELECT dedonde, mensaje, datos FROM modulo_incidencia WHERE id > " . $antes["incidencia"])->fetch_all(MYSQLI_ASSOC),'
             . ' "impreso" => ["cabecera" => $GLOBALS["cabecera"] ?? null, "html" => $GLOBALS["html"] ?? null]], JSON_INVALID_UTF8_SUBSTITUTE); });'
             . ' include "tareas.php";';
 
