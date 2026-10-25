@@ -75,4 +75,28 @@ final class AyudasTest extends TestCase
         self::assertSame('', $escrito, 'No tiene que escribir nada.');
         self::assertSame("<pre>Array\n(\n    [0] => lomo\n)\n</pre>", $devuelto);
     }
+
+    /** @comportamiento Escapar deja una etiqueta como texto: no llega al HTML como etiqueta. */
+    public function test_escaparDejaUnaEtiquetaComoTexto(): void
+    {
+        self::assertSame('&lt;script&gt;alert(1)&lt;/script&gt;', \escapar('<script>alert(1)</script>'));
+    }
+
+    /** @comportamiento Escapar convierte las comillas, para que un dato no cierre un atributo. */
+    public function test_escaparConvierteLasComillas(): void
+    {
+        self::assertSame('&quot; onmouseover=&quot;x&quot; &#039;', \escapar('" onmouseover="x" \''));
+    }
+
+    /** @comportamiento Un texto normal, con acentos, sale tal cual. */
+    public function test_escaparDejaUnTextoNormalComoEsta(): void
+    {
+        self::assertSame('Café Central', \escapar('Café Central'));
+    }
+
+    /** @comportamiento Un dato vacío (null) sale como texto vacío. */
+    public function test_escaparConvierteNullEnTextoVacio(): void
+    {
+        self::assertSame('', \escapar(null));
+    }
 }
