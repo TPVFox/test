@@ -74,6 +74,16 @@ final class FuncionesComprasIntegracionTest extends CasoIntegracion
         self::assertSame(['Pera', 'conferencia', 'de', 'compra'], $identico['palabras']);
     }
 
+    /** @comportamiento Buscar por un campo que no es de la lista de los permitidos no busca: devuelve el error «CampoNoValido». */
+    public function test_unCampoNoPermitidoNoBusca(): void
+    {
+        $proveedor = $this->siembra->proveedor('Proveedor del campo');
+
+        $busqueda = \BuscarProductos('Descripcion', 'a.articulo_name; DROP TABLE articulos', 'id_input', 'Pera', $this->db, $proveedor);
+
+        self::assertSame('CampoNoValido', $busqueda['error']);
+    }
+
     /**
      * @estado rojo
      * @codigo-afectado modulos/mod_compras/funciones.php:71-136

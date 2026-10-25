@@ -37,7 +37,7 @@ final class PaginacionTest extends TestCase
         $paginacion = self::paginacion(['pagina' => '3', 'buscar' => 'lomo cerdo', 'filtro' => 'Guardado']);
 
         self::assertSame('./ListaPrueba.php?', $paginacion->GetLinkBase());
-        self::assertSame('3', $paginacion->GetPagActual());
+        self::assertSame(3, $paginacion->GetPagActual());
         self::assertSame(80, $paginacion->GetDesde());
         self::assertSame(40, $paginacion->GetLimite());
         self::assertSame('lomo cerdo', $paginacion->GetBusqueda());
@@ -101,8 +101,8 @@ final class PaginacionTest extends TestCase
     /**
      * @comportamiento La condición de la búsqueda pone, por cada campo, un LIKE por palabra unidos por
      *   AND; los campos se unen por el operador pedido, y el conjunto queda entre dos pares de
-     *   paréntesis. El filtro añade la igualdad de su campo, con el valor escapado, y el orden va
-     *   detrás.
+     *   paréntesis. El filtro añade la igualdad de su campo, y el orden va detrás. Cada valor va como
+     *   `?`, y los valores, aparte y en el mismo orden.
      */
     public function test_laCondicionUneBusquedaFiltroYOrden(): void
     {
@@ -112,11 +112,43 @@ final class PaginacionTest extends TestCase
         $paginacion->SetOrderConsulta('a.nombre');
 
         self::assertSame(
-            'WHERE ( ((a.nombre LIKE "%lomo%"  AND a.nombre LIKE "%cerdo%" ) AND (a.ref LIKE "%lomo%"  AND a.ref LIKE "%cerdo%" )) ) '
-            . 'AND a.estado = "Gu\\"ardado"  ORDER BY a.nombre DESC',
+            'WHERE ( ((a.nombre LIKE ? AND a.nombre LIKE ?) AND (a.ref LIKE ? AND a.ref LIKE ?)) ) AND a.estado = ?  ORDER BY a.nombre DESC',
             $paginacion->GetFiltroWhere()
         );
+        self::assertSame(['%lomo%', '%cerdo%', '%lomo%', '%cerdo%', 'Gu"ardado'], $paginacion->GetFiltroParams());
         self::assertStringContainsString(') OR (', $paginacion->GetFiltroWhere('OR'));
+    }
+
+    /** @comportamiento Una búsqueda con comillas y una condición va entera como valor: no entra en la condición. */
+    public function test_unaBusquedaConUnaCondicionVaComoValor(): void
+    {
+        $paginacion = self::paginacion(['buscar' => 'x" OR "1"="1']);
+        $paginacion->SetCamposControler(['a.articulo_name']);
+
+        $condicion = $paginacion->GetFiltroWhere('OR');
+
+        self::assertSame(count($paginacion->GetFiltroParams()), substr_count($condicion, '?'));
+        self::assertStringNotContainsString('"1"="1"', $condicion);
+    }
+
+    /** @comportamiento Un campo de búsqueda que no es un nombre de columna no se usa ni deja valores. */
+    public function test_unCampoQueNoEsUnaColumnaNoSeUsa(): void
+    {
+        $paginacion = self::paginacion(['buscar' => 'y']);
+        $paginacion->SetCamposControler(['a.articulo_name; DROP TABLE x']);
+
+        self::assertStringNotContainsString('DROP TABLE', $paginacion->GetFiltroWhere('OR'));
+        self::assertSame([], $paginacion->GetFiltroParams());
+    }
+
+    /** @comportamiento Una página con texto detrás del número se lee como ese número: el límite no lleva el texto. */
+    public function test_unaPaginaConTextoDetrasNoLlegaAlLimite(): void
+    {
+        $paginacion = self::paginacion(['pagina' => '3 UNION SELECT']);
+
+        $paginacion->SetCantidadRegistros(1000);
+
+        self::assertStringNotContainsString('UNION', $paginacion->GetLimitConsulta());
     }
 
     /** @comportamiento Sin búsqueda ni filtro, la condición es solo el orden; sin orden, nada. */
@@ -323,10 +355,9 @@ final class PaginacionTest extends TestCase
     }
 
     /**
-     * @comportamiento La condición y el orden se guardan en la clase y cada llamada parte de lo que
-     *   dejó la anterior: pedida la condición con OR, se queda con OR aunque después se pida con AND,
-     *   y cada llamada que fija el orden añade el suyo. Los listados de hoy fijan el orden una sola
-     *   vez.
+     * @comportamiento La condición se rehace en cada llamada con el operador pedido: pedida con OR y
+     *   después con AND, la segunda es con AND. El orden, en cambio, se guarda en la clase, y cada
+     *   llamada que lo fija añade el suyo. Los listados de hoy fijan el orden una sola vez.
      */
     public function test_laCondicionYElOrdenDependenDelOrdenDeLasLlamadas(): void
     {
@@ -334,8 +365,8 @@ final class PaginacionTest extends TestCase
         $paginacion->SetCamposControler(['a.nombre', 'a.ref']);
         $conOr = $paginacion->GetFiltroWhere('OR');
 
-        self::assertSame($conOr, $paginacion->GetFiltroWhere(), 'Después de OR, pedirla con AND no la rehace.');
-        self::assertStringContainsString(' OR ', $paginacion->GetFiltroWhere());
+        self::assertStringContainsString(' OR ', $conOr);
+        self::assertStringContainsString(' AND ', $paginacion->GetFiltroWhere(), 'Después de OR, pedirla con AND la rehace con AND.');
 
         $dosVeces = self::paginacion();
         $dosVeces->SetOrderConsulta('a.nombre');

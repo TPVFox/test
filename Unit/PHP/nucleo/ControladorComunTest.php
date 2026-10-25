@@ -36,20 +36,17 @@ final class ControladorComunTest extends TestCase
 
     /**
      * @comportamiento La búsqueda por palabras pone un LIKE por cada palabra y cada campo, unidos por
-     *   el operador pedido. Separa comas, paréntesis y guiones, y quita las comillas dobles.
+     *   el operador pedido, con `?` en lugar de cada valor y los valores aparte. Separa comas, paréntesis
+     *   y guiones, y quita las comillas dobles.
      */
     public function test_laBusquedaPorPalabrasPoneUnLikePorPalabraYCampo(): void
     {
         $controlador = new \ControladorComun();
 
-        self::assertSame(
-            'a.nombre LIKE "%lomo%"  AND a.ref LIKE "%lomo%"  AND a.nombre LIKE "%cerdo%"  AND a.ref LIKE "%cerdo%" ',
-            $controlador->ConstructorLike(['a.nombre', 'a.ref'], ' lomo  cerdo ')
-        );
-        self::assertSame(
-            'n LIKE "%lomo%"  OR n LIKE "%,%"  OR n LIKE "%cerdo%"  OR n LIKE "%ibérico%" ',
-            $controlador->ConstructorLike(['n'], 'lomo,cerdo "ibérico"', 'OR')
-        );
+        self::assertSame('a.nombre LIKE ? AND a.ref LIKE ? AND a.nombre LIKE ? AND a.ref LIKE ?', $controlador->ConstructorLike(['a.nombre', 'a.ref'], ' lomo  cerdo '));
+        self::assertSame(['%lomo%', '%lomo%', '%cerdo%', '%cerdo%'], $controlador->GetConstructorParams());
+        self::assertSame('n LIKE ? OR n LIKE ? OR n LIKE ? OR n LIKE ?', $controlador->ConstructorLike(['n'], 'lomo,cerdo "ibérico"', 'OR'));
+        self::assertSame(['%lomo%', '%,%', '%cerdo%', '%ibérico%'], $controlador->GetConstructorParams());
     }
 
     /**
@@ -58,7 +55,10 @@ final class ControladorComunTest extends TestCase
      */
     public function test_lasPalabrasCortasTambienEntranEnLaBusqueda(): void
     {
-        self::assertSame('n LIKE "%a%"  AND n LIKE "%de%" ', (new \ControladorComun())->ConstructorLike(['n'], 'a de'));
+        $controlador = new \ControladorComun();
+
+        self::assertSame('n LIKE ? AND n LIKE ?', $controlador->ConstructorLike(['n'], 'a de'));
+        self::assertSame(['%a%', '%de%'], $controlador->GetConstructorParams());
     }
 
     /**

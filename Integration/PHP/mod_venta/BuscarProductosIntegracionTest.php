@@ -45,6 +45,16 @@ final class BuscarProductosIntegracionTest extends CasoIntegracion
         self::assertSame(2, $resultado['Nitems']);
     }
 
+    /** @comportamiento Buscar por un campo que no es de la lista de los permitidos no busca: responde «CampoNoValido». */
+    public function test_unCampoNoPermitidoNoBusca(): void
+    {
+        $this->siembra->articulo('Zumaque Gamma');
+
+        $resultado = \BuscarProductos('cajaBusqueda', 'a.articulo_name; DROP TABLE articulos', 'Zumaque', $this->db, $this->idCliente);
+
+        self::assertSame('CampoNoValido', $resultado['Estado']);
+    }
+
     public function test_cajaBusqueda_sinResultadosDaNoexiste(): void
     {
         $resultado = \BuscarProductos('cajaBusqueda', 'a.articulo_name', 'Inexistente123', $this->db, $this->idCliente);

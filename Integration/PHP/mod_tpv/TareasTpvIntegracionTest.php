@@ -265,6 +265,14 @@ final class TareasTpvIntegracionTest extends CasoIntegracion
         self::assertSame(['NoSeBusco', 'tpv'], [$nada['respuesta']['Estado'], $nada['respuesta']['dedonde']]);
     }
 
+    /** @comportamiento Buscar por un campo que no es de la lista de los permitidos no busca: responde «CampoNoValido». */
+    public function test_buscarPorUnCampoNoPermitidoNoBusca(): void
+    {
+        $peticion = $this->ejecutar($this->buscar('Descripcion', 'a.articulo_name; DROP TABLE articulos', 'Peraconferenciatpv'), [$this->producto('Peraconferenciatpv')]);
+
+        self::assertSame('CampoNoValido', $peticion['respuesta']['Estado']);
+    }
+
     /** @comportamiento Buscando desde el listado, un producto encontrado igual se responde como listado. */
     public function test_buscarDesdeElListadoRespondeElListado(): void
     {
