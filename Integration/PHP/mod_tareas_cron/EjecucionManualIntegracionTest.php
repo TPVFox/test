@@ -279,12 +279,15 @@ final class EjecucionManualIntegracionTest extends CasoIntegracion
         $directorio = (string) getcwd();
         chdir(($raiz ?? RegistroDeTareas::raiz()) . '/modulos/mod_tareas_cron');
         $_POST = ['tareaid' => $identificador];
+        // La pantalla pide la ejecución con la sesión iniciada; sin ella, tareas.php corta la petición.
+        $_SESSION['estadoTpv'] = 'Correcto';
         ob_start();
         try {
             require RUTA_TPVFOX . '/modulos/mod_tareas_cron/tareas.php';
         } finally {
             $salida = (string) ob_get_clean();
             $_POST = [];
+            unset($_SESSION['estadoTpv']);
             chdir($directorio);
         }
 
