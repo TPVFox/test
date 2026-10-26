@@ -107,14 +107,33 @@ final class CapaDBIntegracionTest extends CasoIntegracion
         self::assertSame(1, $this->db->affected_rows);
     }
 
-    /** @comportamiento Un valor null se escribe como NULL. */
-    public function test_unValorNullSeEscribeComoNull(): void
+    /**
+     * @comportamiento Un valor null se escribe como texto vacío, como el valor pegado entre comillas que
+     *   sustituye la capa: queda lo mismo que con `query()` y la sentencia montada a mano.
+     */
+    public function test_unValorNullSeEscribeComoTextoVacioComoConQuery(): void
     {
         $id = $this->capa->insert('clientes', ['Nombre' => 'Cliente sin correo', 'estado' => 'activo', 'email' => 'antes@correo']);
+        $otro = $this->capa->insert('clientes', ['Nombre' => 'Cliente sin correo a mano', 'estado' => 'activo', 'email' => 'antes@correo']);
+        $correo = null;
 
         $this->capa->execute('UPDATE clientes SET email = ? WHERE idClientes = ?', [null, $id]);
+        $this->db->query('UPDATE clientes SET email = "' . $correo . '" WHERE idClientes = ' . $otro);
 
-        self::assertNull($this->capa->select('SELECT email FROM clientes WHERE idClientes = ?', [$id])[0]['email']);
+        $conCapa = $this->capa->select('SELECT email FROM clientes WHERE idClientes = ?', [$id])[0]['email'];
+        self::assertSame('', $conCapa);
+        self::assertSame($this->capa->select('SELECT email FROM clientes WHERE idClientes = ?', [$otro])[0]['email'], $conCapa);
+    }
+
+    /** @comportamiento Un valor null en una columna que no admite NULL se graba, como texto vacío. */
+    public function test_unNullEnUnaColumnaQueNoAdmiteNullSeGraba(): void
+    {
+        $id = $this->capa->insert('clientes', ['Nombre' => 'Cliente con nombre', 'estado' => 'activo']);
+
+        $filas = $this->capa->execute('UPDATE clientes SET Nombre = ? WHERE idClientes = ?', [null, $id]);
+
+        self::assertSame(1, $filas);
+        self::assertSame('', $this->capa->select('SELECT Nombre FROM clientes WHERE idClientes = ?', [$id])[0]['Nombre']);
     }
 
     /** @comportamiento Con distinto número de `?` que de valores, la capa no ejecuta nada y lo dice. */

@@ -112,6 +112,28 @@ final class TareasTpvIntegracionTest extends CasoIntegracion
         self::assertArrayNotHasKey('error', $peticion['respuesta'] ?? []);
     }
 
+    /**
+     * @comportamiento Una línea sin código de barras ni referencia se cobra entera: el producto encontrado
+     *   directamente los trae nulos, y el elegido de la lista, vacíos. Se graban la cabecera, las dos
+     *   líneas con el código y la referencia vacíos, el desglose, el temporal cobrado y el stock.
+     */
+    public function test_unaLineaSinCodigoDeBarrasNiReferenciaSeCobraEntera(): void
+    {
+        $peticion = $this->ejecutar($this->cerrar('14.30'), [
+            $this->producto('Pera'),
+            $this->producto('Vino', '21.00'),
+            $this->temporal(8, 'Actual', [$this->linea(':a1', 2, '1.10', ['ccodebar' => null, 'cref' => null]), $this->linea(':a2', 1, '12.10', ['cdetalle' => 'Vino', 'ctipoiva' => '21.00', 'nfila' => 2, 'ccodebar' => '', 'cref' => ''])]),
+        ]);
+
+        self::assertSame([['41', 'Cobrado', '14.30']], array_map(static fn (array $t): array => [$t['Numticket'], $t['estado'], $t['total']], $peticion['tickets']));
+        self::assertSame([[':a1', 'Pera', '2.000000', '1.10', '10.00', 'Activo'], [':a2', 'Vino', '1.000000', '12.10', '21.00', 'Activo']], $this->lineas($peticion));
+        self::assertSame([['', ''], ['', '']], array_map(static fn (array $l): array => [$l['cref'], $l['ccodbar']], $peticion['lineas']));
+        self::assertSame([['10', '0.20', '2.00'], ['21', '2.10', '10.00']], array_map(static fn (array $i): array => [$i['iva'], $i['importeIva'], $i['totalbase']], $peticion['ivas']));
+        self::assertSame('Cobrado', $peticion['temporales'][0]['estadoTicket']);
+        self::assertSame([[':a1', '-2.000000'], [':a2', '-1.000000']], $this->stocks($peticion));
+        self::assertArrayNotHasKey('error', $peticion['respuesta'] ?? []);
+    }
+
     /** @comportamiento Un ticket que ya está cobrado no se vuelve a cobrar: no se graba otro ni se resta el stock. */
     public function test_unTicketYaCobradoNoSeVuelveACobrar(): void
     {
