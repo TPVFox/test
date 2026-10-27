@@ -162,6 +162,18 @@ final class PantallasTpvIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('<td>' . $this->idTienda . '-' . $this->idUsuario . '-9001</td><td>' . $this->idCliente . '</td><td>Cliente de pruebas</td><td>Cobrado</td><td>contado</td><td>3.30</td>', $pantalla['html']);
     }
 
+    /** @comportamiento Buscar en el listado enseña los tickets cobrados que coinciden con la búsqueda, y no los demás. */
+    public function test_buscarEnElListadoEnsenaLosQueCoinciden(): void
+    {
+        $id = $this->grabado('Cobrado', date('Y-m-d') . ' 10:00:00', [['Pera', '3', '1.10']]);
+
+        $coincide = $this->ejecutar('ListaTickets.php', ['buscar' => 'pruebas']);
+        $noCoincide = $this->ejecutar('ListaTickets.php', ['buscar' => 'ningunclienteasi']);
+
+        self::assertStringContainsString('value="' . $id . '"', $coincide['html']);
+        self::assertStringNotContainsString('value="' . $id . '"', $noCoincide['html']);
+    }
+
     /**
      * @estado rojo
      * @codigo-afectado modulos/mod_tpv/ListaTickets.php:40-43,72,99
