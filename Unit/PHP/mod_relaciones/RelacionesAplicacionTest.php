@@ -405,12 +405,46 @@ final class RelacionesAplicacionTest extends TestCase
         self::assertSame(1.0, $aplicacion->rendimiento(array_slice($this->pollo()['lineas'], 0, 1)));
     }
 
+    /**
+     * @comportamiento Lo que queda de cada pieza es su saldo inicial, más lo que entró, menos lo que
+     *   salió, más lo que genera la aplicación. Su mínimo es lo que le falta sin lo que genera, entre lo
+     *   que da por unidad de la entrada, redondeado hacia arriba al gramo; el de la receta, el mayor.
+     */
+    public function test_T22_loQueQuedaDeCadaPiezaYElMinimoDeLaReceta(): void
+    {
+        $desajuste = $this->aplicacion()->desajuste([
+            $this->pieza(2, 0.25, 0, 0, 40, 25),
+            $this->pieza(3, 0.35, 5, 10, 20, 35),
+            $this->pieza(4, 0.12, 0, 0, 0, 12),
+        ]);
+
+        self::assertSame([-15.0, 30.0, 12.0], array_column($desajuste['piezas'], 'queda'));
+        self::assertSame([160.0, 14.286, 0.0], array_column($desajuste['piezas'], 'minimo'));
+        self::assertSame(160.0, $desajuste['minimo']);
+    }
+
+    /** @comportamiento En un despiece por unidades, el mínimo se redondea hacia arriba a la unidad. */
+    public function test_T23_enUnidadesElMinimoEsEntero(): void
+    {
+        $desajuste = $this->aplicacion()->desajuste([$this->pieza(2, 0.4, 0, 0, 3, 2, 'ud')]);
+
+        self::assertSame(-1.0, $desajuste['piezas'][0]['queda']);
+        self::assertSame(8.0, $desajuste['minimo']);
+    }
+
     private function aplicacion(): \RelacionesAplicacion
     {
         global $RutaServidor, $HostNombre, $URLCom;
         require_once RUTA_TPVFOX . '/modulos/mod_relaciones/clases/RelacionesAplicacion.php';
 
         return new \RelacionesAplicacion();
+    }
+
+    /** Una pieza para el desajuste: lo que da por unidad de la entrada y sus movimientos. */
+    private function pieza(int $id, float $porUnidad, float $saldoInicial, float $entradas, float $salidas, float $genera, string $unidad = 'kg'): array
+    {
+        return ['idArticulo' => $id, 'articulo' => 'Artículo ' . $id, 'unidad' => $unidad, 'porUnidad' => $porUnidad,
+                'saldoInicial' => $saldoInicial, 'entradas' => $entradas, 'salidas' => $salidas, 'genera' => $genera];
     }
 
     /**

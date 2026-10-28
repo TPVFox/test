@@ -289,4 +289,18 @@ test.describe('Reorganizar — aplicar una relación', () => {
     await expect(amarillo).toContainText(PREFIJO + 'Despiece del obrador');
     await expect(page.locator('#escandalloAplicacion tbody tr.pieza').nth(0)).toContainText('20');
   });
+
+  test('T15: una pieza que queda en negativo se avisa con el mínimo de la receta, y se puede preparar', async ({ page }) => {
+    execFileSync('php', [path.resolve(__dirname, '../../../support/preparar-e2e-aplicar-relacion-desajuste.php'), 'vigente'], { stdio: 'pipe' });
+    await iniciarSesion(page, PANTALLA);
+    await page.locator('#cantidadAplicacion').fill('100');
+
+    await calcular(page, escenario);
+
+    const amarillo = page.locator('#avisosAplicacion .alert-warning');
+    await expect(amarillo).toContainText(PREFIJO + 'Pechuga');
+    await expect(amarillo).toContainText('160');
+    await expect(page.locator('#datosAplicacion')).toContainText('Mínimo para cubrir las salidas de sus piezas: 160 kg');
+    await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
+  });
 });

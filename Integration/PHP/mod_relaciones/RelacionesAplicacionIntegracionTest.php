@@ -462,6 +462,57 @@ final class RelacionesAplicacionIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento Lo que queda de cada pieza al final del periodo cuenta lo que tenía al empezarlo
+     *   —sus movimientos desde el 1 de enero—, sus líneas de proveedor del periodo con su signo —sus
+     *   compras, lo que generó otra aplicación y lo que salió de ella al aplicarla en otra receta—, sus
+     *   salidas por ticket y por albarán de cliente, y lo que genera la aplicación. Los tickets y los
+     *   albaranes de cliente en estados que no son existencias no cuentan.
+     */
+    public function test_T20_loQueQuedaDeCadaPiezaCuentaSuSaldoInicialYSusMovimientos(): void
+    {
+        [$version, $pechuga, $muslo] = $this->versionDelDesajuste('movimientos');
+        $this->siembra->entradaProveedor($pechuga, 20, '2026-01-10', ['idProveedor' => $this->habitual]);
+        $this->siembra->ventaTicket($pechuga, 5, '2026-01-20');
+        $this->siembra->entradaProveedor($pechuga, 12, '2026-02-05', ['idProveedor' => $this->otroEspecial]);
+        $this->siembra->entradaProveedor($pechuga, -4, '2026-02-06', ['idProveedor' => $this->elegido]);
+        $this->siembra->entradaProveedor($pechuga, 6, '2026-02-07', ['idProveedor' => $this->habitual]);
+        $this->siembra->ventaTicket($pechuga, 7, '2026-02-10');
+        $this->siembra->ventaTicket($pechuga, 100, '2026-02-15', ['estado' => 'Abierto']);
+        $this->siembra->ventaAlbaranCliente($pechuga, 3, '2026-02-12');
+        $this->siembra->ventaAlbaranCliente($pechuga, 100, '2026-02-16', ['estado' => 'Sin Guardar']);
+
+        $desajuste = $this->desajuste($version, [$pechuga => 25.0, $muslo => 35.0], '2026-02-01', '2026-02-28', 0);
+
+        $deLaPechuga = $desajuste['piezas'][0];
+        self::assertSame([15.0, 14.0, 10.0, 25.0, 44.0], [$deLaPechuga['saldoInicial'], $deLaPechuga['entradas'], $deLaPechuga['salidas'], $deLaPechuga['genera'], $deLaPechuga['queda']]);
+        self::assertSame(35.0, $desajuste['piezas'][1]['queda']);
+    }
+
+    /**
+     * @comportamiento En enero, la apertura del ejercicio cuenta una vez se elija o no el proveedor de
+     *   traspaso: sin él, en el periodo; con él, en el saldo inicial. En diciembre, elegido el proveedor
+     *   de traspaso, el cierre no cuenta.
+     */
+    public function test_T21_laAperturaCuentaUnaVezYElCierreNoCuenta(): void
+    {
+        [$version, $pechuga, $muslo] = $this->versionDelDesajuste('ejercicio');
+        $traspaso = $this->proveedor('Traspaso del desajuste', 'Activo');
+        $this->siembra->entradaProveedor($pechuga, 30, '2026-01-01', ['idProveedor' => $traspaso]);
+        $this->siembra->ventaTicket($pechuga, 10, '2026-01-15');
+        $this->siembra->ventaTicket($pechuga, 8, '2026-12-20');
+        $this->siembra->entradaProveedor($pechuga, -12, '2026-12-31', ['idProveedor' => $traspaso]);
+        $genera = [$pechuga => 25.0, $muslo => 35.0];
+
+        $sinTraspaso = $this->desajuste($version, $genera, '2026-01-01', '2026-01-31', 0)['piezas'][0];
+        self::assertSame([0.0, 30.0, 45.0], [$sinTraspaso['saldoInicial'], $sinTraspaso['entradas'], $sinTraspaso['queda']]);
+        $conTraspaso = $this->desajuste($version, $genera, '2026-01-01', '2026-01-31', $traspaso)['piezas'][0];
+        self::assertSame([30.0, 0.0, 45.0], [$conTraspaso['saldoInicial'], $conTraspaso['entradas'], $conTraspaso['queda']]);
+
+        $diciembre = $this->desajuste($version, $genera, '2026-12-01', '2026-12-31', $traspaso)['piezas'][0];
+        self::assertSame([20.0, 0.0, 8.0, 37.0], [$diciembre['saldoInicial'], $diciembre['entradas'], $diciembre['salidas'], $diciembre['queda']]);
+    }
+
+    /**
      * Un albarán de proveedor guardado con una línea por elemento —producto, unidades y detalle—,
      * con el detalle que deja la preparación de una aplicación.
      *
@@ -556,6 +607,42 @@ final class RelacionesAplicacionIntegracionTest extends CasoIntegracion
         ]);
 
         return ' · REL ' . $relacion['numRelacion'] . ' v1.0';
+    }
+
+    /**
+     * La versión de un despiece del pollo, como la devuelve la lectura de relaciones: de 1 kg salen
+     * 0,25 de pechuga y 0,35 de muslo. Devuelve la versión, la pechuga y el muslo.
+     *
+     * @return array{0:array<string,mixed>,1:int,2:int}
+     */
+    private function versionDelDesajuste(string $caso): array
+    {
+        $lineas = [];
+        foreach (['entrada' => ['Pollo', 1.0], 'pechuga' => ['Pechuga', 0.25], 'muslo' => ['Muslo', 0.35]] as $clave => [$nombre, $cantidad]) {
+            $id = $this->siembra->articulo($nombre . ' del desajuste: ' . $caso);
+            $lineas[$clave] = ['idArticulo' => $id, 'articulo' => $nombre . ' del desajuste: ' . $caso, 'sentido' => $clave === 'entrada' ? 'entrada' : 'salida',
+                               'cantidad' => $cantidad, 'unidad' => 'kg', 'estado' => 'Activo'];
+        }
+
+        return [['forma' => '1:N', 'lineas' => array_values($lineas)], $lineas['pechuga']['idArticulo'], $lineas['muslo']['idArticulo']];
+    }
+
+    /**
+     * Lo que queda de cada pieza con lo que genera la aplicación, por idArticulo.
+     *
+     * @param array<int,float> $genera
+     * @return array{piezas:list<array<string,mixed>>,minimo:float}
+     */
+    private function desajuste(array $version, array $genera, string $desde, string $hasta, int $traspaso): array
+    {
+        $piezas = [];
+        foreach ($genera as $idArticulo => $cantidad) {
+            $piezas[] = ['idArticulo' => $idArticulo, 'cantidad' => $cantidad];
+        }
+        $desajuste = $this->aplicacion()->desajusteDeLasPiezas($version, ['piezas' => $piezas], $desde, $hasta, $traspaso, new \ClaseComprobacionStockConsulta());
+        self::assertArrayHasKey('datos', $desajuste, json_encode($desajuste['error'] ?? null, JSON_UNESCAPED_UNICODE));
+
+        return $desajuste['datos'];
     }
 
     /** @return array{existencias:float,primeraEntrada:?string,mermaAnterior:float,enTemporales:float,disponible:float} */
