@@ -471,6 +471,44 @@ final class RelacionesAplicacionTest extends TestCase
         self::assertSame([10 => 185.715, 20 => 110.0], $desajuste['minimos']);
     }
 
+    /**
+     * @comportamiento El coste de partida de un derivado es el que le dio el escandallo mientras no
+     *   entra más de lo generado; lo que entra de más va al coste de proveedor, y el coste es la media
+     *   ponderada. Sin coste de proveedor y con algo de más, no hay coste.
+     */
+    public function test_T26_elCosteDeUnDerivadoEsLaMediaDeLoGeneradoYLoDeMas(): void
+    {
+        $aplicacion = $this->aplicacion();
+
+        self::assertSame(2.8, $aplicacion->costeDelDerivado(63.0, 2.8, 50.0, null));
+        self::assertSame(2.8, $aplicacion->costeDelDerivado(63.0, 2.8, 63.0, 3.1));
+        self::assertSame(2.8411, $aplicacion->costeDelDerivado(63.0, 2.8, 73.0, 3.1));
+        self::assertSame(3.1, $aplicacion->costeDelDerivado(0.0, 0.0, 10.0, 3.1));
+        self::assertNull($aplicacion->costeDelDerivado(63.0, 2.8, 73.0, null));
+    }
+
+    /**
+     * @comportamiento En las recetas de un derivado, la primera vacía toma lo generado menos lo escrito
+     *   en las demás, y las otras vacías no entran. La suma no pasa de lo generado más lo del periodo.
+     */
+    public function test_T27_lasRecetasDeUnDerivadoSeRepartenLoGeneradoYLoDelPeriodo(): void
+    {
+        $aplicacion = $this->aplicacion();
+        $muslo = ['articulo' => 'Muslo', 'unidad' => 'kg'];
+
+        self::assertSame([63.0], $aplicacion->repartoDelDerivado([null], 63.0, 73.0, $muslo)['datos']);
+        self::assertSame([50.0, 13.0], $aplicacion->repartoDelDerivado([50.0, null], 63.0, 73.0, $muslo)['datos']);
+        self::assertSame([63.0, 0.0], $aplicacion->repartoDelDerivado([null, null], 63.0, 73.0, $muslo)['datos']);
+        self::assertSame([70.0, 0.0], $aplicacion->repartoDelDerivado([70.0, null], 63.0, 73.0, $muslo)['datos']);
+        self::assertSame([73.0], $aplicacion->repartoDelDerivado([73.0], 63.0, 73.0, $muslo)['datos']);
+        foreach ([[74.0], [50.0, 30.0]] as $escritas) {
+            $rechazo = $aplicacion->repartoDelDerivado($escritas, 63.0, 73.0, $muslo);
+            self::assertArrayHasKey('error', $rechazo, json_encode($escritas));
+            self::assertStringContainsString('Muslo', $rechazo['error']['mensaje']);
+            self::assertStringContainsString('disponible', $rechazo['error']['mensaje']);
+        }
+    }
+
     private function aplicacion(): \RelacionesAplicacion
     {
         global $RutaServidor, $HostNombre, $URLCom;

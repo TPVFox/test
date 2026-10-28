@@ -347,4 +347,38 @@ test.describe('Reorganizar — aplicar una relación', () => {
       await expect(page.locator('#Row' + fila)).toBeVisible();
     }
   });
+
+  test('T18: una receta del muslo cuelga del árbol y ofrece las suyas; quitarla quita las que cuelgan de ella; vacía toma lo generado', async ({ page }) => {
+    const { numDeshuesado, numFileteado } = JSON.parse(execFileSync('php', [path.resolve(__dirname, '../../../support/preparar-e2e-aplicar-relacion-cadena.php'), 'vigente'], { stdio: 'pipe' }).toString());
+    await iniciarSesion(page, PANTALLA);
+    await page.locator('#numRelacionAplicacion').selectOption(String(escenario.numRelacion));
+
+    const deshuesadoEnLaLista = page.locator('#hermanasAplicacion [data-num="' + numDeshuesado + '"]');
+    const fileteadoEnLaLista = page.locator('#hermanasAplicacion [data-num="' + numFileteado + '"]');
+    await expect(deshuesadoEnLaLista).toContainText(PREFIJO + 'Deshuesado del muslo');
+    await expect(fileteadoEnLaLista).toHaveCount(0);
+
+    await deshuesadoEnLaLista.locator('button').click();
+    await expect(fileteadoEnLaLista).toContainText(PREFIJO + 'Fileteado');
+    await fileteadoEnLaLista.locator('button').click();
+    await expect(page.locator('#arbolAplicacion .rama[data-num="' + numFileteado + '"]')).toBeVisible();
+
+    await page.locator('#arbolAplicacion .rama[data-num="' + numDeshuesado + '"] button', { hasText: 'Quitar' }).click();
+    await expect(page.locator('#arbolAplicacion .rama')).toHaveCount(0);
+    await expect(fileteadoEnLaLista).toHaveCount(0);
+
+    await deshuesadoEnLaLista.locator('button').click();
+    await calcular(page, escenario);
+
+    const rama = page.locator('#arbolAplicacion .rama[data-num="' + numDeshuesado + '"]');
+    await expect(rama).toContainText('Entran 63 kg');
+    await expect(rama.locator('tr.pieza')).toHaveCount(2);
+    await expect(page.locator('#arbolAplicacion .derivado')).toContainText('genera 63 kg');
+
+    await page.locator('#btnPrepararAplicacion').click();
+    await expect(page).toHaveURL(/mod_compras\/albaran\.php\?tActual=\d+/);
+    for (let fila = 1; fila <= 8; fila++) {
+      await expect(page.locator('#Row' + fila)).toBeVisible();
+    }
+  });
 });
