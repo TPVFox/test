@@ -303,4 +303,48 @@ test.describe('Reorganizar — aplicar una relación', () => {
     await expect(page.locator('#datosAplicacion')).toContainText('Mínimo para cubrir las salidas de sus piezas: 160 kg');
     await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
   });
+
+  test('T16: la lista ofrece las recetas hermanas; añadir una la deja inactiva y le da su rama, y quitarla la devuelve', async ({ page }) => {
+    const { numPicada } = JSON.parse(execFileSync('php', [path.resolve(__dirname, '../../../support/preparar-e2e-aplicar-relacion-hermanas.php'), 'vigente'], { stdio: 'pipe' }).toString());
+    await iniciarSesion(page, PANTALLA);
+    await page.locator('#numRelacionAplicacion').selectOption(String(escenario.numRelacion));
+
+    const enLaLista = page.locator('#hermanasAplicacion [data-num="' + numPicada + '"]');
+    await expect(enLaLista).toContainText(PREFIJO + 'Pollo para picada');
+    await enLaLista.locator('button').click();
+
+    await expect(enLaLista.locator('button')).toBeDisabled();
+    await expect(enLaLista).toContainText('añadida');
+    const rama = page.locator('#arbolAplicacion .rama[data-num="' + numPicada + '"]');
+    await expect(rama).toContainText(PREFIJO + 'Pollo para picada');
+    await expect(rama.locator('input.cantidadHermana')).toBeVisible();
+
+    await rama.locator('button', { hasText: 'Quitar' }).click();
+    await expect(rama).toHaveCount(0);
+    await expect(enLaLista.locator('button')).toBeEnabled();
+  });
+
+  test('T17: con una hermana, calcular reparte lo disponible y enseña el escandallo de cada receta, y preparar deja las líneas de las dos', async ({ page }) => {
+    const { numPicada } = JSON.parse(execFileSync('php', [path.resolve(__dirname, '../../../support/preparar-e2e-aplicar-relacion-hermanas.php'), 'vigente'], { stdio: 'pipe' }).toString());
+    await iniciarSesion(page, PANTALLA);
+    await page.locator('#numRelacionAplicacion').selectOption(String(escenario.numRelacion));
+    await page.locator('#hermanasAplicacion [data-num="' + numPicada + '"] button').click();
+    await page.locator('#arbolAplicacion .rama[data-num="' + numPicada + '"] input.cantidadHermana').fill('50');
+
+    await calcular(page, escenario);
+
+    await expect(page.locator('#datosAplicacion')).toContainText('Entra en la receta: 130 kg');
+    const rama = page.locator('#arbolAplicacion .rama[data-num="' + numPicada + '"]');
+    await expect(rama).toContainText('Entran 50 kg');
+    await expect(rama.locator('tr.pieza')).toHaveCount(1);
+    await expect(rama.locator('tr.pieza').first()).toContainText(PREFIJO + 'Picada');
+    await expect(rama.locator('tr.pieza').first()).toContainText('49');
+    await expect(page.locator('#arbolAplicacion .raiz')).toContainText('Sin aplicar: 0 kg');
+
+    await page.locator('#btnPrepararAplicacion').click();
+    await expect(page).toHaveURL(/mod_compras\/albaran\.php\?tActual=\d+/);
+    for (let fila = 1; fila <= 7; fila++) {
+      await expect(page.locator('#Row' + fila)).toBeVisible();
+    }
+  });
 });

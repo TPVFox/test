@@ -432,6 +432,45 @@ final class RelacionesAplicacionTest extends TestCase
         self::assertSame(8.0, $desajuste['minimo']);
     }
 
+    /**
+     * @comportamiento Con varias recetas, la elegida vacía toma lo disponible menos lo escrito en las
+     *   demás, y una hermana vacía no entra. Si la suma pasa de lo disponible, se rechaza.
+     */
+    public function test_T24_laCantidadSeRepartePorRecetasDentroDeLoDisponible(): void
+    {
+        $aplicacion = $this->aplicacion();
+        $entrada = ['articulo' => 'Artículo 1', 'unidad' => 'kg'];
+
+        self::assertSame(['principal' => 130.0, 'hermanas' => [50.0, 0.0]], $aplicacion->repartoDeLaCantidad(null, [50.0, null], 180.0, $entrada)['datos']);
+        self::assertSame(['principal' => 100.0, 'hermanas' => [50.0]], $aplicacion->repartoDeLaCantidad(100.0, [50.0], 180.0, $entrada)['datos']);
+        self::assertSame(['principal' => 0.0, 'hermanas' => [180.0]], $aplicacion->repartoDeLaCantidad(null, [180.0], 180.0, $entrada)['datos']);
+        self::assertSame(['principal' => 180.0, 'hermanas' => []], $aplicacion->repartoDeLaCantidad(null, [], 180.0, $entrada)['datos']);
+        foreach ([[150.0, [50.0]], [null, [181.0]], [181.0, []]] as [$principal, $hermanas]) {
+            $rechazo = $aplicacion->repartoDeLaCantidad($principal, $hermanas, 180.0, $entrada);
+            self::assertArrayHasKey('error', $rechazo, json_encode([$principal, $hermanas]));
+            self::assertStringContainsString('disponible', $rechazo['error']['mensaje']);
+        }
+    }
+
+    /**
+     * @comportamiento Con varias recetas, lo que genera cada pieza suma lo que dan todas, y el mínimo de
+     *   cada receta es el mayor, entre sus piezas, de lo que les falta sin lo que da esa receta, entre lo
+     *   que da por unidad de la entrada.
+     */
+    public function test_T25_elDesajusteCuentaTodaLaOperacion(): void
+    {
+        $desajuste = $this->aplicacion()->desajusteDeLaOperacion([
+            ['idArticulo' => 2, 'articulo' => 'Artículo 2', 'unidad' => 'kg', 'saldoInicial' => 0.0, 'entradas' => 0.0, 'salidas' => 40.0,
+             'generaPorReceta' => [10 => 25.0], 'porUnidadPorReceta' => [10 => 0.25]],
+            ['idArticulo' => 3, 'articulo' => 'Artículo 3', 'unidad' => 'kg', 'saldoInicial' => 10.0, 'entradas' => 0.0, 'salidas' => 100.0,
+             'generaPorReceta' => [10 => 35.0, 20 => 25.0], 'porUnidadPorReceta' => [10 => 0.35, 20 => 0.5]],
+        ], [10, 20]);
+
+        self::assertSame([25.0, 60.0], array_column($desajuste['piezas'], 'genera'));
+        self::assertSame([-15.0, -30.0], array_column($desajuste['piezas'], 'queda'));
+        self::assertSame([10 => 185.715, 20 => 110.0], $desajuste['minimos']);
+    }
+
     private function aplicacion(): \RelacionesAplicacion
     {
         global $RutaServidor, $HostNombre, $URLCom;

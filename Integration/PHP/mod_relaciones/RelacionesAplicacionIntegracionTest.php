@@ -513,6 +513,40 @@ final class RelacionesAplicacionIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento Las hermanas de una relación son las demás que rigen y se pueden aplicar, de su
+     *   mismo tipo y con el mismo producto de entrada: no las de otro tipo, las de otro producto, las de
+     *   baja ni las que no se aplican. Una relación que no existe se rechaza.
+     */
+    public function test_T22_lasHermanasSonDelMismoTipoYDelMismoProductoDeEntrada(): void
+    {
+        $tipo = $this->escenario->tipoDeRelacion('Despiece de las hermanas', '1:N', 1);
+        $otroTipo = $this->escenario->tipoDeRelacion('Otro despiece de las hermanas', '1:N', 1);
+        $pollo = $this->siembra->articulo('Pollo de las hermanas');
+        $pavo = $this->siembra->articulo('Pavo de las hermanas');
+        $pechuga = $this->siembra->articulo('Pechuga de las hermanas');
+        $picada = $this->siembra->articulo('Picada de las hermanas');
+        $muslo = $this->siembra->articulo('Muslo de las hermanas');
+        $de = fn(int $entra, int $sale, float $cantidad, string $unidad = 'kg'): array => [
+            ['idArticulo' => $entra, 'sentido' => 'entrada', 'cantidad' => 1], ['idArticulo' => $sale, 'sentido' => 'salida', 'cantidad' => $cantidad, 'unidad' => $unidad],
+        ];
+        $elegida = $this->escenario->relacionVigente($tipo, $de($pollo, $pechuga, 0.96));
+        $hermana = $this->escenario->relacionVigente($tipo, $de($pollo, $picada, 0.98), ['nombre' => 'Pollo para picada de las hermanas']);
+        $this->escenario->relacionVigente($otroTipo, $de($pollo, $muslo, 0.5));
+        $this->escenario->relacionVigente($tipo, $de($pavo, $picada, 0.9));
+        $deBaja = $this->escenario->relacionVigente($tipo, $de($pollo, $muslo, 0.5));
+        $this->db->query("UPDATE relaciones SET estado = 'Baja' WHERE id = {$deBaja['id']}");
+        $mezclada = $de($pollo, $muslo, 0.5, 'ud');
+        $this->escenario->relacionVigente($tipo, $mezclada);
+
+        $hermanas = $this->aplicacion()->hermanas($elegida['numRelacion']);
+
+        self::assertArrayHasKey('datos', $hermanas, json_encode($hermanas['error'] ?? null, JSON_UNESCAPED_UNICODE));
+        self::assertSame([$hermana['numRelacion']], array_column($hermanas['datos'], 'numRelacion'));
+        self::assertSame('Pollo para picada de las hermanas', $hermanas['datos'][0]['nombre']);
+        self::assertArrayHasKey('error', $this->aplicacion()->hermanas(999999));
+    }
+
+    /**
      * Un albarán de proveedor guardado con una línea por elemento —producto, unidades y detalle—,
      * con el detalle que deja la preparación de una aplicación.
      *
