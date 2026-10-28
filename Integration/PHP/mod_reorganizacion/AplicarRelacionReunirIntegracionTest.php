@@ -160,12 +160,12 @@ final class AplicarRelacionReunirIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @comportamiento El rojo manda: si el producto ya está en el albarán de destino, no se calcula ni
-     *   se ofrece nada, y el albarán no cambia.
+     * @comportamiento El tope manda: si lo que ya lleva el albarán de destino saca todo lo disponible,
+     *   no se calcula ni se ofrece nada, y el albarán no cambia.
      */
-    public function test_T5_conElRojoNoSeOfreceNiSeAnade(): void
+    public function test_T5_sinNadaDisponibleNoSeOfreceNiSeAnade(): void
     {
-        $idT = $this->temporalAbierto($this->especial, '2026-02-28', $this->numeroDelTipo, 0, [$this->lineaDe('pollo', -10.0, 1)]);
+        $idT = $this->temporalAbierto($this->especial, '2026-02-28', $this->numeroDelTipo, 0, [$this->lineaDe('pollo', -180.0, 1)]);
         $antes = $this->productosDelTemporal($idT);
         $sesion = $this->sesionCompleta();
 
@@ -173,7 +173,7 @@ final class AplicarRelacionReunirIntegracionTest extends CasoIntegracion
         $preparado = $this->despachar($this->peticion('prepararAlbaranAplicacion', ['destino' => 'temporal:' . $idT]), $sesion);
 
         self::assertFalse($calculo['ok']);
-        self::assertSame('rojo', $calculo['datos']['aviso']['color']);
+        self::assertSame(0.0, $calculo['datos']['disponible']);
         self::assertArrayNotHasKey('destinos', $calculo['datos']);
         self::assertFalse($preparado['ok']);
         self::assertSame($antes, $this->productosDelTemporal($idT));
@@ -312,6 +312,40 @@ final class AplicarRelacionReunirIntegracionTest extends CasoIntegracion
         $fila = $this->db->query('SELECT * FROM albproltemporales WHERE id = ' . (int) $preparado['datos']['idTemporal'])->fetch_assoc();
         self::assertSame($idA, (int) $fila['Numalbpro']);
         self::assertCount(7, json_decode($fila['Productos'], true));
+    }
+
+    /**
+     * @comportamiento Una segunda receta del mismo producto se reúne en el albarán del mes dentro de lo
+     *   que queda: se ofrece el temporal de la primera, sus líneas van detrás, y después ya no queda
+     *   nada disponible.
+     */
+    public function test_T12_unaSegundaRecetaDelMismoProductoSeReuneDentroDeLoQueQueda(): void
+    {
+        $this->articulo['picada'] = $this->siembra->articulo('Picada de la aplicación', ['iva' => 10]);
+        $this->siembra->articuloProveedor($this->articulo['picada'], $this->habitual, 5.0);
+        $picada = $this->escenario->relacionVigente($this->despiece, [
+            ['idArticulo' => $this->articulo['pollo'], 'sentido' => 'entrada', 'cantidad' => 1],
+            ['idArticulo' => $this->articulo['picada'], 'sentido' => 'salida', 'cantidad' => 0.98],
+        ], ['fecha' => '2026-01-10 09:00:00']);
+        $sesion = $this->sesionCompleta();
+        $primera = $this->despachar($this->peticion('prepararAlbaranAplicacion', ['cantidad' => '100']), $sesion);
+        self::assertTrue($primera['ok'], json_encode($primera['avisos'], JSON_UNESCAPED_UNICODE));
+        $idT = (int) $primera['datos']['idTemporal'];
+
+        $calculo = $this->despachar($this->peticion('calcularAplicacion', ['numRelacion' => (string) $picada['numRelacion']]), $sesion);
+        self::assertTrue($calculo['ok'], json_encode($calculo['avisos'], JSON_UNESCAPED_UNICODE));
+        self::assertSame(80.0, $calculo['datos']['disponible']);
+        self::assertContains('temporal:' . $idT, array_column($calculo['datos']['destinos'], 'destino'));
+
+        $preparado = $this->despachar($this->peticion('prepararAlbaranAplicacion', ['numRelacion' => (string) $picada['numRelacion'], 'destino' => 'temporal:' . $idT]), $sesion);
+        self::assertTrue($preparado['ok'], json_encode($preparado['avisos'], JSON_UNESCAPED_UNICODE));
+        self::assertSame($idT, (int) $preparado['datos']['idTemporal']);
+        self::assertCount(7, json_decode($this->productosDelTemporal($idT), true));
+        self::assertSame(1, $this->temporalesDelEspecial());
+
+        $despues = $this->despachar($this->peticion('calcularAplicacion'), $sesion);
+        self::assertFalse($despues['ok']);
+        self::assertSame(0.0, $despues['datos']['disponible']);
     }
 
     private function otroEspecial(): int

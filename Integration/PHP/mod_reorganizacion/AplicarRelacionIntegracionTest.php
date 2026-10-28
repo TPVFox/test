@@ -3,7 +3,7 @@
  * La aplicación de una relación desde «Reorganizar», por sus dos peticiones —calcular y preparar
  * el albarán—, como las hace la pantalla: el permiso, el proveedor y la relación, el periodo y la
  * versión que regía, lo que hay que despiezar según los movimientos, el aviso de proceso
- * duplicado y el albarán temporal de compras que queda preparado.
+ * duplicado, lo disponible y el albarán temporal de compras que queda preparado.
  *
  * El escenario de casi todos los casos es el despiece del pollo aplicado a febrero de 2026: entran
  * 200 kg del proveedor habitual y salen 20 kg enteros, así que se despiezan 180 kg, al coste de
@@ -245,21 +245,23 @@ final class AplicarRelacionIntegracionTest extends CasoIntegracion
     }
 
     /**
-     * @comportamiento Con el aviso en rojo —el mismo proveedor ya tiene un albarán del producto
-     *   en el periodo— no se calcula, y una petición de preparar se rechaza sin escribir.
+     * @comportamiento Con una aplicación anterior del mismo proveedor en el periodo que no cita su
+     *   relación, el aviso sale amarillo y se calcula sobre lo que queda: la línea saca su cantidad.
+     *   También se prepara por petición directa.
      */
-    public function test_T11_conElAvisoEnRojoNoSeCalculaNiSePrepara(): void
+    public function test_T11_conUnaAplicacionAnteriorSinRelacionSeCalculaSobreLoQueQueda(): void
     {
         $this->siembra->entradaProveedor($this->articulo['pollo'], -172.8, '2026-02-28', ['idProveedor' => $this->especial]);
 
         $calculo = $this->despachar($this->peticion('calcularAplicacion'), $this->sesionCompleta());
-        self::assertFalse($calculo['ok']);
-        self::assertSame('rojo', $calculo['datos']['aviso']['color']);
-        self::assertSame('danger', $calculo['avisos'][0]['tipo']);
+        self::assertTrue($calculo['ok'], json_encode($calculo['avisos'], JSON_UNESCAPED_UNICODE));
+        self::assertSame('amarillo', $calculo['datos']['aviso']['color']);
+        self::assertSame(7.2, $calculo['datos']['disponible']);
+        self::assertSame(7.2, $calculo['datos']['escandallo']['cantidadADespiezar']);
 
         $preparado = $this->despachar($this->peticion('prepararAlbaranAplicacion'), $this->sesionCompleta());
-        self::assertFalse($preparado['ok']);
-        self::assertSame(0, $this->temporalesDelEspecial());
+        self::assertTrue($preparado['ok'], json_encode($preparado['avisos'], JSON_UNESCAPED_UNICODE));
+        self::assertSame(1, $this->temporalesDelEspecial());
     }
 
     /**
@@ -347,8 +349,11 @@ final class AplicarRelacionIntegracionTest extends CasoIntegracion
         self::assertTrue($this->despachar($this->peticion('prepararAlbaranAplicacion'), $this->sesionCompleta())['ok']);
     }
 
-    /** @comportamiento La segunda preparación del mismo periodo encuentra el temporal de la primera y sale en rojo. */
-    public function test_T16_laSegundaPreparacionDelMismoPeriodoSaleEnRojo(): void
+    /**
+     * @comportamiento La segunda preparación del mismo periodo descuenta todo lo que saca el temporal
+     *   de la primera, merma incluida: no queda nada disponible, se avisa y no se escribe.
+     */
+    public function test_T16_laSegundaPreparacionDelMismoPeriodoNoTieneNadaDisponible(): void
     {
         $sesion = $this->sesionCompleta();
 
@@ -356,7 +361,9 @@ final class AplicarRelacionIntegracionTest extends CasoIntegracion
         $segunda = $this->despachar($this->peticion('prepararAlbaranAplicacion'), $sesion);
 
         self::assertFalse($segunda['ok']);
-        self::assertSame('rojo', $segunda['datos']['aviso']['color']);
+        self::assertSame(0.0, $segunda['datos']['disponible']);
+        self::assertSame(180.0, $segunda['datos']['enTemporales']);
+        self::assertContains('danger', array_column($segunda['avisos'], 'tipo'));
         self::assertSame(1, $this->temporalesDelEspecial());
     }
 

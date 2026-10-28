@@ -1,7 +1,8 @@
 /**
- * Aplicar una relación desde «Reorganizar»: se elige un proveedor especial, un despiece que rige
- * y un periodo; la pantalla dice cuánto hay que despiezar, el coste de partida y si el periodo
- * puede estar ya registrado, y enseña el escandallo. «Preparar albarán» deja un albarán temporal
+ * Aplicar una relación desde «Reorganizar»: se elige un proveedor especial, un despiece que rige,
+ * un periodo y, si se quiere, la cantidad que entra en la receta; la pantalla dice cuánto hay
+ * disponible, el coste de partida y qué albaranes de proveedores especiales llevan ya el producto,
+ * y enseña el escandallo. «Preparar albarán» deja un albarán temporal
  * de compras, que se revisa y se guarda en la pantalla de albaranes de siempre.
  *
  * Se hace sobre el despliegue del ejercicio vigente, partiendo de la siembra de
@@ -78,7 +79,7 @@ test.describe('Reorganizar — aplicar una relación', () => {
     await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
   });
 
-  test('T3: un albarán de otro especial después avisa en amarillo y deja preparar; uno del mismo en el periodo, en rojo, no', async ({ page }) => {
+  test('T3: un albarán de otro especial después y uno del mismo en el periodo avisan en amarillo y dejan preparar sobre lo que queda', async ({ page }) => {
     preparar('albaran', 'amarillo');
     await iniciarSesion(page, PANTALLA);
     await calcular(page, escenario);
@@ -89,9 +90,11 @@ test.describe('Reorganizar — aplicar una relación', () => {
 
     preparar('albaran', 'rojo');
     await calcular(page, escenario);
-    await expect(page.locator('#avisosAplicacion .alert-danger')).toContainText(PREFIJO + 'Despiece del obrador');
-    await expect(page.locator('#escandalloAplicacion tbody tr.pieza')).toHaveCount(0);
-    await expect(page.locator('#btnPrepararAplicacion')).toBeDisabled();
+    await expect(page.locator('#avisosAplicacion .alert-warning')).toContainText(PREFIJO + 'Despiece del obrador');
+    await expect(page.locator('#avisosAplicacion .alert-danger')).toHaveCount(0);
+    await expect(page.locator('#datosAplicacion')).toContainText('Disponible: 170 kg');
+    await expect(page.locator('#escandalloAplicacion tbody tr.pieza')).toHaveCount(4);
+    await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
   });
 
   test('T4: preparar abre el albarán en compras con sus líneas, y guardarlo mueve las existencias', async ({ page }) => {
@@ -241,5 +244,49 @@ test.describe('Reorganizar — aplicar una relación', () => {
     await expect(page.locator('#avisosAplicacion .alert-danger')).toHaveCount(0);
     await expect(page.locator('#escandalloAplicacion tbody tr.pieza')).toHaveCount(4);
     await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
+  });
+
+  test('T12: una cantidad escrita entra en la receta, y el escandallo sale de ella', async ({ page }) => {
+    await iniciarSesion(page, PANTALLA);
+    await page.locator('#cantidadAplicacion').fill('100');
+
+    await calcular(page, escenario);
+
+    const datos = page.locator('#datosAplicacion');
+    await expect(datos).toContainText('Disponible: 180 kg');
+    await expect(datos).toContainText('Entra en la receta: 100 kg');
+    await expect(datos).toContainText('Despiezado: 96 kg');
+    await expect(page.locator('#escandalloAplicacion tbody tr.pieza').nth(0)).toContainText('25');
+    await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
+  });
+
+  test('T13: una cantidad mayor que lo disponible se avisa, sin escandallo y sin poder preparar', async ({ page }) => {
+    await iniciarSesion(page, PANTALLA);
+    await page.locator('#cantidadAplicacion').fill('181');
+
+    await calcular(page, escenario);
+
+    await expect(page.locator('#avisosAplicacion .alert-warning')).toContainText('disponible');
+    await expect(page.locator('#escandalloAplicacion tbody tr.pieza')).toHaveCount(0);
+    await expect(page.locator('#btnPrepararAplicacion')).toBeDisabled();
+  });
+
+  test('T14: preparada una parte, la segunda aplicación del mes ve lo que queda y nombra el temporal como aplicado', async ({ page }) => {
+    // Dos cálculos y la apertura de compras: con el equipo cargado pasa de los 30 s por defecto.
+    test.setTimeout(60000);
+    await iniciarSesion(page, PANTALLA);
+    await page.locator('#cantidadAplicacion').fill('100');
+    await calcular(page, escenario);
+    await page.locator('#btnPrepararAplicacion').click();
+    await expect(page).toHaveURL(/mod_compras\/albaran\.php\?tActual=\d+/);
+
+    await page.goto(PANTALLA);
+    await calcular(page, escenario);
+
+    await expect(page.locator('#datosAplicacion')).toContainText('Disponible: 80 kg');
+    const amarillo = page.locator('#avisosAplicacion .alert-warning');
+    await expect(amarillo).toContainText('aplicado');
+    await expect(amarillo).toContainText(PREFIJO + 'Despiece del obrador');
+    await expect(page.locator('#escandalloAplicacion tbody tr.pieza').nth(0)).toContainText('20');
   });
 });

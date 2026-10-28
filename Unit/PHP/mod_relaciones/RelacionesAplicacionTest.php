@@ -367,6 +367,44 @@ final class RelacionesAplicacionTest extends TestCase
         self::assertStringContainsString('Artículo 4', $aviso[0]['mensaje']);
     }
 
+    /**
+     * @comportamiento La cantidad que se aplica se escribe con coma o con punto decimal, mayor que 0
+     *   y con hasta tres decimales; en un despiece por unidades, entera. Vacía es que no se escribió.
+     *   Lo demás se rechaza y el aviso dice cómo escribirla.
+     */
+    public function test_T20_laCantidadEscritaSeNormalizaYUnaQueNoValeSeRechaza(): void
+    {
+        $aplicacion = $this->aplicacion();
+
+        self::assertSame(100.5, $aplicacion->cantidadEscrita('100,5', 'kg')['datos']);
+        self::assertSame(100.125, $aplicacion->cantidadEscrita(' 100.125 ', 'kg')['datos']);
+        self::assertSame(4.0, $aplicacion->cantidadEscrita('4', 'ud')['datos']);
+        self::assertNull($aplicacion->cantidadEscrita('', 'kg')['datos']);
+        self::assertNull($aplicacion->cantidadEscrita('  ', 'ud')['datos']);
+        foreach (['0', '0,000', '-5', 'abc', '1,2345', '1e3', '100,5,1', '1 OR 1=1'] as $texto) {
+            self::assertArrayHasKey('error', $aplicacion->cantidadEscrita($texto, 'kg'), $texto);
+        }
+        $enUnidades = $aplicacion->cantidadEscrita('2,5', 'ud');
+        self::assertArrayHasKey('error', $enUnidades);
+        self::assertStringContainsString('sin decimales', $enUnidades['error']['mensaje']);
+    }
+
+    /**
+     * @comportamiento El rendimiento de una versión es la suma de sus salidas entre su entrada, sin las
+     *   líneas que no están activas. Sin entrada o sin salidas es 1: la línea saca su cantidad.
+     */
+    public function test_T21_elRendimientoEsLaSumaDeLasSalidasEntreLaEntrada(): void
+    {
+        $aplicacion = $this->aplicacion();
+        $baja = $this->despiece(2, [[2, 1.2], [3, 0.72], [4, 0.5]]);
+        $baja['lineas'][3]['estado'] = 'Eliminado';
+
+        self::assertEqualsWithDelta(0.96, $aplicacion->rendimiento($this->pollo()['lineas']), 0.000001);
+        self::assertEqualsWithDelta(0.96, $aplicacion->rendimiento($baja['lineas']), 0.000001);
+        self::assertSame(1.0, $aplicacion->rendimiento(array_slice($this->pollo()['lineas'], 1)));
+        self::assertSame(1.0, $aplicacion->rendimiento(array_slice($this->pollo()['lineas'], 0, 1)));
+    }
+
     private function aplicacion(): \RelacionesAplicacion
     {
         global $RutaServidor, $HostNombre, $URLCom;
