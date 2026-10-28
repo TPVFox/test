@@ -27,13 +27,6 @@ const ESQUEMA = '/BD/BDtpv/tpvfox_V_0_4-2.84.sql';
  */
 const POSTERIORES = ['/BD/Update/install_update_v0.4.4.54.sql', '/BD/Update/install_update_v0.4.4.55.sql'];
 
-/**
- * Datos de partida de una instalacion: IVA, formas de pago, vencimientos y cliente sin identificar.
- * La tienda, el usuario y su indice los crea preparar-entorno.php. El esquema de referencia ya no los trae. Son
- * repetibles, como los posteriores, y se cargan tambien sobre una base que ya estaba cargada.
- */
-const DATOS_DE_PARTIDA = __DIR__ . '/datos-de-partida.sql';
-
 $rehacer = in_array('--rehacer', $argv, true);
 $ficheroEsquema = RUTA_TPVFOX . ESQUEMA;
 
@@ -77,7 +70,6 @@ foreach (['vigente' => 'TPVFOX_TEST_DB_VIGENTE', 'anterior' => 'TPVFOX_TEST_DB_A
     if ($tablas > 0 && !$rehacer) {
         echo "$papel ($base): ya tiene $tablas objetos. Se deja como esta — usa --rehacer para rehacerla.\n";
         aplicarPosteriores($db, $base);
-        cargar($db, (string) file_get_contents(DATOS_DE_PARTIDA), $base);
         $db->close();
         continue;
     }
@@ -88,7 +80,6 @@ foreach (['vigente' => 'TPVFOX_TEST_DB_VIGENTE', 'anterior' => 'TPVFOX_TEST_DB_A
 
     cargar($db, $sql, $base);
     aplicarPosteriores($db, $base);
-    cargar($db, (string) file_get_contents(DATOS_DE_PARTIDA), $base);
 
     $resumen = $db->query(
         "SELECT SUM(table_type = 'BASE TABLE') t, SUM(table_type = 'VIEW') v
