@@ -509,6 +509,23 @@ final class RelacionesAplicacionTest extends TestCase
         }
     }
 
+    /**
+     * @comportamiento Lo que entra en una receta se reparte entre las entradas en proporción a lo que
+     *   trajo cada una, a tres decimales o, en unidades, hacia abajo; la última lleva lo que falta para
+     *   sumar lo del mes.
+     */
+    public function test_T28_lasEntradasSeRepartenLoDelMesEnProporcion(): void
+    {
+        $aplicacion = $this->aplicacion();
+
+        self::assertSame([90.0, 90.0], $aplicacion->repartoEntreEntradas(180.0, [100.0, 100.0], 'kg'));
+        self::assertSame([92.0, 46.0, 92.0], $aplicacion->repartoEntreEntradas(230.0, [100.0, 50.0, 100.0], 'kg'));
+        self::assertSame([3.333, 3.333, 3.334], $aplicacion->repartoEntreEntradas(10.0, [1.0, 1.0, 1.0], 'kg'));
+        self::assertSame([3.0, 3.0, 4.0], $aplicacion->repartoEntreEntradas(10.0, [1.0, 1.0, 1.0], 'ud'));
+        self::assertSame([0.0, 0.0], $aplicacion->repartoEntreEntradas(0.0, [100.0, 100.0], 'kg'));
+        self::assertSame([50.0], $aplicacion->repartoEntreEntradas(50.0, [100.0], 'kg'));
+    }
+
     private function aplicacion(): \RelacionesAplicacion
     {
         global $RutaServidor, $HostNombre, $URLCom;

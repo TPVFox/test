@@ -547,6 +547,61 @@ final class RelacionesAplicacionIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento Con la entrada citada tras la versión (« · ENT <número>»), el detalle se sigue
+     *   leyendo: el derivado sale como derivado en el aviso, y lo aplicado descuenta su merma de lo
+     *   disponible según la versión que cita.
+     */
+    public function test_T23_laCitaDeLaEntradaNoCambiaLaLecturaDelDetalle(): void
+    {
+        $etiqueta = $this->despieceConRendimiento('con la cita', $pollo) . ' · ENT 77';
+        $this->siembra->entradaProveedor($pollo, 200, '2026-02-03', ['idProveedor' => $this->habitual]);
+        $this->albaranConDetalle($this->elegido, '2026-02-28', [[$pollo, -96.0, 'Pollo' . $etiqueta]]);
+
+        self::assertSame(4.0, $this->disponible($pollo)['mermaAnterior']);
+
+        $derivado = $this->siembra->articulo('Derivado con la cita');
+        $deDerivado = $this->derivadoDe($derivado, 'derivado con la cita') . ' · ENT 79';
+        $this->albaranConDetalle($this->elegido, '2026-02-28', [[$derivado, 8.0, 'Derivado' . $deDerivado]]);
+        $aviso = $this->aviso($derivado);
+        self::assertArrayHasKey('derivado', $aviso['documentos'][0]);
+    }
+
+    /**
+     * @comportamiento Las entradas de un producto en el mes son los albaranes de proveedor con alguna
+     *   línea activa suya en positivo, en los estados que cuentan para lo disponible —también un albarán
+     *   reabierto con su temporal—, con lo que trajo cada uno y por fecha. No cuentan uno sin guardar sin
+     *   temporal, una línea eliminada, una devolución, otro mes ni, elegido el proveedor de traspaso, sus
+     *   albaranes del primer día.
+     */
+    public function test_T24_lasEntradasDelMesSonLasQueCuentanParaLoDisponible(): void
+    {
+        $pollo = $this->siembra->articulo('Pollo de las entradas');
+        $otro = $this->siembra->articulo('Otro de las entradas');
+        $traspaso = $this->proveedor('Traspaso de las entradas', 'Activo');
+        $apertura = $this->siembra->entradaProveedor($pollo, 20, '2026-02-01', ['idProveedor' => $traspaso]);
+        $primera = $this->siembra->entradaProveedor($pollo, 100, '2026-02-03', ['idProveedor' => $this->habitual]);
+        $this->siembra->lineaEntrada($primera, $pollo, 5);
+        $this->siembra->lineaEntrada($primera, $otro, 50);
+        $this->siembra->entradaProveedor($pollo, 30, '2026-02-05', ['idProveedor' => $this->habitual, 'estado' => 'Sin Guardar']);
+        $this->siembra->entradaProveedor($pollo, 40, '2026-02-06', ['idProveedor' => $this->habitual, 'estadoLinea' => 'Eliminado']);
+        $this->siembra->devolucionProveedor($pollo, 10, '2026-02-07', ['idProveedor' => $this->habitual]);
+        $this->siembra->entradaProveedor($pollo, 50, '2026-01-20', ['idProveedor' => $this->habitual]);
+        $reabierto = $this->siembra->entradaProveedor($pollo, 25, '2026-02-10', ['idProveedor' => $this->habitual, 'estado' => 'Sin Guardar']);
+        $this->temporalEnlazado($this->habitual, '2026-02-10', $reabierto, [[$pollo, 25.0, 'Pollo']]);
+        $numero = fn(int $id): int => $this->numeroDeAlbaran($id);
+
+        $sinTraspaso = $this->aplicacion()->entradasDelPeriodo($pollo, '2026-02-01', '2026-02-28', 0);
+        self::assertSame([
+            ['numero' => $numero($apertura), 'fecha' => '2026-02-01', 'trajo' => 20.0],
+            ['numero' => $numero($primera), 'fecha' => '2026-02-03', 'trajo' => 105.0],
+            ['numero' => $numero($reabierto), 'fecha' => '2026-02-10', 'trajo' => 25.0],
+        ], $sinTraspaso['datos']);
+
+        $conTraspaso = $this->aplicacion()->entradasDelPeriodo($pollo, '2026-02-01', '2026-02-28', $traspaso);
+        self::assertSame([$numero($primera), $numero($reabierto)], array_column($conTraspaso['datos'], 'numero'));
+    }
+
+    /**
      * Un albarán de proveedor guardado con una línea por elemento —producto, unidades y detalle—,
      * con el detalle que deja la preparación de una aplicación.
      *

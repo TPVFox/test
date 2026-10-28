@@ -381,4 +381,21 @@ test.describe('Reorganizar — aplicar una relación', () => {
       await expect(page.locator('#Row' + fila)).toBeVisible();
     }
   });
+
+  test('T19: por entradas, calcular reparte el mes entre los albaranes de entrada y preparar deja uno por entrada', async ({ page }) => {
+    await iniciarSesion(page, PANTALLA);
+    await page.locator('#porEntradasAplicacion').check();
+
+    await calcular(page, escenario);
+
+    const entradas = page.locator('#entradasAplicacion .entrada');
+    await expect(entradas).toHaveCount(2);
+    await expect(entradas.nth(0)).toContainText('03-02-2026');
+    await expect(entradas.nth(0)).toContainText('trajo 100 kg');
+    await expect(entradas.nth(0)).toContainText('entran 90 kg');
+    await expect(entradas.nth(1)).toContainText('17-02-2026');
+
+    await page.locator('#btnPrepararAplicacion').click();
+    await expect(page).toHaveURL(/mod_compras\/albaranesListado\.php/);
+  });
 });
