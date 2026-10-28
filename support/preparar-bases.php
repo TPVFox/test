@@ -28,8 +28,8 @@ const ESQUEMA = '/BD/BDtpv/tpvfox_V_0_4-2.84.sql';
 const POSTERIORES = ['/BD/Update/install_update_v0.4.4.54.sql', '/BD/Update/install_update_v0.4.4.55.sql'];
 
 /**
- * Datos de partida de una instalacion: IVA, formas de pago, vencimientos, cliente sin identificar,
- * tienda principal, administrador y su indice. El esquema de referencia ya no los trae. Son
+ * Datos de partida de una instalacion: IVA, formas de pago, vencimientos y cliente sin identificar.
+ * La tienda, el usuario y su indice los crea preparar-entorno.php. El esquema de referencia ya no los trae. Son
  * repetibles, como los posteriores, y se cargan tambien sobre una base que ya estaba cargada.
  */
 const DATOS_DE_PARTIDA = __DIR__ . '/datos-de-partida.sql';
