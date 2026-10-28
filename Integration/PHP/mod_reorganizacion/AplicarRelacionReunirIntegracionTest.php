@@ -284,6 +284,36 @@ final class AplicarRelacionReunirIntegracionTest extends CasoIntegracion
         self::assertSame($antes, $this->productosDelTemporal($idT));
     }
 
+    /**
+     * @comportamiento Una cadena en el mismo mes: guardado en el albarán del mes el despiece del que
+     *   sale el pollo, el despiece del pollo se calcula, se ofrece reunir con ese albarán y sus
+     *   líneas se le añaden.
+     */
+    public function test_T11_unaCadenaDelMismoMesSeCalculaYSeReuneEnSuAlbaran(): void
+    {
+        $canal = $this->siembra->articulo('Canal de la aplicación', ['iva' => 10]);
+        $deLaCanal = $this->escenario->relacionVigente($this->despiece, [
+            ['idArticulo' => $canal, 'sentido' => 'entrada', 'cantidad' => 1],
+            ['idArticulo' => $this->articulo['pollo'], 'sentido' => 'salida', 'cantidad' => 0.8],
+        ], ['fecha' => '2026-01-10 09:00:00']);
+        $idA = $this->siembra->entradaProveedor($canal, -12.5, '2026-02-28', ['idProveedor' => $this->especial, 'suNumero' => $this->numeroDelTipo]);
+        $this->siembra->lineaEntrada($idA, $this->articulo['pollo'], 10.0);
+        $etiqueta = $this->db->real_escape_string(' · REL ' . $deLaCanal['numRelacion'] . ' v1.0');
+        $this->db->query("UPDATE albprolinea SET cdetalle = CONCAT('Línea', '$etiqueta') WHERE idalbpro = $idA");
+        $sesion = $this->sesionCompleta();
+
+        $calculo = $this->despachar($this->peticion('calcularAplicacion'), $sesion);
+        self::assertTrue($calculo['ok'], json_encode($calculo['avisos'], JSON_UNESCAPED_UNICODE));
+        self::assertSame('amarillo', $calculo['datos']['aviso']['color']);
+        self::assertContains('albaran:' . $idA, array_column($calculo['datos']['destinos'] ?? [], 'destino'));
+
+        $preparado = $this->despachar($this->peticion('prepararAlbaranAplicacion', ['destino' => 'albaran:' . $idA]), $sesion);
+        self::assertTrue($preparado['ok'], json_encode($preparado['avisos'], JSON_UNESCAPED_UNICODE));
+        $fila = $this->db->query('SELECT * FROM albproltemporales WHERE id = ' . (int) $preparado['datos']['idTemporal'])->fetch_assoc();
+        self::assertSame($idA, (int) $fila['Numalbpro']);
+        self::assertCount(7, json_decode($fila['Productos'], true));
+    }
+
     private function otroEspecial(): int
     {
         return $this->proveedor('Otro despiece', 'Especial');

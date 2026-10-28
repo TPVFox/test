@@ -239,6 +239,156 @@ final class RelacionesAplicacionIntegracionTest extends CasoIntegracion
         }
     }
 
+    /**
+     * @comportamiento El producto que sale en la relación que cita el detalle de su línea es un
+     *   derivado de otra aplicación: en un albarán o un temporal del mismo proveedor en el periodo
+     *   sale amarillo, no rojo; de otro «Especial», o después del periodo, amarillo como hasta ahora.
+     */
+    public function test_T10_elDerivadoDeOtraAplicacionSaleAmarilloYNoBloquea(): void
+    {
+        $tipo = $this->escenario->tipoDeRelacion('Despiece del derivado', '1:N', 1);
+        $casos = [
+            'albarán en el periodo' => [$this->elegido, '2026-02-28', false],
+            'temporal en el periodo' => [$this->elegido, '2026-02-28', true],
+            'otro especial' => [$this->otroEspecial, '2026-02-15', false],
+            'después' => [$this->elegido, '2026-03-10', false],
+        ];
+
+        foreach ($casos as $caso => [$proveedor, $fecha, $esTemporal]) {
+            $origen = $this->siembra->articulo('Traseros del derivado: ' . $caso);
+            $derivado = $this->siembra->articulo('Muslo del derivado: ' . $caso);
+            $relacion = $this->escenario->relacionVigente($tipo, [['idArticulo' => $origen, 'sentido' => 'entrada'], ['idArticulo' => $derivado, 'sentido' => 'salida', 'cantidad' => 0.8]]);
+            $etiqueta = ' · REL ' . $relacion['numRelacion'] . ' v1.0';
+            $lineas = [[$origen, -10.0, 'Traseros' . $etiqueta], [$derivado, 8.0, 'Muslo' . $etiqueta]];
+            $esTemporal ? $this->temporalConDetalle($proveedor, $fecha, $lineas) : $this->albaranConDetalle($proveedor, $fecha, $lineas);
+
+            self::assertSame('amarillo', $this->aviso($derivado)['color'], $caso);
+        }
+    }
+
+    /** @comportamiento El producto que entra en la relación que cita su línea se aplicó: rojo. */
+    public function test_T11_elProductoAplicadoPorLaRelacionCitadaSaleRojo(): void
+    {
+        $tipo = $this->escenario->tipoDeRelacion('Despiece del aplicado', '1:N', 1);
+        $aplicado = $this->siembra->articulo('Muslo aplicado');
+        $pieza = $this->siembra->articulo('Jamoncito del aplicado');
+        $relacion = $this->escenario->relacionVigente($tipo, [['idArticulo' => $aplicado, 'sentido' => 'entrada'], ['idArticulo' => $pieza, 'sentido' => 'salida', 'cantidad' => 0.9]]);
+        $etiqueta = ' · REL ' . $relacion['numRelacion'] . ' v1.0';
+
+        $this->albaranConDetalle($this->elegido, '2026-02-28', [[$aplicado, -10.0, 'Muslo' . $etiqueta], [$pieza, 9.0, 'Jamoncito' . $etiqueta]]);
+
+        self::assertSame('rojo', $this->aviso($aplicado)['color']);
+    }
+
+    /**
+     * @comportamiento Una línea que no se puede atribuir a una aplicación cuenta como aplicada, sea
+     *   cual sea su signo: sin la relación en el detalle, con la etiqueta mal formada, con una
+     *   versión que no existe o con una relación que no lleva el producto. Del mismo proveedor en el
+     *   periodo, rojo.
+     */
+    public function test_T12_unaLineaQueNoSePuedeAtribuirCuentaComoAplicada(): void
+    {
+        $tipo = $this->escenario->tipoDeRelacion('Despiece ajeno', '1:N', 1);
+        $a = $this->siembra->articulo('Entrada ajena');
+        $b = $this->siembra->articulo('Salida ajena');
+        $ajena = $this->escenario->relacionVigente($tipo, [['idArticulo' => $a, 'sentido' => 'entrada'], ['idArticulo' => $b, 'sentido' => 'salida', 'cantidad' => 0.5]]);
+        $casos = [
+            'sin relación' => 'Muslo',
+            'mal formada' => 'Muslo · REL x vy',
+            'versión que no existe' => 'Muslo · REL ' . $ajena['numRelacion'] . ' v9.9',
+            'relación que no lo lleva' => 'Muslo · REL ' . $ajena['numRelacion'] . ' v1.0',
+        ];
+
+        foreach ($casos as $caso => $detalle) {
+            $producto = $this->siembra->articulo('Muslo sin atribuir: ' . $caso);
+            $this->albaranConDetalle($this->elegido, '2026-02-28', [[$producto, 8.0, $detalle]]);
+
+            self::assertSame('rojo', $this->aviso($producto)['color'], $caso);
+        }
+    }
+
+    /** @comportamiento Un albarán que lleva el producto aplicado y derivado sale rojo: basta una línea aplicada. */
+    public function test_T13_aplicadoYDerivadoEnElMismoAlbaranSaleRojo(): void
+    {
+        $tipo = $this->escenario->tipoDeRelacion('Despiece de la cadena', '1:N', 1);
+        $traseros = $this->siembra->articulo('Traseros de la cadena');
+        $muslo = $this->siembra->articulo('Muslo de la cadena');
+        $jamoncito = $this->siembra->articulo('Jamoncito de la cadena');
+        $primera = $this->escenario->relacionVigente($tipo, [['idArticulo' => $traseros, 'sentido' => 'entrada'], ['idArticulo' => $muslo, 'sentido' => 'salida', 'cantidad' => 0.8]]);
+        $segunda = $this->escenario->relacionVigente($tipo, [['idArticulo' => $muslo, 'sentido' => 'entrada'], ['idArticulo' => $jamoncito, 'sentido' => 'salida', 'cantidad' => 0.9]]);
+        $de = fn(array $r): string => ' · REL ' . $r['numRelacion'] . ' v1.0';
+
+        $this->albaranConDetalle($this->elegido, '2026-02-28', [
+            [$traseros, -10.0, 'Traseros' . $de($primera)], [$muslo, 8.0, 'Muslo' . $de($primera)],
+            [$muslo, -8.0, 'Muslo' . $de($segunda)], [$jamoncito, 7.2, 'Jamoncito' . $de($segunda)],
+        ]);
+
+        self::assertSame('rojo', $this->aviso($muslo)['color']);
+    }
+
+    /**
+     * @comportamiento El sentido se lee en la versión que cita la línea, aunque ya no rija: un
+     *   producto que salía en la 1.0 y que la 1.1 ya no lleva sigue siendo un derivado.
+     */
+    public function test_T14_elSentidoSeLeeEnLaVersionCitadaAunqueYaNoRija(): void
+    {
+        $tipo = $this->escenario->tipoDeRelacion('Despiece que cambió', '1:N', 1);
+        $origen = $this->siembra->articulo('Traseros que cambió');
+        $derivado = $this->siembra->articulo('Muslo que ya no sale');
+        $otra = $this->siembra->articulo('Contramuslo que sale ahora');
+        $relacion = $this->escenario->relacionVigente($tipo, [['idArticulo' => $origen, 'sentido' => 'entrada'], ['idArticulo' => $derivado, 'sentido' => 'salida', 'cantidad' => 0.8]], ['fecha' => '2026-01-10 09:00:00']);
+        $this->db->query("UPDATE relaciones SET estado = 'Sustituido' WHERE id = {$relacion['id']}");
+        $this->escenario->versionDeRelacion($relacion['numRelacion'], $tipo, '2.0', 'Activo', '2026-02-20 09:00:00', [['idArticulo' => $origen, 'sentido' => 'entrada'], ['idArticulo' => $otra, 'sentido' => 'salida', 'cantidad' => 0.8]]);
+
+        $this->albaranConDetalle($this->elegido, '2026-02-15', [[$origen, -10.0, 'Traseros · REL ' . $relacion['numRelacion'] . ' v1.0'], [$derivado, 8.0, 'Muslo · REL ' . $relacion['numRelacion'] . ' v1.0']]);
+
+        self::assertSame('amarillo', $this->aviso($derivado)['color']);
+    }
+
+    /**
+     * Un albarán de proveedor guardado con una línea por elemento —producto, unidades y detalle—,
+     * con el detalle que deja la preparación de una aplicación.
+     *
+     * @param list<array{0:int,1:float,2:string}> $lineas
+     */
+    private function albaranConDetalle(int $proveedor, string $fecha, array $lineas): int
+    {
+        [$primero, $unidades] = $lineas[0];
+        $albaran = $this->siembra->entradaProveedor($primero, $unidades, $fecha, ['idProveedor' => $proveedor]);
+        foreach (array_slice($lineas, 1) as [$producto, $cantidad]) {
+            $this->siembra->lineaEntrada($albaran, $producto, $cantidad);
+        }
+        $ids = $this->db->query("SELECT id FROM albprolinea WHERE idalbpro = $albaran ORDER BY nfila, id")->fetch_all(MYSQLI_NUM);
+        foreach ($lineas as $posicion => $linea) {
+            $detalle = $this->db->real_escape_string($linea[2]);
+            $this->db->query("UPDATE albprolinea SET cdetalle = '$detalle' WHERE id = {$ids[$posicion][0]}");
+        }
+
+        return $albaran;
+    }
+
+    /**
+     * Un albarán temporal de compras con una línea activa por elemento —producto, unidades y detalle—.
+     *
+     * @param list<array{0:int,1:float,2:string}> $lineas
+     */
+    private function temporalConDetalle(int $proveedor, string $fecha, array $lineas): int
+    {
+        $productos = [];
+        foreach ($lineas as $posicion => [$producto, $unidades, $detalle]) {
+            $productos[] = ['idArticulo' => $producto, 'cdetalle' => $detalle, 'cref' => '', 'ccodbar' => '', 'ref_prov' => '', 'estado' => 'Activo',
+                            'ncant' => $unidades, 'nunidades' => $unidades, 'ultimoCoste' => 1, 'importe' => $unidades, 'iva' => 10, 'nfila' => $posicion + 1];
+        }
+        $json = json_encode($productos);
+        $alta = $this->db->prepare("INSERT INTO albproltemporales (idUsuario, idTienda, estadoAlbPro, Fecha, idProveedor, Productos, Pedidos, Su_numero) VALUES (?, ?, 'Nuevo', ?, ?, ?, '[]', '')");
+        $usuario = $this->siembra->usuarioPorDefecto();
+        $tienda = $this->siembra->tiendaPorDefecto();
+        $alta->bind_param('iisis', $usuario, $tienda, $fecha, $proveedor, $json);
+        $alta->execute();
+
+        return (int) $this->db->insert_id;
+    }
+
     private function aplicacion(): \RelacionesAplicacion
     {
         return new \RelacionesAplicacion();

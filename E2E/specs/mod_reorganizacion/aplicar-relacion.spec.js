@@ -228,4 +228,18 @@ test.describe('Reorganizar — aplicar una relación', () => {
     await expect(page.locator('#escandalloAplicacion tbody tr.pieza')).toHaveCount(4);
     await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
   });
+
+  test('T11: el pollo como derivado de otra aplicación del mismo especial en febrero avisa en amarillo y deja preparar', async ({ page }) => {
+    execFileSync('php', [path.resolve(__dirname, '../../../support/preparar-e2e-aplicar-relacion-derivado.php'), 'vigente'], { stdio: 'pipe' });
+    await iniciarSesion(page, PANTALLA);
+
+    await calcular(page, escenario);
+
+    const amarillo = page.locator('#avisosAplicacion .alert-warning');
+    await expect(amarillo).toContainText('como derivado');
+    await expect(amarillo).toContainText(PREFIJO + 'Despiece del obrador');
+    await expect(page.locator('#avisosAplicacion .alert-danger')).toHaveCount(0);
+    await expect(page.locator('#escandalloAplicacion tbody tr.pieza')).toHaveCount(4);
+    await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
+  });
 });

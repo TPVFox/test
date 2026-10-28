@@ -466,6 +466,33 @@ final class AplicarRelacionIntegracionTest extends CasoIntegracion
         self::assertStringContainsString('de baja', $deBaja['avisos'][0]['mensaje']);
     }
 
+    /**
+     * @comportamiento Con el pollo solo como derivado de otra aplicación del mismo proveedor en el
+     *   periodo, el aviso sale amarillo, dice que lo lleva como derivado, y se calcula y se prepara,
+     *   también por petición directa.
+     */
+    public function test_T21_conElProductoComoDerivadoSeCalculaYSePrepara(): void
+    {
+        $canal = $this->siembra->articulo('Canal de la aplicación', ['iva' => 10]);
+        $deLaCanal = $this->escenario->relacionVigente($this->despiece, [
+            ['idArticulo' => $canal, 'sentido' => 'entrada', 'cantidad' => 1],
+            ['idArticulo' => $this->articulo['pollo'], 'sentido' => 'salida', 'cantidad' => 0.8],
+        ], ['fecha' => '2026-01-10 09:00:00']);
+        $albaran = $this->siembra->entradaProveedor($canal, -12.5, '2026-02-10', ['idProveedor' => $this->especial]);
+        $this->siembra->lineaEntrada($albaran, $this->articulo['pollo'], 10.0);
+        $etiqueta = $this->db->real_escape_string(' · REL ' . $deLaCanal['numRelacion'] . ' v1.0');
+        $this->db->query("UPDATE albprolinea SET cdetalle = CONCAT('Línea', '$etiqueta') WHERE idalbpro = $albaran");
+
+        $calculo = $this->despachar($this->peticion('calcularAplicacion'), $this->sesionCompleta());
+        self::assertTrue($calculo['ok'], json_encode($calculo['avisos'], JSON_UNESCAPED_UNICODE));
+        self::assertSame('amarillo', $calculo['datos']['aviso']['color']);
+        self::assertStringContainsString('como derivado', json_encode($calculo['avisos'], JSON_UNESCAPED_UNICODE));
+
+        $preparado = $this->despachar($this->peticion('prepararAlbaranAplicacion'), $this->sesionCompleta());
+        self::assertTrue($preparado['ok'], json_encode($preparado['avisos'], JSON_UNESCAPED_UNICODE));
+        self::assertSame(1, $this->temporalesDelEspecial());
+    }
+
     /** @return list<array{idArticulo:int,sentido:string,cantidad:float}> */
     private function lineasDelPollo(float $pechuga): array
     {
