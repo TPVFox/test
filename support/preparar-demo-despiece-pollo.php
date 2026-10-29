@@ -10,16 +10,18 @@
  * prueba se rehacen con cada pasada completa de la suite, así que hay que relanzarlo después.
  *
  * Las recetas, todas del tipo «[Demo pollo] Despiece», en kg de salida por kg de entrada; lo que falta
- * hasta 1 es merma:
- *   Pollo entero        → alas 0,11 · pechuga con hueso 0,40 · traseros 0,47
- *   Pechuga con hueso   → pechuga 0,72 · espinazo 0,26
- *   Traseros            → muslos 0,85
- *   Muslos              → jamoncitos 0,38 · contramuslos 0,61
+ * hasta 1 es merma. Los rendimientos son los que coinciden en la bibliografía sobre el pollo de engorde;
+ * la pechuga es filete sin piel, el muslo deshuesado lleva su piel y la picada va sin hueso ni piel,
+ * como exige la carne picada:
+ *   Pollo entero        → alas 0,12 · pechuga con hueso 0,41 · traseros 0,45
+ *   Pechuga con hueso   → pechuga 0,66 · espinazo 0,32
+ *   Traseros            → muslos 0,72 · rabadilla 0,26
+ *   Muslos              → jamoncitos 0,42 · contramuslos 0,57
  *   Muslos              → muslos deshuesados 0,70 (el hueso es merma)
- *   Pechuga             → picada 0,98
- *   Muslos deshuesados  → picada 0,97
- *   Jamoncitos          → picada 0,62 (el hueso es merma)
- *   Contramuslos        → picada 0,70 (el hueso es merma)
+ *   Pechuga             → picada 0,98 (lo que se pierde al picar, por medir)
+ *   Muslos deshuesados  → picada 0,82 (la piel es merma)
+ *   Jamoncitos          → picada 0,56 (el hueso y la piel son merma)
+ *   Contramuslos        → picada 0,59 (el hueso y la piel son merma)
  */
 
 declare(strict_types=1);
@@ -124,6 +126,7 @@ $costes = [
     'Alas' => [3.20, 3.40],
     'Pechuga con hueso' => [5.50, 5.70],
     'Traseros de pollo' => [3.00, 3.10],
+    'Rabadilla' => [0.55, 0.65],
     'Pechuga' => [8.50, 8.90],
     'Espinazo' => [0.60, 0.70],
     'Muslos' => [3.40, 3.60],
@@ -150,15 +153,15 @@ $receta = function (string $nombre, string $entra, array $salen) use ($relacione
     return $relaciones->relacionVigente($tipo, $lineas, ['nombre' => PREFIJO . $nombre, 'fecha' => '2026-01-10 09:00:00'])['numRelacion'];
 };
 $recetas = [
-    $receta('Despiece del pollo entero', 'Pollo entero', ['Alas' => 0.11, 'Pechuga con hueso' => 0.40, 'Traseros de pollo' => 0.47]),
-    $receta('Despiece de la pechuga con hueso', 'Pechuga con hueso', ['Pechuga' => 0.72, 'Espinazo' => 0.26]),
-    $receta('Despiece de los traseros', 'Traseros de pollo', ['Muslos' => 0.85]),
-    $receta('Despiece de los muslos', 'Muslos', ['Jamoncitos' => 0.38, 'Contramuslos' => 0.61]),
+    $receta('Despiece del pollo entero', 'Pollo entero', ['Alas' => 0.12, 'Pechuga con hueso' => 0.41, 'Traseros de pollo' => 0.45]),
+    $receta('Despiece de la pechuga con hueso', 'Pechuga con hueso', ['Pechuga' => 0.66, 'Espinazo' => 0.32]),
+    $receta('Despiece de los traseros', 'Traseros de pollo', ['Muslos' => 0.72, 'Rabadilla' => 0.26]),
+    $receta('Despiece de los muslos', 'Muslos', ['Jamoncitos' => 0.42, 'Contramuslos' => 0.57]),
     $receta('Deshuesado de los muslos', 'Muslos', ['Muslos deshuesados' => 0.70]),
     $receta('Picada de pechuga', 'Pechuga', ['Picada de pollo' => 0.98]),
-    $receta('Picada de muslo deshuesado', 'Muslos deshuesados', ['Picada de pollo' => 0.97]),
-    $receta('Picada de jamoncito', 'Jamoncitos', ['Picada de pollo' => 0.62]),
-    $receta('Picada de contramuslo', 'Contramuslos', ['Picada de pollo' => 0.70]),
+    $receta('Picada de muslo deshuesado', 'Muslos deshuesados', ['Picada de pollo' => 0.82]),
+    $receta('Picada de jamoncito', 'Jamoncitos', ['Picada de pollo' => 0.56]),
+    $receta('Picada de contramuslo', 'Contramuslos', ['Picada de pollo' => 0.59]),
 ];
 
 // La pila de albaranes de pollo entero, de las dos granjas, en febrero y marzo.
@@ -182,4 +185,4 @@ foreach ($ventas as [$nombre, $kg, $fecha]) {
 }
 
 echo json_encode(['obrador' => $obrador, 'granjaNorte' => $granjaNorte, 'granjaSur' => $granjaSur, 'recetas' => $recetas], JSON_UNESCAPED_UNICODE) . "\n";
-echo "Sembrado el despiece del pollo de ejemplo: 11 productos, 9 recetas, 8 albaranes de pollo entero y 8 ventas.\n";
+echo "Sembrado el despiece del pollo de ejemplo: 12 productos, 9 recetas, 8 albaranes de pollo entero y 8 ventas.\n";
