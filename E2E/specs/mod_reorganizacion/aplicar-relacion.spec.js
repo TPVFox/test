@@ -350,9 +350,10 @@ test.describe('Reorganizar — aplicar una relación', () => {
     await expect(page.locator('#cantidadAplicacion')).toHaveValue('130');
     const rama = page.locator('#arbolAplicacion .rama[data-num="' + numPicada + '"]');
     await expect(rama.locator('input.cantidadHermana')).toHaveValue('50');
-    await expect(rama.locator('tr.pieza')).toHaveCount(1);
-    await expect(rama.locator('tr.pieza').first()).toContainText(PREFIJO + 'Picada');
-    await expect(rama.locator('tr.pieza').first()).toContainText('49');
+    const escandallo = page.locator('#escandallosDeLasRecetas .escandalloReceta[data-num="' + numPicada + '"]');
+    await expect(escandallo.locator('tr.pieza')).toHaveCount(1);
+    await expect(escandallo.locator('tr.pieza').first()).toContainText(PREFIJO + 'Picada');
+    await expect(escandallo.locator('tr.pieza').first()).toContainText('49');
     await expect(page.locator('#arbolAplicacion .raiz')).toContainText('Sin aplicar: 0 kg');
 
     await page.locator('#btnPrepararAplicacion').click();
@@ -386,8 +387,8 @@ test.describe('Reorganizar — aplicar una relación', () => {
 
     const rama = page.locator('#arbolAplicacion .rama[data-num="' + numDeshuesado + '"]');
     await expect(rama.locator('input.cantidadHermana')).toHaveValue('63');
-    await expect(rama.locator('tr.pieza')).toHaveCount(2);
-    await expect(page.locator('#arbolAplicacion .derivado')).toContainText('genera 63 kg');
+    await expect(page.locator('#escandallosDeLasRecetas .escandalloReceta[data-num="' + numDeshuesado + '"] tr.pieza')).toHaveCount(2);
+    await expect(page.locator('#arbolAplicacion .derivado')).toContainText('Genera 63 kg');
 
     await page.locator('#btnPrepararAplicacion').click();
     await expect(page).toHaveURL(/mod_compras\/albaran\.php\?tActual=\d+/);
@@ -444,9 +445,9 @@ test.describe('Reorganizar — aplicar una relación', () => {
       await page.locator('#hermanasAplicacion [data-num="' + num + '"] button').click();
     }
 
-    const filas = page.locator('#arbolAplicacion > div');
+    const filas = page.locator('#arbolAplicacion tbody tr');
     await expect(filas).toHaveCount(13);
-    const arbol = await filas.evaluateAll((divs) => divs.map((div) => div.getAttribute('data-nivel') + ' ' + div.querySelector('.nombre').textContent));
+    const arbol = await filas.evaluateAll((trs) => trs.map((tr) => tr.getAttribute('data-nivel') + ' ' + tr.querySelector('.nombre').textContent));
     expect(arbol.map((fila) => fila.replace(PREFIJO, ''))).toEqual([
       '0 Pollo entero',
       '1 Despiece del pollo',
@@ -466,6 +467,8 @@ test.describe('Reorganizar — aplicar una relación', () => {
     await calcular(page, escenario);
     const deshuesado = page.locator('#arbolAplicacion .rama[data-num="' + numDeshuesado + '"]');
     await expect(deshuesado.locator('input.cantidadHermana')).toHaveValue('63');
-    await expect(page.locator('#arbolAplicacion .producto', { hasText: PREFIJO + 'Muslo deshuesado' }).locator('.derivado')).toContainText('genera 44,1 kg');
+    await expect(page.locator('#arbolAplicacion .producto', { hasText: PREFIJO + 'Muslo deshuesado' }).locator('.derivado')).toContainText('Genera 44,1 kg');
+    await expect(page.locator('#arbolAplicacion .rama input.cantidadHermana')).toHaveCount(3);
+    await expect(page.locator('#arbolAplicacion tr.pieza')).toHaveCount(0);
   });
 });
