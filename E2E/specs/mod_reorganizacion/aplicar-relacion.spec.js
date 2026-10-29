@@ -169,9 +169,11 @@ test.describe('Reorganizar — aplicar una relación', () => {
 
   test('T9: el ajuste es un deslizador cuyas dos partes suman 2, y el proveedor de traspaso solo se ve en diciembre y enero', async ({ page }) => {
     await iniciarSesion(page, PANTALLA);
-    await page.locator('#numRelacionAplicacion').selectOption(String(escenario.numRelacion));
+    await calcular(page, escenario);
     const peso = page.locator('#ajustePesoAplicacion');
     await expect(peso).toHaveAttribute('type', 'range');
+    await expect(page.locator('#ajusteAplicacion')).toContainText('Por valor de mercado');
+    await expect(page.locator('#ajusteAplicacion')).toContainText('Por kilos');
     await expect(page.locator('#ajustePesoTexto')).toHaveText('1,00');
     await expect(page.locator('#ajusteValorTexto')).toHaveText('1,00');
     for (const [valor, textoPeso, textoValor] of [['1.3', '1,30', '0,70'], ['0', '0,00', '2,00'], ['2', '2,00', '0,00']]) {
@@ -201,16 +203,19 @@ test.describe('Reorganizar — aplicar una relación', () => {
 
     await page.locator('#tipoPeriodoAplicacion').selectOption('mes');
     await periodo.selectOption('2026-02');
-    await peso.fill('1.3');
     await page.locator('#idProveedorAplicacion').selectOption(String(escenario.especial));
     await page.locator('#btnCalcularAplicacion').click();
     await expect(page.locator('#avisosAplicacion .alert-success')).toBeVisible();
     await expect(page.locator('#escandalloAplicacion tbody tr.pieza')).toHaveCount(4);
 
-    // Lo calculado deja de valer en cuanto cambia cualquier dato elegido.
+    // Cambiar el ajuste deja lo calculado a la vista, pero no deja preparar hasta calcular de nuevo.
     await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
+    await peso.fill('1.3');
+    await expect(page.locator('#escandalloAplicacion tbody tr.pieza')).toHaveCount(4);
+    await expect(page.locator('#btnPrepararAplicacion')).toBeDisabled();
+
+    // Lo calculado deja de valer en cuanto cambia cualquier dato elegido.
     for (const cambio of [
-      () => peso.fill('1.1'),
       () => page.locator('#idProveedorAplicacion').selectOption(String(escenario.otroEspecial)),
       () => periodo.selectOption('2026-01'),
     ]) {
@@ -354,6 +359,7 @@ test.describe('Reorganizar — aplicar una relación', () => {
     await expect(escandallo.locator('tr.pieza')).toHaveCount(1);
     await expect(escandallo.locator('tr.pieza').first()).toContainText(PREFIJO + 'Picada');
     await expect(escandallo.locator('tr.pieza').first()).toContainText('49');
+    await expect(escandallo.locator('input[type="range"]')).toHaveCount(0);
     await expect(page.locator('#arbolAplicacion .raiz')).toContainText('Sin aplicar: 0 kg');
 
     await page.locator('#btnPrepararAplicacion').click();
@@ -470,5 +476,27 @@ test.describe('Reorganizar — aplicar una relación', () => {
     await expect(page.locator('#arbolAplicacion .producto', { hasText: PREFIJO + 'Muslo deshuesado' }).locator('.derivado')).toContainText('Genera 44,1 kg');
     await expect(page.locator('#arbolAplicacion .rama input.cantidadHermana')).toHaveCount(3);
     await expect(page.locator('#arbolAplicacion tr.pieza')).toHaveCount(0);
+  });
+
+  test('T22: cada escandallo lleva sus datos de la operación y, con dos piezas o más, su ajuste, el margen de cada pieza y la que cuesta más que su precio', async ({ page }) => {
+    await iniciarSesion(page, PANTALLA);
+    await calcular(page, escenario);
+
+    const principal = page.locator('#escandalloPrincipalAplicacion');
+    await expect(principal).toContainText('Datos de la operación');
+    await expect(principal).toContainText('Disponible: 180 kg');
+    await expect(principal.locator('#ajustePesoAplicacion')).toBeVisible();
+    await expect(page.locator('#arbolAplicacion input[type="range"]')).toHaveCount(0);
+    await expect(principal.locator('#avisoDelAjusteAplicacion')).toContainText(PREFIJO + 'Carcasa');
+    const carcasa = page.locator('#escandalloAplicacion tbody tr.pieza', { hasText: PREFIJO + 'Carcasa' });
+    await expect(carcasa.locator('td.margen')).toHaveClass(/text-danger/);
+
+    await page.locator('#ajustePesoAplicacion').fill('0');
+    await expect(page.locator('#btnPrepararAplicacion')).toBeDisabled();
+    await calcularDeNuevo(page);
+
+    await expect(principal.locator('#avisoDelAjusteAplicacion')).toBeEmpty();
+    await expect(carcasa.locator('td.margen')).not.toHaveClass(/text-danger/);
+    await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
   });
 });
