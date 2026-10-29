@@ -1,7 +1,7 @@
 /**
  * Aplicar una relación desde «Reorganizar»: se elige un proveedor especial, un despiece que rige,
- * un periodo y, si se quiere, la cantidad que entra en la receta; la pantalla dice cuánto hay
- * disponible, el coste de partida y qué albaranes de proveedores especiales llevan ya el producto,
+ * y un periodo; al calcular, la pantalla dice cuánto hay disponible —la cantidad que entra en la receta
+ * se cambia en el resultado y se vuelve a calcular—, el coste de partida y qué albaranes de proveedores especiales llevan ya el producto,
  * y enseña el escandallo. «Preparar albarán» deja un albarán temporal
  * de compras, que se revisa y se guarda en la pantalla de albaranes de siempre.
  *
@@ -29,6 +29,12 @@ async function calcular(page, escenario, periodo = { tipo: 'mes', valor: '2026-0
   await page.locator('#numRelacionAplicacion').selectOption(String(escenario.numRelacion));
   await page.locator('#tipoPeriodoAplicacion').selectOption(periodo.tipo);
   await page.locator('#periodoAplicacion').selectOption(periodo.valor);
+  await page.locator('#btnCalcularAplicacion').click();
+  await expect(page.locator('#avisosAplicacion .alert').first()).toBeVisible();
+}
+
+/** Vuelve a pulsar «Calcular», con lo escrito en el resultado. */
+async function calcularDeNuevo(page) {
   await page.locator('#btnCalcularAplicacion').click();
   await expect(page.locator('#avisosAplicacion .alert').first()).toBeVisible();
 }
@@ -248,35 +254,40 @@ test.describe('Reorganizar — aplicar una relación', () => {
 
   test('T12: una cantidad escrita entra en la receta, y el escandallo sale de ella', async ({ page }) => {
     await iniciarSesion(page, PANTALLA);
+    await calcular(page, escenario);
     await page.locator('#cantidadAplicacion').fill('100');
 
-    await calcular(page, escenario);
+    await calcularDeNuevo(page);
 
     const datos = page.locator('#datosAplicacion');
-    await expect(datos).toContainText('Disponible: 180 kg');
-    await expect(datos).toContainText('Entra en la receta: 100 kg');
     await expect(datos).toContainText('Despiezado: 96 kg');
+    await expect(datos).toContainText('Disponible: 180 kg');
+    await expect(page.locator('#cantidadAplicacion')).toHaveValue('100');
     await expect(page.locator('#escandalloAplicacion tbody tr.pieza').nth(0)).toContainText('25');
     await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
   });
 
   test('T13: una cantidad mayor que lo disponible se avisa, sin escandallo y sin poder preparar', async ({ page }) => {
     await iniciarSesion(page, PANTALLA);
+    await calcular(page, escenario);
     await page.locator('#cantidadAplicacion').fill('181');
 
-    await calcular(page, escenario);
+    await calcularDeNuevo(page);
 
-    await expect(page.locator('#avisosAplicacion .alert-warning')).toContainText('disponible');
     await expect(page.locator('#escandalloAplicacion tbody tr.pieza')).toHaveCount(0);
+    await expect(page.locator('#avisosAplicacion .alert-warning')).toContainText('disponible');
     await expect(page.locator('#btnPrepararAplicacion')).toBeDisabled();
+    await expect(page.locator('#cantidadAplicacion')).toHaveValue('181');
   });
 
   test('T14: preparada una parte, la segunda aplicación del mes ve lo que queda y nombra el temporal como aplicado', async ({ page }) => {
     // Dos cálculos y la apertura de compras: con el equipo cargado pasa de los 30 s por defecto.
     test.setTimeout(60000);
     await iniciarSesion(page, PANTALLA);
-    await page.locator('#cantidadAplicacion').fill('100');
     await calcular(page, escenario);
+    await page.locator('#cantidadAplicacion').fill('100');
+    await calcularDeNuevo(page);
+    await expect(page.locator('#datosAplicacion')).toContainText('Despiezado: 96 kg');
     await page.locator('#btnPrepararAplicacion').click();
     await expect(page).toHaveURL(/mod_compras\/albaran\.php\?tActual=\d+/);
 
@@ -293,10 +304,12 @@ test.describe('Reorganizar — aplicar una relación', () => {
   test('T15: una pieza que queda en negativo se avisa con el mínimo de la receta, y se puede preparar', async ({ page }) => {
     execFileSync('php', [path.resolve(__dirname, '../../../support/preparar-e2e-aplicar-relacion-desajuste.php'), 'vigente'], { stdio: 'pipe' });
     await iniciarSesion(page, PANTALLA);
+    await calcular(page, escenario);
     await page.locator('#cantidadAplicacion').fill('100');
 
-    await calcular(page, escenario);
+    await calcularDeNuevo(page);
 
+    await expect(page.locator('#datosAplicacion')).toContainText('Despiezado: 96 kg');
     const amarillo = page.locator('#avisosAplicacion .alert-warning');
     await expect(amarillo).toContainText(PREFIJO + 'Pechuga');
     await expect(amarillo).toContainText('160');
@@ -317,7 +330,7 @@ test.describe('Reorganizar — aplicar una relación', () => {
     await expect(enLaLista).toContainText('añadida');
     const rama = page.locator('#arbolAplicacion .rama[data-num="' + numPicada + '"]');
     await expect(rama).toContainText(PREFIJO + 'Pollo para picada');
-    await expect(rama.locator('input.cantidadHermana')).toBeVisible();
+    await expect(rama.locator('input.cantidadHermana')).toHaveCount(0);
 
     await rama.locator('button', { hasText: 'Quitar' }).click();
     await expect(rama).toHaveCount(0);
@@ -329,13 +342,14 @@ test.describe('Reorganizar — aplicar una relación', () => {
     await iniciarSesion(page, PANTALLA);
     await page.locator('#numRelacionAplicacion').selectOption(String(escenario.numRelacion));
     await page.locator('#hermanasAplicacion [data-num="' + numPicada + '"] button').click();
+    await calcular(page, escenario);
     await page.locator('#arbolAplicacion .rama[data-num="' + numPicada + '"] input.cantidadHermana').fill('50');
 
-    await calcular(page, escenario);
+    await calcularDeNuevo(page);
 
-    await expect(page.locator('#datosAplicacion')).toContainText('Entra en la receta: 130 kg');
+    await expect(page.locator('#cantidadAplicacion')).toHaveValue('130');
     const rama = page.locator('#arbolAplicacion .rama[data-num="' + numPicada + '"]');
-    await expect(rama).toContainText('Entran 50 kg');
+    await expect(rama.locator('input.cantidadHermana')).toHaveValue('50');
     await expect(rama.locator('tr.pieza')).toHaveCount(1);
     await expect(rama.locator('tr.pieza').first()).toContainText(PREFIJO + 'Picada');
     await expect(rama.locator('tr.pieza').first()).toContainText('49');
@@ -371,7 +385,7 @@ test.describe('Reorganizar — aplicar una relación', () => {
     await calcular(page, escenario);
 
     const rama = page.locator('#arbolAplicacion .rama[data-num="' + numDeshuesado + '"]');
-    await expect(rama).toContainText('Entran 63 kg');
+    await expect(rama.locator('input.cantidadHermana')).toHaveValue('63');
     await expect(rama.locator('tr.pieza')).toHaveCount(2);
     await expect(page.locator('#arbolAplicacion .derivado')).toContainText('genera 63 kg');
 
@@ -397,5 +411,61 @@ test.describe('Reorganizar — aplicar una relación', () => {
 
     await page.locator('#btnPrepararAplicacion').click();
     await expect(page).toHaveURL(/mod_compras\/albaranesListado\.php/);
+  });
+
+  test('T20: la cantidad se escribe en el resultado: sin calcular no hay campo; cambiada, no deja preparar hasta calcular de nuevo; otro periodo la olvida', async ({ page }) => {
+    await iniciarSesion(page, PANTALLA);
+    const cantidad = page.locator('#cantidadAplicacion');
+    await expect(cantidad).toHaveCount(0);
+
+    await calcular(page, escenario);
+    await expect(cantidad).toHaveValue('180');
+    await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
+
+    await cantidad.fill('100');
+    await expect(page.locator('#btnPrepararAplicacion')).toBeDisabled();
+    await expect(page.locator('#datosAplicacion')).toContainText('Despiezado: 172,8 kg');
+    await calcularDeNuevo(page);
+    await expect(page.locator('#datosAplicacion')).toContainText('Despiezado: 96 kg');
+    await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
+
+    await page.locator('#tipoPeriodoAplicacion').selectOption('lote');
+    await expect(cantidad).toHaveCount(0);
+    await calcular(page, escenario);
+    await expect(cantidad).toHaveValue('180');
+  });
+
+  test('T21: el árbol alterna productos y recetas, y cada receta cuelga del producto del que sale aunque se añada en otro orden', async ({ page }) => {
+    const { numPicada } = JSON.parse(execFileSync('php', [path.resolve(__dirname, '../../../support/preparar-e2e-aplicar-relacion-hermanas.php'), 'vigente'], { stdio: 'pipe' }).toString());
+    const { numDeshuesado, numFileteado } = JSON.parse(execFileSync('php', [path.resolve(__dirname, '../../../support/preparar-e2e-aplicar-relacion-cadena.php'), 'vigente'], { stdio: 'pipe' }).toString());
+    await iniciarSesion(page, PANTALLA);
+    await page.locator('#numRelacionAplicacion').selectOption(String(escenario.numRelacion));
+    for (const num of [numDeshuesado, numPicada, numFileteado]) {
+      await page.locator('#hermanasAplicacion [data-num="' + num + '"] button').click();
+    }
+
+    const filas = page.locator('#arbolAplicacion > div');
+    await expect(filas).toHaveCount(13);
+    const arbol = await filas.evaluateAll((divs) => divs.map((div) => div.getAttribute('data-nivel') + ' ' + div.querySelector('.nombre').textContent));
+    expect(arbol.map((fila) => fila.replace(PREFIJO, ''))).toEqual([
+      '0 Pollo entero',
+      '1 Despiece del pollo',
+      '2 Pechuga',
+      '2 Muslo',
+      '3 Deshuesado del muslo',
+      '4 Muslo deshuesado',
+      '5 Fileteado',
+      '6 Filete',
+      '4 Hueso',
+      '2 Alas',
+      '2 Carcasa',
+      '1 Pollo para picada',
+      '2 Picada',
+    ]);
+
+    await calcular(page, escenario);
+    const deshuesado = page.locator('#arbolAplicacion .rama[data-num="' + numDeshuesado + '"]');
+    await expect(deshuesado.locator('input.cantidadHermana')).toHaveValue('63');
+    await expect(page.locator('#arbolAplicacion .producto', { hasText: PREFIJO + 'Muslo deshuesado' }).locator('.derivado')).toContainText('genera 44,1 kg');
   });
 });

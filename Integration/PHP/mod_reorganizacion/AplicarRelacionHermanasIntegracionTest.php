@@ -234,6 +234,23 @@ final class AplicarRelacionHermanasIntegracionTest extends CasoIntegracion
         self::assertFalse($this->despachar(['pulsado' => 'hermanasAplicacion', 'numRelacion' => '1 OR 1=1'], $this->sesionCompleta())['ok']);
     }
 
+    /** @comportamiento La lista lleva el nombre de los productos que salen de cada receta, y la elegida con los suyos, para pintar el árbol. */
+    public function test_T7_laListaLlevaLosProductosQueSalenYLaElegida(): void
+    {
+        $lista = $this->despachar(['pulsado' => 'hermanasAplicacion', 'numRelacion' => (string) $this->numRelacion], $this->sesionCompleta());
+
+        self::assertTrue($lista['ok'], json_encode($lista['avisos'], JSON_UNESCAPED_UNICODE));
+        self::assertSame([
+            ['idArticulo' => $this->articulo['picada'], 'articulo' => 'Picada de las hermanas'],
+            ['idArticulo' => $this->articulo['muslo'], 'articulo' => 'Muslo de las hermanas'],
+        ], $lista['datos'][0]['piezas']);
+        self::assertSame($this->numRelacion, $lista['elegida']['numRelacion']);
+        self::assertSame($this->articulo['pollo'], $lista['elegida']['idEntrada']);
+        self::assertSame('Pollo entero de las hermanas', $lista['elegida']['entrada']);
+        self::assertSame(['Pechuga de las hermanas', 'Muslo de las hermanas', 'Alas de las hermanas', 'Carcasa de las hermanas'],
+            array_column($lista['elegida']['piezas'], 'articulo'));
+    }
+
     /** La petición de la pantalla: febrero de 2026, el despiece del pollo, sin precios escritos, con el ajuste por defecto, sin cantidad ni hermanas. */
     private function peticion(string $pulsado, array $cambios = []): array
     {
