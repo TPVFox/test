@@ -526,6 +526,31 @@ final class RelacionesAplicacionTest extends TestCase
         self::assertSame([50.0], $aplicacion->repartoEntreEntradas(50.0, [100.0], 'kg'));
     }
 
+    /**
+     * @comportamiento Una pieza sin precio de mercado, con el ajuste que usa el valor, rechaza el
+     *   escandallo nombrando las que faltan, pero deja todas las piezas con sus kg y la que falta con
+     *   el precio vacío, para escribirlo. Todo por peso no lo pide.
+     */
+    public function test_T29_unaPiezaSinPrecioDejaSusPiezasConElPrecioVacio(): void
+    {
+        $version = $this->despiece(1, [[2, 0.5], [3, 0.3], [4, 0.1]]);
+        $aplicacion = $this->aplicacion();
+
+        $sinPrecio = $aplicacion->escandallo($version, 100, 2, [], [2 => 4.0, 3 => null, 4 => null], 1.0, 1.0);
+
+        self::assertArrayHasKey('error', $sinPrecio);
+        self::assertStringContainsString('Artículo 3', $sinPrecio['error']['mensaje']);
+        self::assertStringContainsString('Artículo 4', $sinPrecio['error']['mensaje']);
+        $piezas = $sinPrecio['piezasSinPrecio'];
+        self::assertSame([2, 3, 4], array_column($piezas, 'idArticulo'));
+        self::assertSame([50.0, 30.0, 10.0], array_column($piezas, 'cantidad'));
+        self::assertSame([4.0, null, null], array_column($piezas, 'precio'));
+        self::assertSame(['media', 'falta', 'falta'], array_column($piezas, 'origenPrecio'));
+
+        self::assertArrayHasKey('datos', $aplicacion->escandallo($version, 100, 2, [], [2 => 4.0, 3 => null, 4 => null], 2.0, 0.0));
+        self::assertArrayHasKey('datos', $aplicacion->escandallo($version, 100, 2, [3 => '3', 4 => '1,5'], [2 => 4.0, 3 => null, 4 => null], 1.0, 1.0));
+    }
+
     private function aplicacion(): \RelacionesAplicacion
     {
         global $RutaServidor, $HostNombre, $URLCom;

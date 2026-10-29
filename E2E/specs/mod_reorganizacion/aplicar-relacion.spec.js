@@ -499,4 +499,25 @@ test.describe('Reorganizar — aplicar una relación', () => {
     await expect(carcasa.locator('td.margen')).not.toHaveClass(/text-danger/);
     await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
   });
+
+  test('T23: una pieza sin precio de mercado sale en su escandallo con el precio vacío; escrito, se calcula y se prepara', async ({ page }) => {
+    execFileSync('php', [path.resolve(__dirname, '../../../support/preparar-e2e-aplicar-relacion-sin-precio.php'), 'vigente'], { stdio: 'pipe' });
+    await iniciarSesion(page, PANTALLA);
+
+    await calcular(page, escenario);
+
+    await expect(page.locator('#avisosAplicacion .alert-warning')).toContainText(PREFIJO + 'Alas');
+    const alas = page.locator('#escandalloAplicacion tbody tr.pieza', { hasText: PREFIJO + 'Alas' });
+    await expect(alas.locator('input.precio')).toHaveValue('');
+    await expect(alas.locator('td.precioQueFalta')).toHaveCount(1);
+    await expect(page.locator('#escandalloAplicacion tbody tr.pieza')).toHaveCount(4);
+    await expect(page.locator('#btnPrepararAplicacion')).toBeDisabled();
+
+    await alas.locator('input.precio').fill('2,5');
+    await alas.locator('input.precio').dispatchEvent('change');
+    await calcularDeNuevo(page);
+
+    await expect(page.locator('#escandalloAplicacion tbody tr.pieza', { hasText: PREFIJO + 'Alas' })).toContainText('escrito');
+    await expect(page.locator('#btnPrepararAplicacion')).toBeEnabled();
+  });
 });

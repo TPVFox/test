@@ -602,6 +602,30 @@ final class RelacionesAplicacionIntegracionTest extends CasoIntegracion
     }
 
     /**
+     * @comportamiento El precio de mercado es la media de los costes de todos los proveedores de la
+     *   pieza que no son «Especial», sea cual sea el estado de su fila: la ficha del producto escribe
+     *   «Tarifa» y compras «activo».
+     */
+    public function test_T25_elPrecioDeMercadoCuentaLosCostesDeLaFicha(): void
+    {
+        $deCompras = $this->proveedor('Granja de compras', 'Activo');
+        $deLaFicha = $this->proveedor('Granja de la ficha', 'Activo');
+        $jamoncito = $this->siembra->articulo('Jamoncito de la prueba');
+        $this->siembra->articuloProveedor($jamoncito, $deCompras, 3.0, ['estado' => 'activo']);
+        $this->siembra->articuloProveedor($jamoncito, $deLaFicha, 6.0, ['estado' => 'Tarifa']);
+        $this->siembra->articuloProveedor($jamoncito, $this->habitual, 5.0, ['estado' => 'Activo']);
+        $this->siembra->articuloProveedor($jamoncito, $this->elegido, 99.0, ['estado' => 'activo']);
+        $soloDeLaFicha = $this->siembra->articulo('Contramuslo de la prueba');
+        $this->siembra->articuloProveedor($soloDeLaFicha, $deLaFicha, 4.2, ['estado' => 'Tarifa']);
+
+        $medias = $this->aplicacion()->preciosDeMercado([$jamoncito, $soloDeLaFicha]);
+
+        self::assertArrayHasKey('datos', $medias, json_encode($medias['error'] ?? null, JSON_UNESCAPED_UNICODE));
+        self::assertEqualsWithDelta(14.0 / 3, $medias['datos'][$jamoncito], 0.00001);
+        self::assertEqualsWithDelta(4.2, $medias['datos'][$soloDeLaFicha], 0.00001);
+    }
+
+    /**
      * Un albarán de proveedor guardado con una línea por elemento —producto, unidades y detalle—,
      * con el detalle que deja la preparación de una aplicación.
      *
